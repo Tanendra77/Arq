@@ -87,6 +87,7 @@ describe("useShortcuts", () => {
     const store = createEditorStore(emptyDocument());
     const p = createFakePlatform();
     p.nextOpen = { path: "C:/fake/other.arq", text: serializeDocument(emptyDocument("Loaded")) };
+    store.getState().setNotice(["stale"]);
     render(<EditorStoreProvider store={store} platform={p}><Host /></EditorStoreProvider>);
 
     fireEvent.keyDown(window, { key: "o", ctrlKey: true });

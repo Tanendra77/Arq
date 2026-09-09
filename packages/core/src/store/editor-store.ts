@@ -69,8 +69,9 @@ export interface EditorState {
   savedEntry: HistoryEntry | null;
   /**
    * View state (never serialized): the lines of the message the toolbar shows, or `null` when
-   * there is nothing to report. `loadDocument` deliberately leaves it alone so a notice raised
-   * by a failed command survives whatever the user does next until they dismiss it.
+   * there is nothing to report. A notice raised by a failed command survives whatever the user
+   * does next until they dismiss it, except that `loadDocument` clears it: a successful open or
+   * a new document starts from a clean slate rather than carrying a stale banner over.
    */
   notice: string[] | null;
 
@@ -138,6 +139,7 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         past: [],
         future: [],
         savedEntry: null,
+        notice: null,
       });
     },
 

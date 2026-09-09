@@ -53,11 +53,13 @@ describe("file commands", () => {
     expect(store.getState().filePath).toBe("C:/fake/untitled.arq");
   });
 
-  it("newDocument resets to an empty untitled document", () => {
+  it("newDocument resets to an empty untitled document and clears a stale notice", () => {
     const store = createEditorStore(emptyDocument("Old"));
+    store.getState().setNotice(["stale"]);
     newDocument(store);
     expect(store.getState().document.title).toBe("Untitled");
     expect(store.getState().filePath).toBeNull();
+    expect(store.getState().notice).toBeNull();
   });
 
   it("confirmDiscard only prompts when dirty", () => {

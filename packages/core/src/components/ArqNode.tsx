@@ -1,14 +1,15 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { METRICS, nodeHeight, wrapLabel } from "@arq/render";
 import type { ArqFlowNode } from "../flow/to-flow";
 
-export const NODE_SIZE = { w: 120, h: 96 } as const;
-
 function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
+  // Size the DOM box from the shared metrics table so the canvas box is the one the exporter draws.
+  const h = nodeHeight(data.label);
   return (
     <div
       className={`arq-node${selected === true ? " selected" : ""}`}
-      style={{ width: NODE_SIZE.w }}
+      style={{ width: METRICS.nodeWidth, height: h, boxSizing: "border-box" }}
       data-node-type={data.nodeType}
     >
       <Handle type="target" position={Position.Left} />
@@ -21,7 +22,11 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
           {data.iconId}
         </div>
       )}
-      <div className="arq-node-label">{data.label}</div>
+      <div className="arq-node-label">
+        {wrapLabel(data.label).map((line, i) => (
+          <div key={i}>{line}</div>
+        ))}
+      </div>
       <div className="arq-node-badge">{data.nodeType}</div>
     </div>
   );

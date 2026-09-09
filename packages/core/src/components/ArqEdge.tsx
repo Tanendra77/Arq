@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, EdgeLabelRenderer, type EdgeProps } from "@xyflow/react";
+import { edgePath } from "@arq/render";
 import type { ArqFlowEdge } from "../flow/to-flow";
 import { EDGE_STYLE } from "../flow/default-edge-kind";
 
@@ -9,24 +10,15 @@ function ArqEdgeImpl({
   sourceY,
   targetX,
   targetY,
-  sourcePosition,
-  targetPosition,
   data,
   selected,
 }: EdgeProps<ArqFlowEdge>) {
   const kind = data?.kind ?? "generic";
   const style = EDGE_STYLE[kind];
-  // Task 11 swaps this for `edgePath` from @arq/render so the canvas and the SVG export
-  // agree on geometry; until the metrics table exists React Flow's own router is used.
-  const [d, labelX, labelY] = getSmoothStepPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    borderRadius: 8,
-  });
+  // The shared router from @arq/render, so the canvas and the SVG export draw the same path.
+  const { d, mid } = edgePath({ x: sourceX, y: sourceY }, { x: targetX, y: targetY });
+  const labelX = mid.x;
+  const labelY = mid.y;
   return (
     <>
       <BaseEdge

@@ -7,6 +7,6 @@ class RO { observe() {} unobserve() {} disconnect() {} }
   constructor(_t?: string) {}
 };
 Object.defineProperties(HTMLElement.prototype, {
-  offsetHeight: { get: () => 600 },
-  offsetWidth: { get: () => 800 },
+  offsetHeight: { get: () => 600, configurable: true },
+  offsetWidth: { get: () => 800, configurable: true },
 });

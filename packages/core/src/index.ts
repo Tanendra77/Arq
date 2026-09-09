@@ -12,3 +12,6 @@ export * from "./flow/drag-payload";
 export * from "./components/ArqNode";
 export * from "./components/ArqEdge";
 export * from "./components/Canvas";
+export * from "./commands/file-commands";
+export * from "./commands/shortcuts";
+export * from "./components/Toolbar";

@@ -9,3 +9,6 @@ export * from "./components/App";
 export * from "./mount";
 export * from "./components/Palette";
 export * from "./flow/drag-payload";
+export * from "./components/ArqNode";
+export * from "./components/ArqEdge";
+export * from "./components/Canvas";

@@ -14,3 +14,12 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-palette-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: grab; user-select: none; }
 .arq-palette-list li:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
 .arq-palette-icon svg { width: 24px; height: 24px; display: block; }
+.arq-node { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border: 1px solid var(--arq-line); border-radius: 8px; background: var(--arq-bg); }
+.arq-node.selected { border-color: var(--arq-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--arq-accent) 40%, transparent); }
+.arq-node-icon svg { width: 48px; height: 48px; display: block; }
+.arq-node-icon-missing { width: 48px; height: 48px; border: 1px dashed var(--arq-line); font-size: 8px; overflow: hidden; word-break: break-all; }
+.arq-node-label { text-align: center; font-weight: 500; max-width: 108px; overflow-wrap: anywhere; }
+.arq-node-badge { font-size: 10px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; }
+.arq-edge { stroke: var(--arq-fg); stroke-width: 1.5; color: var(--arq-fg); }
+.arq-edge.selected { stroke: var(--arq-accent); }
+.arq-edge-label { position: absolute; pointer-events: all; font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; }

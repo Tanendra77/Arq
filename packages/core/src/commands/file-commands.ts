@@ -27,6 +27,14 @@ export async function saveDocument(
   return true;
 }
 
+/**
+ * Route a thrown/rejected command failure into the store's notice so it reaches the toolbar
+ * banner instead of being swallowed by a `void`ed promise.
+ */
+export function reportCommandError(store: EditorStore, e: unknown): void {
+  store.getState().setNotice([String(e instanceof Error ? e.message : e)]);
+}
+
 export function newDocument(store: EditorStore): void {
   store.getState().loadDocument(emptyDocument(), null);
 }

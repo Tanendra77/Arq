@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useEditorStore, usePlatform } from "../store/context";
-import { confirmDiscard, newDocument, openDocument, saveDocument } from "./file-commands";
+import { confirmDiscard, newDocument, openDocument, reportCommandError, saveDocument } from "./file-commands";
 
 const isEditable = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
@@ -25,8 +25,22 @@ export function useShortcuts(): void {
 
       if (mod && key === "z" && !e.shiftKey) { e.preventDefault(); s.undo(); return; }
       if (mod && (key === "y" || (key === "z" && e.shiftKey))) { e.preventDefault(); s.redo(); return; }
-      if (mod && key === "s") { e.preventDefault(); void saveDocument(store, platform, { as: e.shiftKey }); return; }
-      if (mod && key === "o") { e.preventDefault(); if (confirmDiscard(store)) void openDocument(store, platform); return; }
+      if (mod && key === "s") {
+        e.preventDefault();
+        void saveDocument(store, platform, { as: e.shiftKey }).catch((err: unknown) => reportCommandError(store, err));
+        return;
+      }
+      if (mod && key === "o") {
+        e.preventDefault();
+        if (confirmDiscard(store)) {
+          void openDocument(store, platform)
+            .then((r) => {
+              if (!r.ok && "errors" in r) store.getState().setNotice(r.errors);
+            })
+            .catch((err: unknown) => reportCommandError(store, err));
+        }
+        return;
+      }
       if (mod && key === "n") { e.preventDefault(); if (confirmDiscard(store)) newDocument(store); return; }
       if (mod && key === "a") {
         e.preventDefault();

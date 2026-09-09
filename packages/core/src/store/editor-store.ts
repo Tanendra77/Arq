@@ -67,9 +67,16 @@ export interface EditorState {
    * from it, so undoing back to the saved entry clears `dirty` again.
    */
   savedEntry: HistoryEntry | null;
+  /**
+   * View state (never serialized): the lines of the message the toolbar shows, or `null` when
+   * there is nothing to report. `loadDocument` deliberately leaves it alone so a notice raised
+   * by a failed command survives whatever the user does next until they dismiss it.
+   */
+  notice: string[] | null;
 
   loadDocument(doc: Document, filePath: string | null): void;
   markSaved(filePath: string | null): void;
+  setNotice(lines: string[] | null): void;
   setSelection(sel: Selection): void;
   mutate(name: string, recipe: (draft: Document) => void, opts?: MutateOptions): void;
   undo(): void;
@@ -120,6 +127,7 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     past: [],
     future: [],
     savedEntry: null,
+    notice: null,
 
     loadDocument(doc, filePath) {
       set({
@@ -136,6 +144,10 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     markSaved(filePath) {
       const { past } = get();
       set({ dirty: false, filePath, savedEntry: past[past.length - 1] ?? null });
+    },
+
+    setNotice(notice) {
+      set({ notice });
     },
 
     setSelection(selection) {

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
-import { emptyDocument } from "@arq/schema";
+import { emptyDocument, serializeDocument } from "@arq/schema";
 import { EditorStoreProvider } from "../../src/store/context";
 import { createEditorStore } from "../../src/store/editor-store";
 import { useShortcuts } from "../../src/commands/shortcuts";
 import { createFakePlatform } from "../platform-fake";
 
 function Host() { useShortcuts(); return <div />; }
+
+/** The file commands are async; let their promise chains settle before asserting. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("useShortcuts", () => {
   it("Ctrl+Z undoes and Ctrl+Y redoes", () => {
@@ -47,5 +50,81 @@ describe("useShortcuts", () => {
     store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
     fireEvent.keyDown(container.querySelector("input")!, { key: "z", ctrlKey: true });
     expect(store.getState().document.nodes).toHaveLength(1);
+  });
+
+  it("Ctrl+S saves to the current path and Ctrl+Shift+S saves without one", async () => {
+    const store = createEditorStore(emptyDocument());
+    const p = createFakePlatform();
+    render(<EditorStoreProvider store={store} platform={p}><Host /></EditorStoreProvider>);
+    store.getState().markSaved("C:/fake/deck.arq");
+
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    await settle();
+    expect(p.saved[0]?.path).toBe("C:/fake/deck.arq");
+
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true, shiftKey: true });
+    await settle();
+    expect(p.saved[1]?.path).toBeUndefined();
+  });
+
+  it("Ctrl+O reports parse errors through the notice and leaves the document alone", async () => {
+    const store = createEditorStore(emptyDocument());
+    const p = createFakePlatform();
+    p.nextOpen = { text: "{ not json" };
+    render(<EditorStoreProvider store={store} platform={p}><Host /></EditorStoreProvider>);
+    const before = store.getState().document;
+
+    fireEvent.keyDown(window, { key: "o", ctrlKey: true });
+    await settle();
+
+    const notice = store.getState().notice;
+    expect(Array.isArray(notice)).toBe(true);
+    expect(notice?.length).toBeGreaterThan(0);
+    expect(store.getState().document).toBe(before);
+  });
+
+  it("Ctrl+O loads a valid document", async () => {
+    const store = createEditorStore(emptyDocument());
+    const p = createFakePlatform();
+    p.nextOpen = { path: "C:/fake/other.arq", text: serializeDocument(emptyDocument("Loaded")) };
+    render(<EditorStoreProvider store={store} platform={p}><Host /></EditorStoreProvider>);
+
+    fireEvent.keyDown(window, { key: "o", ctrlKey: true });
+    await settle();
+
+    expect(store.getState().document.title).toBe("Loaded");
+    expect(store.getState().filePath).toBe("C:/fake/other.arq");
+    expect(store.getState().notice).toBeNull();
+  });
+
+  it("Ctrl+N resets a clean document to Untitled", () => {
+    const store = createEditorStore(emptyDocument("Deck"));
+    render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
+    fireEvent.keyDown(window, { key: "n", ctrlKey: true });
+    expect(store.getState().document.title).toBe("Untitled");
+  });
+
+  it("Ctrl+A selects every node and edge", () => {
+    const store = createEditorStore(emptyDocument());
+    render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
+    const a = store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
+    const b = store.getState().addNode({ type: "broker", label: "b", position: { x: 100, y: 0 } });
+    const e = store.getState().addEdge({ from: a, to: b, kind: "publish" });
+
+    fireEvent.keyDown(window, { key: "a", ctrlKey: true });
+
+    expect(store.getState().selection).toEqual({ nodes: [a, b], edges: [e] });
+  });
+
+  it("surfaces a rejected save through the notice", async () => {
+    const store = createEditorStore(emptyDocument());
+    const p = createFakePlatform();
+    p.saveDocument = async () => { throw new Error("disk full"); };
+    render(<EditorStoreProvider store={store} platform={p}><Host /></EditorStoreProvider>);
+
+    fireEvent.keyDown(window, { key: "s", ctrlKey: true });
+    await settle();
+
+    expect(store.getState().notice).toEqual(["disk full"]);
   });
 });

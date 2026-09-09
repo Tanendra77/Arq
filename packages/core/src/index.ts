@@ -7,3 +7,5 @@ export * from "./icons/resolver";
 export * from "./store/context";
 export * from "./components/App";
 export * from "./mount";
+export * from "./components/Palette";
+export * from "./flow/drag-payload";

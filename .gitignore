@@ -6,3 +6,8 @@ manifest.json
 node_modules/
 dist/
 .claude/
+target/
+test-results/
+playwright-report/
+*.tsbuildinfo
+packages/render/fonts/

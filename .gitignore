@@ -1,0 +1,8 @@
+# Reference icon pack: Solace artwork, local fixtures only, never committed
+solace-icon-pack/
+manifest.json
+
+# Tooling
+node_modules/
+dist/
+.claude/

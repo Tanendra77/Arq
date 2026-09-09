@@ -8,6 +8,7 @@ import {
   useNodesState,
   useEdgesState,
   type Connection,
+  type Edge,
   type Node,
   type OnSelectionChangeParams,
 } from "@xyflow/react";
@@ -23,8 +24,43 @@ import { ArqEdge, EdgeMarkers } from "./ArqEdge";
 const nodeTypes = { arq: ArqNode };
 const edgeTypes = { arq: ArqEdge };
 
+/**
+ * Split a React Flow deletion into the two store calls it needs.
+ *
+ * React Flow hands `onDelete` the nodes *and* every edge attached to them, but `removeNodes`
+ * already cascades to attached edges in one mutation. Calling `removeEdges` for those as well
+ * would push a second history entry, so one Delete keypress would take two Ctrl+Z to undo.
+ * Only edges whose endpoints both survive the node removal still need an explicit removal.
+ */
+export function planDeletion(
+  nodeIds: string[],
+  edges: { id: string; source: string; target: string }[],
+): { nodeIds: string[]; edgeIds: string[] } {
+  const gone = new Set(nodeIds);
+  return {
+    nodeIds,
+    edgeIds: edges.filter((e) => !gone.has(e.source) && !gone.has(e.target)).map((e) => e.id),
+  };
+}
+
+/**
+ * Re-apply the sizes React Flow measured to freshly derived nodes.
+ *
+ * `toFlow` rebuilds every node from the document on each store change, and those objects carry no
+ * `measured`. Pushing them in as-is would make every node unmeasured after any selection click or
+ * edit, dropping the edges until React Flow's ResizeObserver fires again. `measured` is an optional
+ * property, so it is spread in only when the previous state actually had one (`exactOptionalPropertyTypes`).
+ */
+export function mergeMeasured(prev: ArqFlowNode[], next: ArqFlowNode[]): ArqFlowNode[] {
+  const measured = new Map(prev.map((n) => [n.id, n.measured]));
+  return next.map((n) => {
+    const m = measured.get(n.id);
+    return m !== undefined ? { ...n, measured: m } : n;
+  });
+}
+
 function CanvasInner() {
-  const document = useEditor((s) => s.document);
+  const doc = useEditor((s) => s.document);
   const selection = useEditor((s) => s.selection);
   const addNode = useEditor((s) => s.addNode);
   const addEdge = useEditor((s) => s.addEdge);
@@ -36,21 +72,21 @@ function CanvasInner() {
 
   // Phase 1 has no user packs wired yet; a plan B task injects installed packs here.
   const resolveIcon = useMemo(() => createIconResolver([]), []);
-  const derived = useMemo(() => toFlow(document, resolveIcon, selection), [document, resolveIcon, selection]);
+  const derived = useMemo(() => toFlow(doc, resolveIcon, selection), [doc, resolveIcon, selection]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<ArqFlowNode>(derived.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<ArqFlowEdge>(derived.edges);
-  useEffect(() => setNodes(derived.nodes), [derived.nodes, setNodes]);
+  useEffect(() => setNodes((prev) => mergeMeasured(prev, derived.nodes)), [derived.nodes, setNodes]);
   useEffect(() => setEdges(derived.edges), [derived.edges, setEdges]);
 
   const onConnect = useCallback(
     (c: Connection) => {
-      const from = document.nodes.find((n) => n.id === c.source);
-      const to = document.nodes.find((n) => n.id === c.target);
+      const from = doc.nodes.find((n) => n.id === c.source);
+      const to = doc.nodes.find((n) => n.id === c.target);
       if (!from || !to) return;
       addEdge({ from: from.id, to: to.id, kind: defaultEdgeKind(from.type, to.type) });
     },
-    [document.nodes, addEdge],
+    [doc.nodes, addEdge],
   );
 
   const onNodeDragStop = useCallback(
@@ -72,10 +108,19 @@ function CanvasInner() {
     [selection, setSelection],
   );
 
-  const onNodesDelete = useCallback((ns: Node[]) => removeNodes(ns.map((n) => n.id)), [removeNodes]);
-  const onEdgesDelete = useCallback(
-    (es: { id: string }[]) => removeEdges(es.map((e) => e.id)),
-    [removeEdges],
+  // One `onDelete` rather than `onNodesDelete` + `onEdgesDelete`: React Flow fires both for a single
+  // keypress, and the connected edges are already folded into the edge list, so the pair produced two
+  // undo entries per delete. See `planDeletion`.
+  const onDelete = useCallback(
+    ({ nodes: ns, edges: es }: { nodes: Node[]; edges: Edge[] }) => {
+      const plan = planDeletion(
+        ns.map((n) => n.id),
+        es,
+      );
+      if (plan.nodeIds.length > 0) removeNodes(plan.nodeIds);
+      if (plan.edgeIds.length > 0) removeEdges(plan.edgeIds);
+    },
+    [removeNodes, removeEdges],
   );
 
   const onDragOver = useCallback((e: DragEvent) => {
@@ -112,8 +157,7 @@ function CanvasInner() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
-        onNodesDelete={onNodesDelete}
-        onEdgesDelete={onEdgesDelete}
+        onDelete={onDelete}
         onSelectionChange={onSelectionChange}
         deleteKeyCode={["Delete", "Backspace"]}
         fitView

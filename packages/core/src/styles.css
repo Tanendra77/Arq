@@ -1,0 +1,9 @@
+:root { color-scheme: light dark; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; --arq-accent: #00c895; }
+@media (prefers-color-scheme: dark) { :root { --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; } }
+html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sans-serif; color: var(--arq-fg); background: var(--arq-bg); }
+.arq-app { display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: 220px 1fr 260px; grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
+.arq-toolbar { grid-area: toolbar; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--arq-line); }
+.arq-palette { grid-area: palette; border-right: 1px solid var(--arq-line); overflow: auto; }
+.arq-main { grid-area: main; min-width: 0; }
+.arq-inspector { grid-area: inspector; border-left: 1px solid var(--arq-line); overflow: auto; }
+.arq-canvas { width: 100%; height: 100%; }

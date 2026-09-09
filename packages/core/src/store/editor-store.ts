@@ -61,6 +61,12 @@ export interface EditorState {
   selection: Selection;
   past: HistoryEntry[];
   future: HistoryEntry[];
+  /**
+   * View state (never serialized): the history entry that was on top of `past` the last time the
+   * document was saved, or `null` when the saved state is the empty history. `dirty` is derived
+   * from it, so undoing back to the saved entry clears `dirty` again.
+   */
+  savedEntry: HistoryEntry | null;
 
   loadDocument(doc: Document, filePath: string | null): void;
   markSaved(filePath: string | null): void;
@@ -87,6 +93,15 @@ export function newId(prefix: string, existing: Set<string>): string {
   return `${prefix}-${n}`;
 }
 
+/** The document is dirty whenever the top of the undo stack is not the entry current at save time. */
+function isDirty(past: HistoryEntry[], savedEntry: HistoryEntry | null): boolean {
+  return (past[past.length - 1] ?? null) !== savedEntry;
+}
+
+function samePinned(a: Pinned | undefined, b: Pinned): boolean {
+  return a !== undefined && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
 function pruneSelection(sel: Selection, doc: Document): Selection {
   const nodeIds = new Set(doc.nodes.map((n) => n.id));
   const edgeIds = new Set(doc.edges.map((e) => e.id));
@@ -104,13 +119,23 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     selection: { nodes: [], edges: [] },
     past: [],
     future: [],
+    savedEntry: null,
 
     loadDocument(doc, filePath) {
-      set({ document: doc, filePath, dirty: false, selection: { nodes: [], edges: [] }, past: [], future: [] });
+      set({
+        document: doc,
+        filePath,
+        dirty: false,
+        selection: { nodes: [], edges: [] },
+        past: [],
+        future: [],
+        savedEntry: null,
+      });
     },
 
     markSaved(filePath) {
-      set({ dirty: false, filePath });
+      const { past } = get();
+      set({ dirty: false, filePath, savedEntry: past[past.length - 1] ?? null });
     },
 
     setSelection(selection) {
@@ -118,7 +143,7 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     },
 
     mutate(name, recipe, opts = {}) {
-      const { document, past, selection } = get();
+      const { document, past, selection, savedEntry } = get();
       const [next, patches, inverse] = produceWithPatches(document, recipe);
       if (patches.length === 0) return;
       const now = Date.now();
@@ -129,23 +154,43 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         ? { ...last, patches: [...last.patches, ...patches], inverse: [...inverse, ...last.inverse], at: now }
         : { name, patches, inverse, at: now, ...(opts.mergeKey !== undefined ? { mergeKey: opts.mergeKey } : {}) };
       const nextPast = canMerge ? [...past.slice(0, -1), entry] : [...past, entry];
-      set({ document: next, past: nextPast, future: [], dirty: true, selection: pruneSelection(selection, next) });
+      set({
+        document: next,
+        past: nextPast,
+        future: [],
+        dirty: isDirty(nextPast, savedEntry),
+        selection: pruneSelection(selection, next),
+      });
     },
 
     undo() {
-      const { past, future, document, selection } = get();
+      const { past, future, document, selection, savedEntry } = get();
       const entry = past[past.length - 1];
       if (!entry) return;
       const next = applyPatches(document, entry.inverse);
-      set({ document: next, past: past.slice(0, -1), future: [entry, ...future], dirty: true, selection: pruneSelection(selection, next) });
+      const nextPast = past.slice(0, -1);
+      set({
+        document: next,
+        past: nextPast,
+        future: [entry, ...future],
+        dirty: isDirty(nextPast, savedEntry),
+        selection: pruneSelection(selection, next),
+      });
     },
 
     redo() {
-      const { past, future, document, selection } = get();
+      const { past, future, document, selection, savedEntry } = get();
       const entry = future[0];
       if (!entry) return;
       const next = applyPatches(document, entry.patches);
-      set({ document: next, past: [...past, entry], future: future.slice(1), dirty: true, selection: pruneSelection(selection, next) });
+      const nextPast = [...past, entry];
+      set({
+        document: next,
+        past: nextPast,
+        future: future.slice(1),
+        dirty: isDirty(nextPast, savedEntry),
+        selection: pruneSelection(selection, next),
+      });
     },
 
     canUndo: () => get().past.length > 0,
@@ -172,14 +217,25 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
 
     removeNodes(ids) {
       const gone = new Set(ids);
+      // Nothing to remove: return before `mutate` so a no-op delete never lands on the undo stack.
+      if (!get().document.nodes.some((n) => gone.has(n.id))) return;
       get().mutate("remove nodes", (d) => {
-        d.nodes = d.nodes.filter((n) => !gone.has(n.id));
-        d.edges = d.edges.filter((e) => !gone.has(e.from) && !gone.has(e.to));
+        // Splice in place from the end so immer emits per-index patches rather than one
+        // `replace` patch carrying a full copy of the array.
+        for (let i = d.nodes.length - 1; i >= 0; i -= 1) {
+          const n = d.nodes[i];
+          if (n !== undefined && gone.has(n.id)) d.nodes.splice(i, 1);
+        }
+        for (let i = d.edges.length - 1; i >= 0; i -= 1) {
+          const e = d.edges[i];
+          if (e !== undefined && (gone.has(e.from) || gone.has(e.to))) d.edges.splice(i, 1);
+        }
         for (const id of gone) delete d.layout.pinned[id];
       });
     },
 
     setPinned(id, pinned, opts) {
+      if (samePinned(get().document.layout.pinned[id], pinned)) return;
       get().mutate("move", (d) => {
         d.layout.pinned[id] = { ...pinned };
       }, opts);
@@ -207,15 +263,24 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
 
     removeEdges(ids) {
       const gone = new Set(ids);
+      if (!get().document.edges.some((e) => gone.has(e.id))) return;
       get().mutate("remove edges", (d) => {
-        d.edges = d.edges.filter((e) => !gone.has(e.id));
+        for (let i = d.edges.length - 1; i >= 0; i -= 1) {
+          const e = d.edges[i];
+          if (e !== undefined && gone.has(e.id)) d.edges.splice(i, 1);
+        }
       });
     },
 
     setLabel(id, label) {
       get().mutate("set label", (d) => {
         const n = d.nodes.find((x) => x.id === id);
-        if (n) n.label = label;
+        // Node and edge ids are separate namespaces, so an id may name one of each; a node match
+        // wins and the edge is left alone.
+        if (n) {
+          n.label = label;
+          return;
+        }
         const e = d.edges.find((x) => x.id === id);
         if (e) e.label = label;
       });

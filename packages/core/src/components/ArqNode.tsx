@@ -15,7 +15,11 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       {data.iconSvg !== undefined ? (
-        // Icons come from the built-in pack or an installed icon pack, both trusted SVG sources.
+        // SAFE ONLY WHILE THE RESOLVER IS BUILT-IN-ONLY. Today `createIconResolver([])` is called
+        // with no installed packs, so this is always hand-authored SVG from `icons/primitives.ts`.
+        // Icon-pack import (spec 7.2, slice 4) makes this a user-supplied string: that task MUST
+        // land the import-time sanitizer (strip <script>, on* handlers, <foreignObject>, and any
+        // non-fragment href/url()) before it passes a pack to the resolver.
         <div className="arq-node-icon" dangerouslySetInnerHTML={{ __html: data.iconSvg }} />
       ) : (
         <div className="arq-node-icon arq-node-icon-missing" title={`Missing icon ${data.iconId ?? ""}`}>

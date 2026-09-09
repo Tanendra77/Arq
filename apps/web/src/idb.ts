@@ -16,9 +16,20 @@ export function openKv(dbName: string): Promise<Kv> {
       const db = req.result;
       const run = <T,>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<T>) =>
         new Promise<T>((res, rej) => {
-          const r = fn(db.transaction(STORE, mode).objectStore(STORE));
-          r.onsuccess = () => res(r.result);
+          const tx = db.transaction(STORE, mode);
+          const r = fn(tx.objectStore(STORE));
           r.onerror = () => rej(r.error);
+          if (mode === "readonly") {
+            r.onsuccess = () => res(r.result);
+            return;
+          }
+          // A write is only durable once the transaction commits: resolving on the request's
+          // success would hide a later abort (quota exceeded, disk error) and lose the write.
+          let result: T;
+          r.onsuccess = () => { result = r.result; };
+          tx.oncomplete = () => res(result);
+          tx.onabort = () => rej(tx.error ?? r.error);
+          tx.onerror = () => rej(tx.error ?? r.error);
         });
       resolve({
         get: <T,>(key: string) => run<T | undefined>("readonly", (s) => s.get(key) as IDBRequest<T | undefined>),

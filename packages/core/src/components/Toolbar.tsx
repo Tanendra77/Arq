@@ -1,9 +1,14 @@
+import { useMemo, useState } from "react";
 import { useEditor, useEditorStore, usePlatform } from "../store/context";
 import { confirmDiscard, newDocument, openDocument, reportCommandError, saveDocument } from "../commands/file-commands";
+import { exportPng, exportSvg } from "../commands/export-commands";
+import { createIconResolver } from "../icons/resolver";
 
 export function Toolbar() {
   const store = useEditorStore();
   const platform = usePlatform();
+  const [scale, setScale] = useState<1 | 2 | 3>(2);
+  const resolveIcon = useMemo(() => createIconResolver([]), []);
   const title = useEditor((s) => s.document.title);
   const dirty = useEditor((s) => s.dirty);
   const canUndo = useEditor((s) => s.past.length > 0);
@@ -32,6 +37,12 @@ export function Toolbar() {
       <span className="arq-toolbar-sep" />
       <button type="button" disabled={!canUndo} onClick={() => store.getState().undo()}>Undo</button>
       <button type="button" disabled={!canRedo} onClick={() => store.getState().redo()}>Redo</button>
+      <span className="arq-toolbar-sep" />
+      <button type="button" onClick={() => void exportSvg(store, platform, resolveIcon).catch((e: unknown) => reportCommandError(store, e))}>Export SVG</button>
+      <select aria-label="PNG scale" value={scale} onChange={(e) => setScale(Number(e.target.value) as 1 | 2 | 3)}>
+        <option value={1}>1x</option><option value={2}>2x</option><option value={3}>3x</option>
+      </select>
+      <button type="button" onClick={() => void exportPng(store, platform, resolveIcon, scale).catch((e: unknown) => reportCommandError(store, e))}>Export PNG</button>
       <span className="arq-toolbar-title" data-testid="title">{title}{dirty ? " *" : ""}</span>
       {/* The notice carries save and other command failures as well as open errors, so the banner
           no longer prefixes "Could not open file"; each line describes itself. */}

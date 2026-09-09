@@ -14,4 +14,5 @@ export * from "./components/ArqEdge";
 export * from "./components/Canvas";
 export * from "./commands/file-commands";
 export * from "./commands/shortcuts";
+export * from "./commands/export-commands";
 export * from "./components/Toolbar";

@@ -57,9 +57,13 @@ function migrateEdge(e: V1Edge): Record<string, unknown> {
 function v1ToV2(raw: Record<string, unknown>): Record<string, unknown> {
   // Parser boundary: v1 documents aren't validated by a schema before this point, so we
   // narrow with `as` rather than `any` and let migrateNode/migrateEdge tolerate missing fields.
-  const nodes = Array.isArray(raw["nodes"]) ? (raw["nodes"] as V1Node[]) : [];
-  const edges = Array.isArray(raw["edges"]) ? (raw["edges"] as V1Edge[]) : [];
-  return { ...raw, version: 2, nodes: nodes.map(migrateNode), edges: edges.map(migrateEdge) };
+  // A missing field legitimately defaults to [] (DocumentSchema also defaults it there), but a
+  // *present, malformed* field (an object, a string, null) is passed through unchanged rather
+  // than coerced to [] — coercing would silently discard the user's data instead of letting
+  // DocumentSchema reject it with a real validation error.
+  const nodes = "nodes" in raw ? (Array.isArray(raw["nodes"]) ? (raw["nodes"] as V1Node[]).map(migrateNode) : raw["nodes"]) : [];
+  const edges = "edges" in raw ? (Array.isArray(raw["edges"]) ? (raw["edges"] as V1Edge[]).map(migrateEdge) : raw["edges"]) : [];
+  return { ...raw, version: 2, nodes, edges };
 }
 
 /** Steps run oldest first. Version 2 is returned untouched. */

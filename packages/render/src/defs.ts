@@ -13,8 +13,10 @@ export function glowId(color: string): string {
   return `arq-glow-${colorKey(color)}`;
 }
 
-/** Marker body per arrow style, drawn in a 0 0 10 10 viewBox pointing right. */
-const ARROW_BODY: Record<Exclude<ArrowStyle, "none">, string> = {
+/** Marker body per arrow style, drawn in a 0 0 10 10 viewBox pointing right. Exported so
+ *  consumers (e.g. the palette's Arrow swatch) reuse the real geometry instead of hand-authoring
+ *  their own copy. */
+export const ARROW_BODY: Record<Exclude<ArrowStyle, "none">, string> = {
   arrow: '<path d="M0 0L10 5L0 10z"/>',
   triangle: '<path d="M0 1L9 5L0 9z"/>',
   diamond: '<path d="M0 5L5 1L10 5L5 9z"/>',

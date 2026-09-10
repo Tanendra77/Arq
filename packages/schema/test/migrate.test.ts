@@ -105,6 +105,27 @@ describe("migrate v1 -> v2", () => {
     expect(() => migrate({ version: 99 })).toThrow(MigrationError);
     expect(() => migrate({})).toThrow(MigrationError);
   });
+
+  it("migrates a v1 document that omits nodes/edges entirely, defaulting both to []", () => {
+    const d = DocumentSchema.parse(migrate({ version: 1, title: "Empty" }));
+    expect(d.nodes).toEqual([]);
+    expect(d.edges).toEqual([]);
+  });
+
+  it("rejects a v1 document with a malformed nodes field instead of silently emptying it", () => {
+    const result = DocumentSchema.safeParse(migrate({ version: 1, nodes: "nope", edges: [] }));
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a v1 document with a malformed edges field instead of silently emptying it", () => {
+    const result = DocumentSchema.safeParse(migrate({ version: 1, nodes: [], edges: { bad: true } }));
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a v1 document with a null nodes field instead of silently emptying it", () => {
+    const result = DocumentSchema.safeParse(migrate({ version: 1, nodes: null, edges: [] }));
+    expect(result.success).toBe(false);
+  });
 });
 
 describe("V1_EDGE_STYLE table (all rows, plus the unknown-kind fallback)", () => {

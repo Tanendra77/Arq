@@ -76,4 +76,14 @@ describe("Palette", () => {
     renderPalette();
     expect(screen.getByRole("button", { name: "Icons" })).toBeDisabled();
   });
+
+  it("builds the Arrow swatch's arrowhead from @arq/render's shared ARROW_BODY, not a local copy", () => {
+    renderPalette();
+    const item = screen.getByRole("button", { name: "Arrow" });
+    // This is @arq/render's ARROW_BODY.arrow path data (packages/render/src/defs.ts), hardcoded
+    // here (not re-imported and re-derived) so that changing the real geometry actually moves
+    // this test: if Palette.tsx ever reverts to a hand-authored arrowhead, or the shared geometry
+    // changes without this assertion being updated, the swatch stops matching and this fails.
+    expect(item.querySelector('path[d="M0 0L10 5L0 10z"]')).not.toBeNull();
+  });
 });

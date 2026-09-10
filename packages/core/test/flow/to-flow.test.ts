@@ -26,4 +26,14 @@ describe("toFlow", () => {
     expect(edges).toHaveLength(1);
     expect(nodes.some((n) => n.id === edges[0]?.target)).toBe(true);
   });
+
+  it("carries a node's pinned rect onto its data, so the canvas can render it at its exported size", () => {
+    const withSize = DocumentSchema.parse({
+      version: 2, title: "T",
+      nodes: [{ id: "a", shape: "rect", label: "A" }],
+      layout: { pinned: { a: { x: 10, y: 20, w: 300, h: 150 } } },
+    });
+    const { nodes } = toFlow(withSize, () => undefined, { nodes: [], edges: [] });
+    expect(nodes[0]?.data.pinned).toEqual({ x: 10, y: 20, w: 300, h: 150 });
+  });
 });

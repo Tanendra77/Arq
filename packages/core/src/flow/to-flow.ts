@@ -1,5 +1,5 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { Document, Endpoint, NodeShape, NodeStyle, EdgeStyle } from "@arq/schema";
+import type { Document, Endpoint, NodeShape, NodeStyle, EdgeStyle, Pinned } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
 import type { Selection } from "../store/editor-store";
 
@@ -9,6 +9,9 @@ export type ArqNodeData = {
   style: NodeStyle | undefined;
   iconSvg: string | undefined;
   iconId: string | undefined;
+  /** The document's pinned rect for this node, if any — carried through so `ArqNode` can size
+   * itself with `@arq/render`'s `shapeRect`, exactly as the SVG exporter does. */
+  pinned: Pinned | undefined;
 };
 export type ArqEdgeData = { label: string | undefined; style: EdgeStyle | undefined };
 
@@ -39,6 +42,7 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
         style: n.style,
         iconSvg: n.icon !== undefined ? resolveIcon(n.icon) : undefined,
         iconId: n.icon,
+        pinned: p,
       },
     };
   });

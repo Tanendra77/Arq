@@ -111,6 +111,25 @@ describe("document-level refinements", () => {
     if (!r.success) expect(JSON.stringify(r.error.issues)).toContain("cycle");
   });
 
+  it("rejects a node id using the reserved __ep: prefix", () => {
+    const doc = { ...base, nodes: [{ id: "__ep:e1:from", shape: "rect", label: "A" }] };
+    const r = DocumentSchema.safeParse(doc);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(JSON.stringify(r.error.issues)).toContain("reserved");
+  });
+
+  it("rejects an edge or group id using the reserved __ep: prefix", () => {
+    const edgeDoc = { ...base, nodes: [node("a"), node("b")], edges: [{ id: "__ep:x", from: "a", to: "b" }] };
+    const groupDoc = { ...base, groups: [{ id: "__ep:g", label: "G", kind: "generic" }] };
+    expect(DocumentSchema.safeParse(edgeDoc).success).toBe(false);
+    expect(DocumentSchema.safeParse(groupDoc).success).toBe(false);
+  });
+
+  it("still accepts an ordinary id containing _ or : elsewhere", () => {
+    const doc = { ...base, nodes: [{ id: "my_node:1", shape: "rect", label: "A" }] };
+    expect(DocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
   it("rejects tuple-form pinned entries", () => {
     // Node "a" exists so the pinned-orphan check can't be what fails this — only PinnedSchema's
     // object shape can.

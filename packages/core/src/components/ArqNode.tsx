@@ -11,9 +11,12 @@ function glowFilter(color: string): string {
 function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
   if (!("shape" in data)) return null; // the hidden node standing in for a loose edge endpoint: no visual
   const s = resolveNodeStyle(data.style);
-  // The same rect a document with no pinned size override resolves to in `@arq/render` — shared
-  // geometry, not a second guess at node size.
-  const rect = shapeRect(undefined, data.shape);
+  // Same call the SVG exporter makes (`layoutDocument` -> `shapeRect(doc.layout.pinned[id], shape)`),
+  // so a pinned w/h renders here exactly as it exports. x/y are zeroed: React Flow already
+  // positions this node via its own `position`/CSS transform, and shapeOutline draws relative to
+  // rect.x/rect.y — passing the pinned x/y through here would draw the shape outside this node's
+  // local `viewBox="0 0 w h"` instead of on top of it.
+  const rect = shapeRect(data.pinned ? { ...data.pinned, x: 0, y: 0 } : undefined, data.shape);
   const dash = DASH_ARRAY[s.strokeDash];
   // shapeOutline emits one element with no paint attributes, ending in `/>`; splice the resolved
   // style in exactly as the SVG exporter does, so the two never draw two different rects.

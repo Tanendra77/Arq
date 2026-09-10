@@ -79,21 +79,34 @@ export const DocumentSchema = DocumentBase.superRefine((doc, ctx) => {
   const issue = (path: (string | number)[], message: string) =>
     ctx.addIssue({ code: z.ZodIssueCode.custom, path, message });
 
+  // `__ep:` is the id prefix `@arq/core` uses for the hidden node that stands in for a loose edge
+  // endpoint (see `endpointNodeId` in packages/core/src/flow/to-flow.ts). `Id`'s grammar otherwise
+  // permits it, so without this check an authored id here could collide with that synthetic one.
+  const RESERVED_ID_PREFIX = "__ep:";
+  const rejectReservedId = (path: (string | number)[], id: string) => {
+    if (id.startsWith(RESERVED_ID_PREFIX)) {
+      issue(path, `id "${id}" uses the reserved "${RESERVED_ID_PREFIX}" prefix, which is reserved for internal use`);
+    }
+  };
+
   const nodeIds = new Set<string>();
   doc.nodes.forEach((n, i) => {
     if (nodeIds.has(n.id)) issue(["nodes", i, "id"], `duplicate node id "${n.id}"`);
     nodeIds.add(n.id);
+    rejectReservedId(["nodes", i, "id"], n.id);
   });
   const groupIds = new Set<string>();
   doc.groups.forEach((g, i) => {
     if (groupIds.has(g.id)) issue(["groups", i, "id"], `duplicate group id "${g.id}"`);
     if (nodeIds.has(g.id)) issue(["groups", i, "id"], `group id "${g.id}" collides with a node id`);
     groupIds.add(g.id);
+    rejectReservedId(["groups", i, "id"], g.id);
   });
   const edgeIds = new Set<string>();
   doc.edges.forEach((e, i) => {
     if (edgeIds.has(e.id)) issue(["edges", i, "id"], `duplicate edge id "${e.id}"`);
     edgeIds.add(e.id);
+    rejectReservedId(["edges", i, "id"], e.id);
     if (isNodeRef(e.from) && !nodeIds.has(e.from))
       issue(["edges", i, "from"], `edge "${e.id}" references missing node "${e.from}"`);
     if (isNodeRef(e.to) && !nodeIds.has(e.to))

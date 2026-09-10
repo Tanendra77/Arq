@@ -1,51 +1,38 @@
 import { z } from "zod";
 import { Id, IconId } from "./ids";
-import { EDGE_KINDS, EDGE_PROP_SCHEMAS, GROUP_KINDS, NODE_PROP_SCHEMAS, NODE_TYPES } from "./props";
+import { EdgeStyleSchema, GROUP_KINDS, NODE_SHAPES, NodeStyleSchema } from "./shapes";
 
-const nodeOf = <T extends string, P extends z.ZodTypeAny>(type: T, props: P) =>
-  z.object({
-    id: Id,
-    type: z.literal(type),
-    label: z.string(),
-    icon: IconId.optional(),
-    group: Id.optional(),
-    props: props.default({}),
-  }).strict();
+export const PointSchema = z.object({ x: z.number(), y: z.number() }).strict();
 
-export const NodeSchema = z.discriminatedUnion("type", [
-  nodeOf("broker", NODE_PROP_SCHEMAS.broker),
-  nodeOf("queue", NODE_PROP_SCHEMAS.queue),
-  nodeOf("topic", NODE_PROP_SCHEMAS.topic),
-  nodeOf("app", NODE_PROP_SCHEMAS.app),
-  nodeOf("consumer", NODE_PROP_SCHEMAS.consumer),
-  nodeOf("publisher", NODE_PROP_SCHEMAS.publisher),
-  nodeOf("mesh", NODE_PROP_SCHEMAS.mesh),
-  nodeOf("gateway", NODE_PROP_SCHEMAS.gateway),
-  nodeOf("store", NODE_PROP_SCHEMAS.store),
-  nodeOf("external", NODE_PROP_SCHEMAS.external),
-  nodeOf("shape", NODE_PROP_SCHEMAS.shape),
-]);
+/** A node id, or a loose point for a free-floating line end. */
+export const EndpointSchema = z.union([Id, PointSchema]);
+export type Endpoint = z.infer<typeof EndpointSchema>;
 
-const edgeOf = <K extends string, P extends z.ZodTypeAny>(kind: K, props: P) =>
-  z.object({
-    id: Id,
-    from: Id,
-    to: Id,
-    kind: z.literal(kind),
-    label: z.string().optional(),
-    props: props.default({}),
-  }).strict();
+export function isNodeRef(e: Endpoint): e is string {
+  return typeof e === "string";
+}
 
-export const EdgeSchema = z.discriminatedUnion("kind", [
-  edgeOf("publish", EDGE_PROP_SCHEMAS.publish),
-  edgeOf("subscribe", EDGE_PROP_SCHEMAS.subscribe),
-  edgeOf("bind", EDGE_PROP_SCHEMAS.bind),
-  edgeOf("bridge", EDGE_PROP_SCHEMAS.bridge),
-  edgeOf("dmr", EDGE_PROP_SCHEMAS.dmr),
-  edgeOf("replication", EDGE_PROP_SCHEMAS.replication),
-  edgeOf("request-reply", EDGE_PROP_SCHEMAS["request-reply"]),
-  edgeOf("generic", EDGE_PROP_SCHEMAS.generic),
-]);
+export const NodeSchema = z.object({
+  id: Id,
+  shape: z.enum(NODE_SHAPES),
+  label: z.string(),
+  icon: IconId.optional(),
+  group: Id.optional(),
+  style: NodeStyleSchema.optional(),
+  // Free-form carrier for v1 `props` so a migration never silently drops authored data.
+  meta: z.record(z.string()).optional(),
+}).strict();
+
+export const EdgeSchema = z.object({
+  id: Id,
+  from: EndpointSchema,
+  to: EndpointSchema,
+  label: z.string().optional(),
+  // Unread in v2. Kept because JSON generation and flow animation both need it; dropping it
+  // now would mean a third document version within two features.
+  kind: z.string().optional(),
+  style: EdgeStyleSchema.optional(),
+}).strict();
 
 export const GroupSchema = z.object({
   id: Id,
@@ -76,7 +63,7 @@ export const LayoutSchema = z.object({
 }).strict();
 
 const DocumentBase = z.object({
-  version: z.literal(1),
+  version: z.literal(2),
   kind: z.enum(["event-flow", "deployment", "topology", "generic"]).default("generic"),
   title: z.string().default("Untitled"),
   nodes: z.array(NodeSchema).default([]),
@@ -105,8 +92,10 @@ export const DocumentSchema = DocumentBase.superRefine((doc, ctx) => {
   doc.edges.forEach((e, i) => {
     if (edgeIds.has(e.id)) issue(["edges", i, "id"], `duplicate edge id "${e.id}"`);
     edgeIds.add(e.id);
-    if (!nodeIds.has(e.from)) issue(["edges", i, "from"], `edge "${e.id}" references missing node "${e.from}"`);
-    if (!nodeIds.has(e.to)) issue(["edges", i, "to"], `edge "${e.id}" references missing node "${e.to}"`);
+    if (isNodeRef(e.from) && !nodeIds.has(e.from))
+      issue(["edges", i, "from"], `edge "${e.id}" references missing node "${e.from}"`);
+    if (isNodeRef(e.to) && !nodeIds.has(e.to))
+      issue(["edges", i, "to"], `edge "${e.id}" references missing node "${e.to}"`);
   });
   doc.nodes.forEach((n, i) => {
     if (n.group !== undefined && !groupIds.has(n.group))
@@ -140,5 +129,5 @@ export type DocumentKind = Document["kind"];
 export type LayoutDirection = Document["layout"]["direction"];
 
 export function emptyDocument(title = "Untitled"): Document {
-  return DocumentSchema.parse({ version: 1, title });
+  return DocumentSchema.parse({ version: 2, title });
 }

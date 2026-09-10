@@ -1,15 +1,15 @@
 {
-  "version": 1,
+  "version": 2,
   "kind": "event-flow",
   "title": "Order ingestion",
   "nodes": [
-    { "id": "oms", "type": "app", "label": "OMS", "group": "mumbai-dc", "props": { "language": "java", "protocol": "JCSMP" } },
-    { "id": "pr", "type": "broker", "label": "PR broker", "icon": "solace-products-logos/pubsub-event-broker", "group": "mumbai-dc", "props": { "vpn": "BSE_PROD", "role": "primary" } },
-    { "id": "q-orders", "type": "queue", "label": "Q/ORDERS/NEW", "props": { "accessType": "exclusive" } }
+    { "id": "oms", "shape": "rect", "label": "OMS", "group": "mumbai-dc", "meta": { "language": "java", "protocol": "JCSMP" } },
+    { "id": "pr", "shape": "rect", "label": "PR broker", "icon": "solace-products-logos/pubsub-event-broker", "group": "mumbai-dc", "meta": { "vpn": "BSE_PROD", "role": "primary" } },
+    { "id": "q-orders", "shape": "rect", "label": "Q/ORDERS/NEW", "meta": { "accessType": "exclusive" } }
   ],
   "edges": [
-    { "id": "e1", "from": "oms", "to": "pr", "kind": "publish", "label": "orders/new/v1", "props": { "qos": "guaranteed" } },
-    { "id": "e2", "from": "pr", "to": "q-orders", "kind": "bind", "props": {} }
+    { "id": "e1", "from": "oms", "to": "pr", "kind": "publish", "label": "orders/new/v1" },
+    { "id": "e2", "from": "pr", "to": "q-orders", "kind": "bind" }
   ],
   "groups": [ { "id": "mumbai-dc", "label": "Mumbai DC", "kind": "dc" } ],
   "annotations": [ { "id": "n1", "type": "note", "text": "Failover target", "x": 400, "y": 120 } ],

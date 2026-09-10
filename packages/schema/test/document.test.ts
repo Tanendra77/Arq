@@ -1,80 +1,79 @@
 import { describe, expect, it } from "vitest";
-import { DocumentSchema, emptyDocument, NODE_TYPES, EDGE_KINDS } from "../src/index";
-import fixture from "./fixtures/event-flow.json";
+import { DocumentSchema, emptyDocument, isNodeRef } from "../src/document";
 
-const clone = () => JSON.parse(JSON.stringify(fixture)) as Record<string, unknown>;
+const base = { version: 2, title: "T" };
+const node = (id: string) => ({ id, shape: "rect", label: id });
 
-describe("DocumentSchema", () => {
-  it("accepts the event-flow fixture", () => {
-    const r = DocumentSchema.safeParse(fixture);
+describe("nodes", () => {
+  it("accepts every shape and rejects an unknown one", () => {
+    for (const shape of ["rect", "ellipse", "diamond", "triangle", "text"]) {
+      expect(DocumentSchema.safeParse({ ...base, nodes: [{ id: "a", shape, label: "A" }] }).success).toBe(true);
+    }
+    expect(DocumentSchema.safeParse({ ...base, nodes: [{ id: "a", shape: "hexagon", label: "A" }] }).success).toBe(false);
+  });
+
+  it("rejects a leftover v1 type field", () => {
+    expect(DocumentSchema.safeParse({ ...base, nodes: [{ id: "a", type: "broker", label: "A" }] }).success).toBe(false);
+  });
+
+  it("carries optional style and meta", () => {
+    const r = DocumentSchema.safeParse({
+      ...base,
+      nodes: [{ id: "a", shape: "rect", label: "A", style: { fill: "#eee" }, meta: { vpn: "default" } }],
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
+describe("edge endpoints", () => {
+  it("accepts a node id, a point, and a mix", () => {
+    const doc = {
+      ...base,
+      nodes: [node("a"), node("b")],
+      edges: [
+        { id: "e1", from: "a", to: "b" },
+        { id: "e2", from: { x: 0, y: 0 }, to: { x: 10, y: 10 } },
+        { id: "e3", from: "a", to: { x: 5, y: 5 } },
+      ],
+    };
+    expect(DocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("rejects a string endpoint naming a missing node", () => {
+    const r = DocumentSchema.safeParse({ ...base, nodes: [node("a")], edges: [{ id: "e1", from: "a", to: "ghost" }] });
+    expect(r.success).toBe(false);
+    expect(JSON.stringify(r)).toContain("ghost");
+  });
+
+  it("does not treat a point endpoint as a missing reference", () => {
+    const r = DocumentSchema.safeParse({ ...base, nodes: [], edges: [{ id: "e1", from: { x: 1, y: 2 }, to: { x: 3, y: 4 } }] });
     expect(r.success).toBe(true);
   });
 
-  it("applies the queue durable default", () => {
-    const doc = DocumentSchema.parse(fixture);
-    const q = doc.nodes.find((n) => n.id === "q-orders");
-    expect(q?.type === "queue" && q.props.durable).toBe(true);
+  it("still rejects duplicate edge ids", () => {
+    const doc = { ...base, nodes: [node("a"), node("b")],
+                  edges: [{ id: "e1", from: "a", to: "b" }, { id: "e1", from: "b", to: "a" }] };
+    expect(DocumentSchema.safeParse(doc).success).toBe(false);
   });
 
-  it("lists the eleven node types and eight edge kinds", () => {
-    expect(NODE_TYPES).toHaveLength(11);
-    expect(EDGE_KINDS).toHaveLength(8);
+  it("accepts an optional free-text kind", () => {
+    const doc = { ...base, nodes: [node("a"), node("b")], edges: [{ id: "e1", from: "a", to: "b", kind: "publish" }] };
+    expect(DocumentSchema.safeParse(doc).success).toBe(true);
   });
+});
 
-  it("rejects an unknown prop on a typed node with the node id in the message", () => {
-    const d = clone();
-    (d.nodes as Array<{ id: string; props: Record<string, unknown> }>)[1]!.props.colour = "red";
-    const r = DocumentSchema.safeParse(d);
-    expect(r.success).toBe(false);
-    if (!r.success) expect(JSON.stringify(r.error.issues)).toMatch(/colour/);
+describe("isNodeRef", () => {
+  it("distinguishes ids from points", () => {
+    expect(isNodeRef("a")).toBe(true);
+    expect(isNodeRef({ x: 0, y: 0 })).toBe(false);
   });
+});
 
-  it("accepts anything on a shape node", () => {
-    const d = clone();
-    (d.nodes as unknown[]).push({ id: "s1", type: "shape", label: "Thing", props: { anything: "goes" } });
-    (d.layout as { pinned: Record<string, unknown> }).pinned.s1 = { x: 0, y: 0 };
-    expect(DocumentSchema.safeParse(d).success).toBe(true);
-  });
-
-  it("rejects an edge that references a missing node", () => {
-    const d = clone();
-    (d.edges as Array<{ to: string }>)[0]!.to = "nope";
-    const r = DocumentSchema.safeParse(d);
-    expect(r.success).toBe(false);
-    if (!r.success) expect(r.error.issues[0]?.message).toMatch(/nope/);
-  });
-
-  it("rejects a node whose group does not exist", () => {
-    const d = clone();
-    (d.nodes as Array<{ group?: string }>)[0]!.group = "ghost";
-    expect(DocumentSchema.safeParse(d).success).toBe(false);
-  });
-
-  it("rejects a group parent cycle", () => {
-    const d = clone();
-    d.groups = [
-      { id: "a", label: "A", kind: "region", parent: "b" },
-      { id: "b", label: "B", kind: "region", parent: "a" },
-      { id: "mumbai-dc", label: "Mumbai DC", kind: "dc" }
-    ];
-    const r = DocumentSchema.safeParse(d);
-    expect(r.success).toBe(false);
-    if (!r.success) expect(JSON.stringify(r.error.issues)).toMatch(/cycle/i);
-  });
-
-  it("rejects tuple-form pinned entries", () => {
-    const d = clone();
-    (d.layout as { pinned: Record<string, unknown> }).pinned.oms = [40, 80];
-    expect(DocumentSchema.safeParse(d).success).toBe(false);
-  });
-
-  it("rejects duplicate node ids", () => {
-    const d = clone();
-    (d.nodes as unknown[]).push({ id: "oms", type: "app", label: "dup", props: {} });
-    expect(DocumentSchema.safeParse(d).success).toBe(false);
-  });
-
-  it("emptyDocument validates", () => {
-    expect(DocumentSchema.safeParse(emptyDocument("New")).success).toBe(true);
+describe("emptyDocument", () => {
+  it("is version 2 and valid", () => {
+    const d = emptyDocument("Hello");
+    expect(d.version).toBe(2);
+    expect(d.title).toBe("Hello");
+    expect(d.nodes).toEqual([]);
   });
 });

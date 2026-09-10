@@ -60,6 +60,24 @@ describe("edge endpoints", () => {
     const doc = { ...base, nodes: [node("a"), node("b")], edges: [{ id: "e1", from: "a", to: "b", kind: "publish" }] };
     expect(DocumentSchema.safeParse(doc).success).toBe(true);
   });
+
+  it("carries optional meta so v1 edge props survive migration", () => {
+    const doc = {
+      ...base,
+      nodes: [node("a"), node("b")],
+      edges: [{ id: "e1", from: "a", to: "b", meta: { qos: "guaranteed" } }],
+    };
+    expect(DocumentSchema.safeParse(doc).success).toBe(true);
+  });
+
+  it("rejects a non-string edge meta value", () => {
+    const doc = {
+      ...base,
+      nodes: [node("a"), node("b")],
+      edges: [{ id: "e1", from: "a", to: "b", meta: { qos: 1 } }],
+    };
+    expect(DocumentSchema.safeParse(doc).success).toBe(false);
+  });
 });
 
 describe("isNodeRef", () => {

@@ -32,6 +32,8 @@ export const EdgeSchema = z.object({
   // now would mean a third document version within two features.
   kind: z.string().optional(),
   style: EdgeStyleSchema.optional(),
+  // Free-form carrier for v1 edge `props` (e.g. `qos`, `mode`) so a migration never silently drops authored data.
+  meta: z.record(z.string()).optional(),
 }).strict();
 
 export const GroupSchema = z.object({

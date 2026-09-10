@@ -8,7 +8,7 @@
     { "id": "q-orders", "shape": "rect", "label": "Q/ORDERS/NEW", "meta": { "accessType": "exclusive" } }
   ],
   "edges": [
-    { "id": "e1", "from": "oms", "to": "pr", "kind": "publish", "label": "orders/new/v1" },
+    { "id": "e1", "from": "oms", "to": "pr", "kind": "publish", "label": "orders/new/v1", "meta": { "qos": "guaranteed" } },
     { "id": "e2", "from": "pr", "to": "q-orders", "kind": "bind" }
   ],
   "groups": [ { "id": "mumbai-dc", "label": "Mumbai DC", "kind": "dc" } ],

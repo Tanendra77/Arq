@@ -3,12 +3,13 @@ import { decodeDragPayload, encodeDragPayload } from "../../src/flow/drag-payloa
 
 describe("drag payload", () => {
   it("round-trips", () => {
-    const p = { nodeType: "queue" as const, label: "Queue", icon: "builtin/queue" };
+    const p = { item: "ellipse" };
     expect(decodeDragPayload(encodeDragPayload(p))).toEqual(p);
   });
-  it("returns null for null or garbage", () => {
+  it("returns null for null, garbage, or a missing/empty item", () => {
     expect(decodeDragPayload(null)).toBeNull();
     expect(decodeDragPayload("{nope")).toBeNull();
-    expect(decodeDragPayload(JSON.stringify({ nodeType: "not-a-type", label: "x" }))).toBeNull();
+    expect(decodeDragPayload(JSON.stringify({}))).toBeNull();
+    expect(decodeDragPayload(JSON.stringify({ item: "" }))).toBeNull();
   });
 });

@@ -20,7 +20,9 @@ describe("file commands", () => {
   it("open reports validation errors and leaves the store untouched", async () => {
     const store = createEditorStore(emptyDocument("Keep"));
     const p = createFakePlatform();
-    p.nextOpen = { text: '{ "version": 1, "nodes": "nope" }' };
+    // v1 input tolerates a malformed `nodes` field (migrate() coerces a non-array to `[]`), so a
+    // v2 payload is used here to exercise DocumentSchema's own validation error path.
+    p.nextOpen = { text: '{ "version": 2, "nodes": "nope" }' };
     const r = await openDocument(store, p);
     expect(r.ok).toBe(false);
     if (!r.ok && "errors" in r) expect(r.errors[0]).toMatch(/nodes/);
@@ -34,9 +36,9 @@ describe("file commands", () => {
 
   it("save serializes, passes the current path, and clears dirty", async () => {
     const store = createEditorStore(emptyDocument("S"));
-    store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
+    store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
     store.getState().markSaved("C:/s.arq");
-    store.getState().addNode({ type: "app", label: "b", position: { x: 0, y: 0 } });
+    store.getState().addNode({ shape: "rect", label: "b", position: { x: 0, y: 0 } });
     const p = createFakePlatform();
     expect(await saveDocument(store, p)).toBe(true);
     expect(p.saved[0]?.path).toBe("C:/s.arq");
@@ -66,7 +68,7 @@ describe("file commands", () => {
     const store = createEditorStore();
     let asked = 0;
     expect(confirmDiscard(store, () => { asked += 1; return false; })).toBe(true);
-    store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
+    store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
     expect(confirmDiscard(store, () => { asked += 1; return false; })).toBe(false);
     expect(asked).toBe(1);
   });

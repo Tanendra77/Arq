@@ -40,7 +40,7 @@ describe("Toolbar", () => {
     renderToolbar(store);
     expect(screen.getByTestId("title")).toHaveTextContent("Deck");
 
-    act(() => { store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } }); });
+    act(() => { store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } }); });
     expect(screen.getByTestId("title").textContent).toBe("Deck *");
 
     act(() => store.getState().markSaved("C:/fake/deck.arq"));

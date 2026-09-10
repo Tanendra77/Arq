@@ -1,10 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render } from "@testing-library/react";
 import { emptyDocument, serializeDocument } from "@arq/schema";
 import { EditorStoreProvider } from "../../src/store/context";
 import { createEditorStore } from "../../src/store/editor-store";
 import { useShortcuts } from "../../src/commands/shortcuts";
 import { createFakePlatform } from "../platform-fake";
+
+// useShortcuts calls useReactFlow (for the zoom shortcuts), which requires a ReactFlowProvider
+// ancestor. Mocking it here keeps every other test in this file free of that ceremony and lets
+// the zoom shortcuts be asserted as plain calls rather than real, timing-sensitive d3 zoom math.
+const zoom = { zoomIn: vi.fn(), zoomOut: vi.fn(), zoomTo: vi.fn(), fitView: vi.fn() };
+vi.mock("@xyflow/react", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@xyflow/react")>();
+  return { ...actual, useReactFlow: () => zoom };
+});
 
 function Host() { useShortcuts(); return <div />; }
 
@@ -15,7 +24,7 @@ describe("useShortcuts", () => {
   it("Ctrl+Z undoes and Ctrl+Y redoes", () => {
     const store = createEditorStore(emptyDocument());
     render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
-    store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
+    store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
     fireEvent.keyDown(window, { key: "z", ctrlKey: true });
     expect(store.getState().document.nodes).toHaveLength(0);
     fireEvent.keyDown(window, { key: "y", ctrlKey: true });
@@ -25,7 +34,7 @@ describe("useShortcuts", () => {
   it("arrow keys nudge the selection by 1, Shift by 10, merged into one undo entry", () => {
     const store = createEditorStore(emptyDocument());
     render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
-    const id = store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
+    const id = store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
     store.getState().setSelection({ nodes: [id], edges: [] });
     fireEvent.keyDown(window, { key: "ArrowRight" });
     fireEvent.keyDown(window, { key: "ArrowDown", shiftKey: true });
@@ -36,7 +45,7 @@ describe("useShortcuts", () => {
   it("Ctrl+D duplicates the selected nodes offset by 20", () => {
     const store = createEditorStore(emptyDocument());
     render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
-    const id = store.getState().addNode({ type: "queue", label: "q", position: { x: 5, y: 5 } });
+    const id = store.getState().addNode({ shape: "ellipse", label: "q", position: { x: 5, y: 5 } });
     store.getState().setSelection({ nodes: [id], edges: [] });
     fireEvent.keyDown(window, { key: "d", ctrlKey: true });
     const d = store.getState().document;
@@ -47,7 +56,7 @@ describe("useShortcuts", () => {
   it("ignores shortcuts while typing in an input", () => {
     const store = createEditorStore(emptyDocument());
     const { container } = render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /><input data-testid="i" /></EditorStoreProvider>);
-    store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
+    store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
     fireEvent.keyDown(container.querySelector("input")!, { key: "z", ctrlKey: true });
     expect(store.getState().document.nodes).toHaveLength(1);
   });
@@ -108,9 +117,9 @@ describe("useShortcuts", () => {
   it("Ctrl+A selects every node and edge", () => {
     const store = createEditorStore(emptyDocument());
     render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
-    const a = store.getState().addNode({ type: "app", label: "a", position: { x: 0, y: 0 } });
-    const b = store.getState().addNode({ type: "broker", label: "b", position: { x: 100, y: 0 } });
-    const e = store.getState().addEdge({ from: a, to: b, kind: "publish" });
+    const a = store.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
+    const b = store.getState().addNode({ shape: "rect", label: "b", position: { x: 100, y: 0 } });
+    const e = store.getState().addEdge({ from: a, to: b });
 
     fireEvent.keyDown(window, { key: "a", ctrlKey: true });
 
@@ -127,5 +136,33 @@ describe("useShortcuts", () => {
     await settle();
 
     expect(store.getState().notice).toEqual(["disk full"]);
+  });
+
+  it("Ctrl+=/Ctrl+- zoom in and out, Ctrl+0 resets zoom, Ctrl+1 fits the view", () => {
+    const store = createEditorStore(emptyDocument());
+    render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
+
+    fireEvent.keyDown(window, { key: "=", ctrlKey: true });
+    expect(zoom.zoomIn).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(window, { key: "+", ctrlKey: true });
+    expect(zoom.zoomIn).toHaveBeenCalledTimes(2);
+
+    fireEvent.keyDown(window, { key: "-", ctrlKey: true });
+    expect(zoom.zoomOut).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(window, { key: "0", ctrlKey: true });
+    expect(zoom.zoomTo).toHaveBeenCalledWith(1);
+
+    fireEvent.keyDown(window, { key: "1", ctrlKey: true });
+    expect(zoom.fitView).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call preventDefault for a key it does not handle", () => {
+    const store = createEditorStore(emptyDocument());
+    render(<EditorStoreProvider store={store} platform={createFakePlatform()}><Host /></EditorStoreProvider>);
+    const event = new KeyboardEvent("keydown", { key: "x", ctrlKey: true, cancelable: true, bubbles: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
   });
 });

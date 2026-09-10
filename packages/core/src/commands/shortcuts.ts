@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useReactFlow } from "@xyflow/react";
 import { useEditorStore, usePlatform } from "../store/context";
 import { confirmDiscard, newDocument, openDocument, reportCommandError, saveDocument } from "./file-commands";
 
@@ -16,6 +17,8 @@ const NUDGE: Record<string, [number, number]> = {
 export function useShortcuts(): void {
   const store = useEditorStore();
   const platform = usePlatform();
+  // Requires a ReactFlowProvider ancestor; see the call site in Canvas.tsx.
+  const { zoomIn, zoomOut, zoomTo, fitView } = useReactFlow();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (isEditable(e.target)) return;
@@ -53,18 +56,25 @@ export function useShortcuts(): void {
         const created: string[] = [];
         for (const n of s.document.nodes.filter((x) => selected.has(x.id))) {
           const p = s.document.layout.pinned[n.id] ?? { x: 0, y: 0 };
+          const size = p.w !== undefined && p.h !== undefined ? { w: p.w, h: p.h } : undefined;
           created.push(
             store.getState().addNode({
-              type: n.type,
+              shape: n.shape,
               label: n.label,
               position: { x: p.x + 20, y: p.y + 20 },
               ...(n.icon !== undefined ? { icon: n.icon } : {}),
+              ...(n.style !== undefined ? { style: n.style } : {}),
+              ...(size !== undefined ? { size } : {}),
             }),
           );
         }
         if (created.length) store.getState().setSelection({ nodes: created, edges: [] });
         return;
       }
+      if (mod && (key === "=" || key === "+")) { e.preventDefault(); zoomIn(); return; }
+      if (mod && key === "-") { e.preventDefault(); zoomOut(); return; }
+      if (mod && key === "0") { e.preventDefault(); zoomTo(1); return; }
+      if (mod && key === "1") { e.preventDefault(); fitView(); return; }
       const delta = NUDGE[key];
       if (delta && s.selection.nodes.length) {
         e.preventDefault();
@@ -83,5 +93,5 @@ export function useShortcuts(): void {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [store, platform]);
+  }, [store, platform, zoomIn, zoomOut, zoomTo, fitView]);
 }

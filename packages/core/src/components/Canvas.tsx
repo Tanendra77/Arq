@@ -16,10 +16,11 @@ import "@xyflow/react/dist/style.css";
 import { useEditor } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
 import { toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
-import { defaultEdgeKind } from "../flow/default-edge-kind";
 import { createIconResolver } from "../icons/resolver";
+import { useShortcuts } from "../commands/shortcuts";
 import { ArqNode } from "./ArqNode";
-import { ArqEdge, EdgeMarkers } from "./ArqEdge";
+import { ArqEdge, EdgeDefs } from "./ArqEdge";
+import { PALETTE_ITEMS, FREE_LINE_LENGTH } from "./Palette";
 
 const nodeTypes = { arq: ArqNode };
 const edgeTypes = { arq: ArqEdge };
@@ -60,6 +61,9 @@ export function mergeMeasured(prev: ArqFlowNode[], next: ArqFlowNode[]): ArqFlow
 }
 
 function CanvasInner() {
+  // Requires a ReactFlowProvider ancestor (for the zoom shortcuts' useReactFlow call), which is
+  // why this lives here rather than in App: Canvas already wraps itself in one, App does not.
+  useShortcuts();
   const doc = useEditor((s) => s.document);
   const selection = useEditor((s) => s.selection);
   const addNode = useEditor((s) => s.addNode);
@@ -84,7 +88,7 @@ function CanvasInner() {
       const from = doc.nodes.find((n) => n.id === c.source);
       const to = doc.nodes.find((n) => n.id === c.target);
       if (!from || !to) return;
-      addEdge({ from: from.id, to: to.id, kind: defaultEdgeKind(from.type, to.type) });
+      addEdge({ from: from.id, to: to.id });
     },
     [doc.nodes, addEdge],
   );
@@ -133,17 +137,21 @@ function CanvasInner() {
   const onDrop = useCallback(
     (e: DragEvent) => {
       const payload = decodeDragPayload(e.dataTransfer.getData(DRAG_MIME));
-      if (!payload) return;
+      const item = payload ? PALETTE_ITEMS.find((i) => i.key === payload.item) : undefined;
+      if (!item) return;
       e.preventDefault();
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      addNode({
-        type: payload.nodeType,
-        label: payload.label,
-        position,
-        ...(payload.icon !== undefined ? { icon: payload.icon } : {}),
-      });
+      if (item.kind === "node") {
+        addNode({ shape: item.shape, label: item.label, position });
+      } else {
+        addEdge({
+          from: { x: position.x - FREE_LINE_LENGTH / 2, y: position.y },
+          to: { x: position.x + FREE_LINE_LENGTH / 2, y: position.y },
+          style: { endArrow: item.endArrow },
+        });
+      }
     },
-    [addNode, screenToFlowPosition],
+    [addNode, addEdge, screenToFlowPosition],
   );
 
   return (
@@ -161,8 +169,14 @@ function CanvasInner() {
         onSelectionChange={onSelectionChange}
         deleteKeyCode={["Delete", "Backspace"]}
         fitView
+        panOnScroll
+        zoomOnScroll={false}
+        zoomOnPinch
+        panOnDrag={[1, 2]}
+        minZoom={0.1}
+        maxZoom={4}
       >
-        <EdgeMarkers />
+        <EdgeDefs doc={doc} />
         <Background />
         <Controls />
       </ReactFlow>

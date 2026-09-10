@@ -1,23 +1,45 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import { applyPatches, enablePatches, produceWithPatches, type Patch } from "immer";
 import {
-  DocumentSchema,
+  EdgeSchema,
+  EdgeStyleSchema,
+  NodeSchema,
+  NodeStyleSchema,
   emptyDocument,
-  type ArqEdge,
-  type ArqNode,
+  isNodeRef,
   type Document,
-  type EdgeKind,
-  type NodeType,
+  type EdgeStyle,
+  type Endpoint,
+  type NodeShape,
+  type NodeStyle,
   type Pinned,
 } from "@arq/schema";
 
 enablePatches();
 
-// `DocumentSchema` is a ZodEffects (superRefine); `.innerType()` gives the base object,
-// whose `nodes`/`edges` fields are `.default([])`-wrapped arrays, so the default wrapper
-// has to come off before `.element` reaches the discriminated union.
-const NodeElementSchema = DocumentSchema.innerType().shape.nodes.removeDefault().element;
-const EdgeElementSchema = DocumentSchema.innerType().shape.edges.removeDefault().element;
+/** The keys each side's own style schema accepts, so a mixed selection never writes a foreign key. */
+const STYLE_KEYS = {
+  node: new Set(Object.keys(NodeStyleSchema.shape)),
+  edge: new Set(Object.keys(EdgeStyleSchema.shape)),
+};
+
+/**
+ * Merge `patch` onto `current`, keeping only keys `allowed` names and DELETING a key whose patch
+ * value is `undefined` rather than storing `undefined`: a stored `undefined` would survive into
+ * the saved JSON and stop meaning "unset", and "unset" has to keep meaning "fall back to the
+ * renderer's built-in default" for an export to be byte-identical on every machine.
+ */
+function mergeStyle<S extends object>(current: S | undefined, patch: StylePatch, allowed: Set<string>): S {
+  const next = { ...(current ?? {}) } as Record<string, unknown>;
+  for (const [k, v] of Object.entries(patch)) {
+    if (!allowed.has(k)) continue;
+    if (v === undefined) delete next[k];
+    else next[k] = v;
+  }
+  // `allowed` is the target schema's own key set, so every surviving key is a key of `S` and
+  // carries a value that schema accepts.
+  return next as S;
+}
 
 export interface HistoryEntry {
   name: string;
@@ -34,19 +56,25 @@ export interface Selection {
 
 export interface NewNode {
   id?: string;
-  type: NodeType;
+  shape: NodeShape;
   label: string;
   icon?: string;
+  style?: NodeStyle;
   position: { x: number; y: number };
+  size?: { w: number; h: number };
 }
 
 export interface NewEdge {
   id?: string;
-  from: string;
-  to: string;
-  kind: EdgeKind;
+  from: Endpoint;
+  to: Endpoint;
   label?: string;
+  kind?: string;
+  style?: EdgeStyle;
 }
+
+/** One patch covering both style vocabularies; keys the target does not know are skipped. */
+export type StylePatch = NodeStyle & EdgeStyle;
 
 export interface MutateOptions {
   mergeKey?: string;
@@ -91,6 +119,8 @@ export interface EditorState {
   addEdge(input: NewEdge): string;
   removeEdges(ids: string[]): void;
   setLabel(id: string, label: string): void;
+  setStyle(ids: string[], patch: StylePatch, opts?: MutateOptions): void;
+  setEndpoint(edgeId: string, which: "from" | "to", ep: Endpoint, opts?: MutateOptions): void;
 }
 
 export type EditorStore = StoreApi<EditorState>;
@@ -213,18 +243,18 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     addNode(input) {
       const doc = get().document;
       const existing = new Set([...doc.nodes.map((n) => n.id), ...doc.groups.map((g) => g.id)]);
-      const id = input.id ?? newId(input.type, existing);
+      const id = input.id ?? newId(input.shape, existing);
       if (existing.has(id)) throw new Error(`node id "${id}" already exists`);
-      const node = NodeElementSchema.parse({
+      const node = NodeSchema.parse({
         id,
-        type: input.type,
+        shape: input.shape,
         label: input.label,
         ...(input.icon !== undefined ? { icon: input.icon } : {}),
-        props: {},
-      }) as ArqNode;
+        ...(input.style !== undefined ? { style: input.style } : {}),
+      });
       get().mutate("add node", (d) => {
         d.nodes.push(node);
-        d.layout.pinned[id] = { x: input.position.x, y: input.position.y };
+        d.layout.pinned[id] = { x: input.position.x, y: input.position.y, ...(input.size ?? {}) };
       });
       return id;
     },
@@ -242,7 +272,10 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         }
         for (let i = d.edges.length - 1; i >= 0; i -= 1) {
           const e = d.edges[i];
-          if (e !== undefined && (gone.has(e.from) || gone.has(e.to))) d.edges.splice(i, 1);
+          // Only string endpoints can name a node; an edge with point endpoints is a free-floating
+          // line and survives the deletion of anything.
+          if (e !== undefined && ((isNodeRef(e.from) && gone.has(e.from)) || (isNodeRef(e.to) && gone.has(e.to))))
+            d.edges.splice(i, 1);
         }
         for (const id of gone) delete d.layout.pinned[id];
       });
@@ -258,17 +291,19 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     addEdge(input) {
       const doc = get().document;
       const nodeIds = new Set(doc.nodes.map((n) => n.id));
-      if (!nodeIds.has(input.from)) throw new Error(`edge source "${input.from}" does not exist`);
-      if (!nodeIds.has(input.to)) throw new Error(`edge target "${input.to}" does not exist`);
+      // Only a string endpoint names a node; a point endpoint is a loose end and needs no target.
+      for (const [side, ep] of [["from", input.from], ["to", input.to]] as const) {
+        if (isNodeRef(ep) && !nodeIds.has(ep)) throw new Error(`edge ${side} "${ep}" does not exist`);
+      }
       const id = input.id ?? newId("e", new Set(doc.edges.map((e) => e.id)));
-      const edge = EdgeElementSchema.parse({
+      const edge = EdgeSchema.parse({
         id,
         from: input.from,
         to: input.to,
-        kind: input.kind,
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
         ...(input.label !== undefined ? { label: input.label } : {}),
-        props: {},
-      }) as ArqEdge;
+        ...(input.style !== undefined ? { style: input.style } : {}),
+      });
       get().mutate("add edge", (d) => {
         d.edges.push(edge);
       });
@@ -298,6 +333,44 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         const e = d.edges.find((x) => x.id === id);
         if (e) e.label = label;
       });
+    },
+
+    setStyle(ids, patch, opts) {
+      const { nodes, edges } = get().document;
+      const known = new Set([...nodes.map((n) => n.id), ...edges.map((e) => e.id)]);
+      // Return before `mutate` when nothing matches, so a stale selection never lands a dead
+      // entry on the undo stack.
+      if (!ids.some((id) => known.has(id))) return;
+      get().mutate("set style", (d) => {
+        for (const id of ids) {
+          // Node and edge ids are separate namespaces, so an id may name one of each; as in
+          // `setLabel`, a node match wins and the edge is left alone.
+          const n = d.nodes.find((x) => x.id === id);
+          if (n) {
+            const next = mergeStyle(n.style, patch, STYLE_KEYS.node);
+            // An empty style is dropped rather than stored as `{}`, for the same reason an unset
+            // key is deleted: the saved JSON carries only what was actually authored.
+            if (Object.keys(next).length > 0) n.style = next;
+            else delete n.style;
+            continue;
+          }
+          const e = d.edges.find((x) => x.id === id);
+          if (!e) continue;
+          const next = mergeStyle(e.style, patch, STYLE_KEYS.edge);
+          if (Object.keys(next).length > 0) e.style = next;
+          else delete e.style;
+        }
+      }, opts);
+    },
+
+    setEndpoint(edgeId, which, ep, opts) {
+      if (isNodeRef(ep) && !get().document.nodes.some((n) => n.id === ep)) {
+        throw new Error(`edge endpoint "${ep}" does not exist`);
+      }
+      get().mutate("set endpoint", (d) => {
+        const e = d.edges.find((x) => x.id === edgeId);
+        if (e) e[which] = ep;
+      }, opts);
     },
   }));
 }

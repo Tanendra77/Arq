@@ -1,6 +1,7 @@
 {
   "name": "arq-monorepo",
   "private": true,
+  "license": "Apache-2.0",
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "test": "pnpm -r --if-present test",

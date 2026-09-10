@@ -1,4 +1,4 @@
-import type { Pinned } from "@arq/schema";
+import type { DashStyle, EdgeStyle, NodeShape, NodeStyle, Pinned } from "@arq/schema";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -54,15 +54,88 @@ export function wrapLabel(label: string): string[] {
   return lines;
 }
 
-export function nodeHeight(label: string): number {
-  const m = METRICS;
-  return m.padding + m.iconSize + m.gap + wrapLabel(label).length * m.labelLineHeight + m.gap + m.badgeHeight + m.padding;
+export const DEFAULT_NODE_SIZE = { w: 120, h: 64 } as const;
+export const DEFAULT_TEXT_SIZE = { w: 120, h: 24 } as const;
+
+/**
+ * Built-in fallbacks for unset style fields. The renderer resolves against THESE and never
+ * against user settings, so the same document exports the same bytes on every machine.
+ */
+export const STYLE_DEFAULTS = {
+  node: { fill: "#ffffff", stroke: "#d0d0d0", strokeWidth: 1.5, strokeDash: "solid",
+          radius: 8, fontSize: 13, textAlign: "center" },
+  edge: { stroke: "#1a1a1a", strokeWidth: 1.5, strokeDash: "solid",
+          routing: "orthogonal", startArrow: "none", endArrow: "arrow" },
+  canvasBackground: "#ffffff",
+} as const;
+
+export const DASH_ARRAY: Record<DashStyle, string | undefined> = {
+  solid: undefined,
+  dashed: "8 4",
+  dotted: "2 4",
+};
+
+export function shapeRect(pinned: Pinned | undefined, shape: NodeShape): Rect {
+  const d = shape === "text" ? DEFAULT_TEXT_SIZE : DEFAULT_NODE_SIZE;
+  return { x: pinned?.x ?? 0, y: pinned?.y ?? 0, w: pinned?.w ?? d.w, h: pinned?.h ?? d.h };
 }
 
-export function nodeRect(pinned: Pinned | undefined, label: string): Rect {
-  return { x: pinned?.x ?? 0, y: pinned?.y ?? 0, w: METRICS.nodeWidth, h: nodeHeight(label) };
+const fmt = (n: number) => String(Math.round(n * 100) / 100);
+
+/** One SVG element for the shape's outline. Fill and stroke are applied by the caller. */
+export function shapeOutline(shape: NodeShape, r: Rect, radius: number): string {
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  switch (shape) {
+    case "rect":
+      return `<rect x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}" rx="${fmt(radius)}"/>`;
+    case "ellipse":
+      return `<ellipse cx="${fmt(cx)}" cy="${fmt(cy)}" rx="${fmt(r.w / 2)}" ry="${fmt(r.h / 2)}"/>`;
+    case "diamond":
+      return `<polygon points="${fmt(cx)} ${fmt(r.y)},${fmt(r.x + r.w)} ${fmt(cy)},${fmt(cx)} ${fmt(r.y + r.h)},${fmt(r.x)} ${fmt(cy)}"/>`;
+    case "triangle":
+      return `<polygon points="${fmt(cx)} ${fmt(r.y)},${fmt(r.x + r.w)} ${fmt(r.y + r.h)},${fmt(r.x)} ${fmt(r.y + r.h)}"/>`;
+    case "text":
+      return "";
+  }
 }
 
-export function edgeAnchors(from: Rect, to: Rect): { start: Point; end: Point } {
-  return { start: { x: from.x + from.w, y: from.y + from.h / 2 }, end: { x: to.x, y: to.y + to.h / 2 } };
+export type ResolvedNodeStyle = {
+  fill: string; stroke: string; strokeWidth: number; strokeDash: DashStyle;
+  radius: number; fontSize: number; textAlign: "left" | "center" | "right";
+  glow: { color: string } | undefined;
+};
+
+export function resolveNodeStyle(s: NodeStyle | undefined): ResolvedNodeStyle {
+  const d = STYLE_DEFAULTS.node;
+  return {
+    fill: s?.fill ?? d.fill,
+    stroke: s?.stroke ?? d.stroke,
+    strokeWidth: s?.strokeWidth ?? d.strokeWidth,
+    strokeDash: s?.strokeDash ?? d.strokeDash,
+    radius: s?.radius ?? d.radius,
+    fontSize: s?.fontSize ?? d.fontSize,
+    textAlign: s?.textAlign ?? d.textAlign,
+    glow: s?.glow,
+  };
+}
+
+export type ResolvedEdgeStyle = {
+  stroke: string; strokeWidth: number; strokeDash: DashStyle;
+  routing: "straight" | "curved" | "orthogonal";
+  startArrow: string; endArrow: string;
+  glow: { color: string } | undefined;
+};
+
+export function resolveEdgeStyle(s: EdgeStyle | undefined): ResolvedEdgeStyle {
+  const d = STYLE_DEFAULTS.edge;
+  return {
+    stroke: s?.stroke ?? d.stroke,
+    strokeWidth: s?.strokeWidth ?? d.strokeWidth,
+    strokeDash: s?.strokeDash ?? d.strokeDash,
+    routing: s?.routing ?? d.routing,
+    startArrow: s?.startArrow ?? d.startArrow,
+    endArrow: s?.endArrow ?? d.endArrow,
+    glow: s?.glow,
+  };
 }

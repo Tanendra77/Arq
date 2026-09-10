@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { METRICS, nodeHeight, nodeRect, wrapLabel, edgeAnchors } from "../src/index";
+import {
+  DEFAULT_NODE_SIZE,
+  resolveEdgeStyle,
+  resolveNodeStyle,
+  shapeOutline,
+  shapeRect,
+  STYLE_DEFAULTS,
+  wrapLabel,
+} from "../src/metrics";
 
 describe("wrapLabel", () => {
   it("keeps short labels on one line", () => {
@@ -18,21 +26,63 @@ describe("wrapLabel", () => {
   });
 });
 
-describe("nodeRect", () => {
-  it("uses fixed width and a height from the wrapped label", () => {
-    const r = nodeRect({ x: 10, y: 20 }, "OMS");
-    expect(r).toEqual({ x: 10, y: 20, w: METRICS.nodeWidth, h: nodeHeight("OMS") });
-    expect(nodeHeight("OMS")).toBe(6 + 48 + 4 + 16 + 4 + 12 + 6);
-    expect(nodeHeight("Primary broker in Mumbai")).toBe(nodeHeight("OMS") + 16);
+describe("shapeRect", () => {
+  it("uses the default size when pinned has no w/h", () => {
+    expect(shapeRect({ x: 5, y: 6 }, "rect")).toEqual({ x: 5, y: 6, w: DEFAULT_NODE_SIZE.w, h: DEFAULT_NODE_SIZE.h });
   });
-  it("defaults to the origin when unpinned", () => {
-    expect(nodeRect(undefined, "x")).toMatchObject({ x: 0, y: 0 });
+
+  it("honours an explicit size", () => {
+    expect(shapeRect({ x: 0, y: 0, w: 200, h: 90 }, "ellipse")).toEqual({ x: 0, y: 0, w: 200, h: 90 });
+  });
+
+  it("gives text a shorter default box", () => {
+    expect(shapeRect({ x: 0, y: 0 }, "text").h).toBeLessThan(DEFAULT_NODE_SIZE.h);
+  });
+
+  it("treats a missing pinned entry as the origin", () => {
+    expect(shapeRect(undefined, "rect")).toEqual({ x: 0, y: 0, w: DEFAULT_NODE_SIZE.w, h: DEFAULT_NODE_SIZE.h });
   });
 });
 
-describe("edgeAnchors", () => {
-  it("anchors at right-center and left-center", () => {
-    const a = edgeAnchors({ x: 0, y: 0, w: 120, h: 96 }, { x: 300, y: 100, w: 120, h: 96 });
-    expect(a).toEqual({ start: { x: 120, y: 48 }, end: { x: 300, y: 148 } });
+describe("shapeOutline", () => {
+  const r = { x: 0, y: 0, w: 100, h: 50 };
+
+  it("emits a rect with the given corner radius", () => {
+    expect(shapeOutline("rect", r, 8)).toContain('rx="8"');
+  });
+
+  it("emits an ellipse inscribed in the box", () => {
+    const out = shapeOutline("ellipse", r, 0);
+    expect(out).toContain('cx="50"');
+    expect(out).toContain('cy="25"');
+    expect(out).toContain('rx="50"');
+    expect(out).toContain('ry="25"');
+  });
+
+  it("emits four points for a diamond and three for a triangle", () => {
+    expect(shapeOutline("diamond", r, 0).match(/,/g)?.length).toBe(3);
+    expect(shapeOutline("triangle", r, 0).match(/,/g)?.length).toBe(2);
+  });
+
+  it("emits nothing for text", () => {
+    expect(shapeOutline("text", r, 0)).toBe("");
+  });
+});
+
+describe("style resolution", () => {
+  it("falls back to built-in constants, not to anything machine-local", () => {
+    const s = resolveNodeStyle(undefined);
+    expect(s.fill).toBe(STYLE_DEFAULTS.node.fill);
+    expect(s.stroke).toBe(STYLE_DEFAULTS.node.stroke);
+    expect(s.strokeWidth).toBe(STYLE_DEFAULTS.node.strokeWidth);
+  });
+
+  it("lets an explicit value win over the default", () => {
+    expect(resolveNodeStyle({ fill: "#123456" }).fill).toBe("#123456");
+    expect(resolveEdgeStyle({ routing: "curved" }).routing).toBe("curved");
+  });
+
+  it("keeps an explicit value that happens to equal the default", () => {
+    expect(resolveNodeStyle({ fill: STYLE_DEFAULTS.node.fill }).fill).toBe(STYLE_DEFAULTS.node.fill);
   });
 });

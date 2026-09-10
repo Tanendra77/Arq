@@ -13,3 +13,4 @@ playwright-report/
 packages/render/fonts/
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/target/
+solace-icons/

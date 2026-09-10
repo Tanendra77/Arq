@@ -1,19 +1,27 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { Document, EdgeKind, NodeType } from "@arq/schema";
+import type { Document, Endpoint, NodeShape, NodeStyle, EdgeStyle } from "@arq/schema";
+import { isNodeRef } from "@arq/schema";
 import type { Selection } from "../store/editor-store";
 
 export type ArqNodeData = {
   label: string;
-  nodeType: NodeType;
+  shape: NodeShape;
+  style: NodeStyle | undefined;
   iconSvg: string | undefined;
   iconId: string | undefined;
 };
-export type ArqEdgeData = { kind: EdgeKind; label: string | undefined };
+export type ArqEdgeData = { label: string | undefined; style: EdgeStyle | undefined };
 
-export type ArqFlowNode = Node<ArqNodeData, "arq">;
+/** Empty data for the hidden node standing in for a loose edge endpoint (see `endpointNodeId`). */
+export type ArqEndpointData = Record<string, never>;
+
+export type ArqFlowNode = Node<ArqNodeData, "arq"> | Node<ArqEndpointData, "arqEndpoint">;
 export type ArqFlowEdge = Edge<ArqEdgeData, "arq">;
 
-export type IconResolver = (id: string | undefined, nodeType: NodeType) => string | undefined;
+export type IconResolver = (id: string | undefined) => string | undefined;
+
+/** Deterministic id for the hidden node standing in for a loose endpoint. */
+export const endpointNodeId = (edgeId: string, which: "from" | "to") => `__ep:${edgeId}:${which}`;
 
 export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Selection): { nodes: ArqFlowNode[]; edges: ArqFlowEdge[] } {
   const selNodes = new Set(selection.nodes);
@@ -25,16 +33,35 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
       type: "arq",
       position: { x: p?.x ?? 0, y: p?.y ?? 0 },
       selected: selNodes.has(n.id),
-      data: { label: n.label, nodeType: n.type, iconSvg: resolveIcon(n.icon, n.type), iconId: n.icon },
+      data: {
+        label: n.label,
+        shape: n.shape,
+        style: n.style,
+        iconSvg: n.icon !== undefined ? resolveIcon(n.icon) : undefined,
+        iconId: n.icon,
+      },
     };
   });
+
+  // React Flow requires every edge to name a real source/target node. A loose (point) endpoint
+  // gets a hidden zero-size node instead of a second, node-less edge representation, so dragging
+  // and rendering share one code path regardless of whether an end is attached.
+  const endpointNodes: ArqFlowNode[] = [];
+  const anchor = (edgeId: string, which: "from" | "to", ep: Endpoint): string => {
+    if (isNodeRef(ep)) return ep;
+    const id = endpointNodeId(edgeId, which);
+    endpointNodes.push({ id, type: "arqEndpoint", position: { x: ep.x, y: ep.y }, draggable: true, data: {} });
+    return id;
+  };
+
   const edges: ArqFlowEdge[] = doc.edges.map((e) => ({
     id: e.id,
     type: "arq",
-    source: e.from,
-    target: e.to,
+    source: anchor(e.id, "from", e.from),
+    target: anchor(e.id, "to", e.to),
     selected: selEdges.has(e.id),
-    data: { kind: e.kind, label: e.label },
+    data: { label: e.label, style: e.style },
   }));
-  return { nodes, edges };
+
+  return { nodes: [...nodes, ...endpointNodes], edges };
 }

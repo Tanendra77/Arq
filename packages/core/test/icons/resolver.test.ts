@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { createIconResolver } from "../../src/icons/resolver";
-import { BUILTIN_ICONS } from "../../src/icons/primitives";
 import type { IconPack } from "../../src/platform";
 
 const pack: IconPack = {
@@ -9,15 +8,15 @@ const pack: IconPack = {
 };
 
 describe("createIconResolver", () => {
-  it("returns the primitive for the node type when no icon id is set", () => {
-    expect(createIconResolver([])(undefined, "queue")).toBe(BUILTIN_ICONS.queue);
+  it("returns undefined when no icon id is given: a node with no icon has no icon", () => {
+    expect(createIconResolver([])(undefined)).toBeUndefined();
   });
   it("finds icons in installed packs and in the builtin pack", () => {
     const r = createIconResolver([pack]);
-    expect(r("cat/x", "shape")).toBe("<svg>x</svg>");
-    expect(r("builtin/cloud", "shape")).toContain("<svg");
+    expect(r("cat/x")).toBe("<svg>x</svg>");
+    expect(r("builtin/cloud")).toContain("<svg");
   });
   it("returns undefined for an icon id that is not installed", () => {
-    expect(createIconResolver([pack])("cat/missing", "shape")).toBeUndefined();
+    expect(createIconResolver([pack])("cat/missing")).toBeUndefined();
   });
 });

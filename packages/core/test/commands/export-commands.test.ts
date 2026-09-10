@@ -15,7 +15,7 @@ describe("fileSlug", () => {
 describe("exportSvg", () => {
   it("renders the current document and hands it to the platform", async () => {
     const store = createEditorStore(emptyDocument("My Flow"));
-    store.getState().addNode({ type: "broker", label: "PR", position: { x: 0, y: 0 } });
+    store.getState().addNode({ shape: "rect", label: "PR", position: { x: 0, y: 0 } });
     const p = createFakePlatform();
     await exportSvg(store, p, createIconResolver([]));
     expect(p.exported).toHaveLength(1);

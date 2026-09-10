@@ -1,6 +1,5 @@
 export * from "./store/editor-store";
 export * from "./flow/to-flow";
-export * from "./flow/default-edge-kind";
 export * from "./platform";
 export * from "./icons/primitives";
 export * from "./icons/resolver";

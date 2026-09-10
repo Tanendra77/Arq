@@ -1,33 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { emptyDocument } from "@arq/schema";
+import { DocumentSchema } from "@arq/schema";
 import { toFlow } from "../../src/flow/to-flow";
 
-const resolve = (id: string | undefined, t: string) => (id ? `<svg id="${id}"/>` : `<svg id="builtin-${t}"/>`);
+const doc = DocumentSchema.parse({
+  version: 2, title: "T",
+  nodes: [{ id: "a", shape: "ellipse", label: "A", style: { fill: "#ff0000" } }],
+  edges: [{ id: "e1", from: "a", to: { x: 200, y: 10 }, style: { routing: "curved" } }],
+  layout: { pinned: { a: { x: 10, y: 20 } } },
+});
 
 describe("toFlow", () => {
-  it("maps nodes with pinned positions and resolved icons", () => {
-    const doc = emptyDocument();
-    doc.nodes.push({ id: "a", type: "broker", label: "A", props: {} });
-    doc.layout.pinned.a = { x: 5, y: 6 };
-    const { nodes } = toFlow(doc, resolve, { nodes: [], edges: [] });
-    expect(nodes).toHaveLength(1);
-    expect(nodes[0]).toMatchObject({ id: "a", type: "arq", position: { x: 5, y: 6 }, data: { label: "A", nodeType: "broker", iconSvg: '<svg id="builtin-broker"/>' } });
+  it("carries shape and style onto node data", () => {
+    const { nodes } = toFlow(doc, () => undefined, { nodes: [], edges: [] });
+    expect(nodes[0]?.data.shape).toBe("ellipse");
+    expect(nodes[0]?.data.style?.fill).toBe("#ff0000");
   });
 
-  it("falls back to origin when a node has no pinned entry", () => {
-    const doc = emptyDocument();
-    doc.nodes.push({ id: "a", type: "app", label: "A", props: {} });
-    const { nodes } = toFlow(doc, resolve, { nodes: [], edges: [] });
-    expect(nodes[0]?.position).toEqual({ x: 0, y: 0 });
+  it("marks selection", () => {
+    const { nodes } = toFlow(doc, () => undefined, { nodes: ["a"], edges: [] });
+    expect(nodes[0]?.selected).toBe(true);
   });
 
-  it("maps edges with source/target and kind data, marking selection", () => {
-    const doc = emptyDocument();
-    doc.nodes.push({ id: "a", type: "app", label: "A", props: {} }, { id: "b", type: "broker", label: "B", props: {} });
-    doc.edges.push({ id: "e", from: "a", to: "b", kind: "publish", label: "t/1", props: {} });
-    const { nodes, edges } = toFlow(doc, resolve, { nodes: ["b"], edges: ["e"] });
-    expect(edges[0]).toMatchObject({ id: "e", source: "a", target: "b", type: "arq", selected: true, data: { kind: "publish", label: "t/1" } });
-    expect(nodes.find((n) => n.id === "b")?.selected).toBe(true);
-    expect(nodes.find((n) => n.id === "a")?.selected).toBe(false);
+  it("keeps a half-attached edge, using a synthetic node for the loose end", () => {
+    const { edges, nodes } = toFlow(doc, () => undefined, { nodes: [], edges: [] });
+    expect(edges).toHaveLength(1);
+    expect(nodes.some((n) => n.id === edges[0]?.target)).toBe(true);
   });
 });

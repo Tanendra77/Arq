@@ -14,20 +14,26 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-palette-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: grab; user-select: none; }
 .arq-palette-list li:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
 .arq-palette-icon svg { width: 24px; height: 24px; display: block; }
-.arq-node { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 5px 6px; border: 1px solid var(--arq-line); border-radius: 8px; background: var(--arq-bg); }
-.arq-node.selected { border-color: var(--arq-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--arq-accent) 40%, transparent); }
-.arq-node-icon svg { width: 48px; height: 48px; display: block; }
-.arq-node-icon-missing { box-sizing: border-box; width: 48px; height: 48px; border: 1px dashed var(--arq-line); font-size: 8px; overflow: hidden; word-break: break-all; }
-/* Label and badge sizing mirror METRICS in @arq/render (labelFontSize/labelLineHeight,
-   badgeFontSize/badgeHeight). `.arq-node` is border-box at height `nodeHeight(label)`, and its
-   vertical stack adds up to exactly that: 5 (padding) + 1 (border) + 48 (icon) + 4 (gap) +
-   lines * 16 + 4 (gap) + 12 (badge) + 1 (border) + 5 (padding). The 5px block padding is 6px
-   from METRICS minus the 1px border, so the *outer bordered box* — not the content box — is the
-   one `nodeHeight` describes; the exporter strokes its rect centred on that same box. */
-.arq-node-label { text-align: center; font-weight: 500; max-width: 108px; overflow-wrap: anywhere; font-size: 13px; line-height: 16px; }
-.arq-node-badge { font-size: 10px; line-height: 12px; opacity: 0.6; text-transform: uppercase; letter-spacing: 0.04em; }
-.arq-edge { stroke: var(--arq-fg); stroke-width: 1.5; color: var(--arq-fg); }
-.arq-edge.selected { stroke: var(--arq-accent); }
+/*
+ * A node's own fill/stroke/shape come from the inline <svg data-shape> ArqNode draws with
+ * `shapeOutline` (the same function the SVG exporter calls) — this stylesheet never paints the
+ * shape itself. `.arq-node` only lays out its children and, when selected, draws a halo around
+ * the box that sits independent of whatever fill/stroke the document's style resolves to.
+ */
+.arq-node { position: relative; }
+.arq-node.selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--arq-accent) 40%, transparent); border-radius: 4px; }
+.arq-node-shape { pointer-events: none; }
+.arq-node-icon svg { width: 100%; height: 100%; display: block; }
+.arq-node-icon-missing { box-sizing: border-box; border: 1px dashed var(--arq-line); font-size: 8px; overflow: hidden; word-break: break-all; display: flex; align-items: center; justify-content: center; text-align: center; }
+/* Font metrics mirror METRICS in @arq/render (labelFontSize/labelLineHeight); position (top/left/
+   width) is computed inline from `shapeRect`/`wrapLabel` so it lines up with the exported SVG's
+   text block. */
+.arq-node-label { font-weight: 500; overflow-wrap: anywhere; line-height: 16px; pointer-events: none; }
+/* The hidden node standing in for a loose edge endpoint (`endpointNodeId` in flow/to-flow.ts).
+   Drawn as a small grabbable dot rather than invisible, so a free-floating line end can still be
+   found and dragged; it never appears in the exported SVG, which only draws documented content. */
+.react-flow__node-arqEndpoint { width: 8px; height: 8px; border-radius: 50%; background: var(--arq-line); cursor: grab; }
+.arq-edge { stroke-linecap: round; }
 .arq-edge-label { position: absolute; pointer-events: all; font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; }
 .arq-toolbar button { padding: 4px 10px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; }
 .arq-toolbar button:disabled { opacity: 0.4; cursor: default; }

@@ -1,4 +1,3 @@
-import type { NodeType } from "@arq/schema";
 import type { IconPack } from "../platform";
 
 const svg = (body: string) =>
@@ -11,20 +10,6 @@ const app = svg('<rect x="12" y="12" width="48" height="48" rx="8"/><path d="M26
 const database = svg('<ellipse cx="36" cy="18" rx="22" ry="8"/><path d="M14 18v36c0 4.4 9.8 8 22 8s22-3.6 22-8V18"/><path d="M14 36c0 4.4 9.8 8 22 8s22-3.6 22-8"/>');
 const cloud = svg('<path d="M22 54h30a12 12 0 0 0 2-23.8A16 16 0 0 0 23.5 28 11 11 0 0 0 22 54z"/>');
 const shape = svg('<rect x="14" y="14" width="44" height="44" rx="4" stroke-dasharray="6 4"/>');
-
-export const BUILTIN_ICONS: Record<NodeType, string> = {
-  broker,
-  queue,
-  topic,
-  app,
-  consumer: app,
-  publisher: app,
-  mesh: cloud,
-  gateway: broker,
-  store: database,
-  external: cloud,
-  shape,
-};
 
 const BUILTIN_FILES: Record<string, string> = { broker, queue, topic, app, database, cloud, shape };
 

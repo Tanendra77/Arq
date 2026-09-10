@@ -1,37 +1,94 @@
 import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { METRICS, nodeHeight, wrapLabel } from "@arq/render";
+import { DASH_ARRAY, METRICS, glowId, resolveNodeStyle, shapeOutline, shapeRect, wrapLabel } from "@arq/render";
 import type { ArqFlowNode } from "../flow/to-flow";
 
+/** A drop shadow filter matching the one `@arq/render` writes into the exported SVG's `<defs>`. */
+function glowFilter(color: string): string {
+  return `<filter id="${glowId(color)}" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${color}" flood-opacity="0.9"/></filter>`;
+}
+
 function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
-  // Size the DOM box from the shared metrics table so the canvas box is the one the exporter draws.
-  const h = nodeHeight(data.label);
+  if (!("shape" in data)) return null; // the hidden node standing in for a loose edge endpoint: no visual
+  const s = resolveNodeStyle(data.style);
+  // The same rect a document with no pinned size override resolves to in `@arq/render` — shared
+  // geometry, not a second guess at node size.
+  const rect = shapeRect(undefined, data.shape);
+  const dash = DASH_ARRAY[s.strokeDash];
+  // shapeOutline emits one element with no paint attributes, ending in `/>`; splice the resolved
+  // style in exactly as the SVG exporter does, so the two never draw two different rects.
+  const outline = shapeOutline(data.shape, rect, s.radius);
+  const shaped = outline
+    ? outline.replace(
+        "/>",
+        ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
+      )
+    : "";
+  const filterId = s.glow ? glowId(s.glow.color) : undefined;
+  const defs = s.glow ? `<defs>${glowFilter(s.glow.color)}</defs>` : "";
+
+  const lines = wrapLabel(data.label);
+  const hasIcon = data.iconId !== undefined;
+  const iconBox = { x: (rect.w - METRICS.iconSize) / 2, y: METRICS.padding, w: METRICS.iconSize, h: METRICS.iconSize };
+  // With an icon the label sits under it; without one it is centred in the box, matching
+  // `renderNode` in @arq/render so a `text` shape (no outline, no icon) reads the same both places.
+  const labelTop = hasIcon ? iconBox.y + iconBox.h + METRICS.gap : (rect.h - lines.length * METRICS.labelLineHeight) / 2;
+
   return (
     <div
       className={`arq-node${selected === true ? " selected" : ""}`}
-      style={{ width: METRICS.nodeWidth, height: h, boxSizing: "border-box" }}
-      data-node-type={data.nodeType}
+      style={{ width: rect.w, height: rect.h, position: "relative" }}
+      data-shape={data.shape}
     >
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
-      {data.iconSvg !== undefined ? (
-        // SAFE ONLY WHILE THE RESOLVER IS BUILT-IN-ONLY. Today `createIconResolver([])` is called
-        // with no installed packs, so this is always hand-authored SVG from `icons/primitives.ts`.
-        // Icon-pack import (spec 7.2, slice 4) makes this a user-supplied string: that task MUST
-        // land the import-time sanitizer (strip <script>, on* handlers, <foreignObject>, and any
-        // non-fragment href/url()) before it passes a pack to the resolver.
-        <div className="arq-node-icon" dangerouslySetInnerHTML={{ __html: data.iconSvg }} />
-      ) : (
-        <div className="arq-node-icon arq-node-icon-missing" title={`Missing icon ${data.iconId ?? ""}`}>
-          {data.iconId}
-        </div>
-      )}
-      <div className="arq-node-label">
-        {wrapLabel(data.label).map((line, i) => (
+      <svg
+        className="arq-node-shape"
+        width={rect.w}
+        height={rect.h}
+        viewBox={`0 0 ${rect.w} ${rect.h}`}
+        style={{ position: "absolute", inset: 0, filter: filterId ? `url(#${filterId})` : undefined }}
+        // The outline string comes only from `shapeOutline` in @arq/render plus attribute values
+        // this component computed itself — never from document/user content.
+        dangerouslySetInnerHTML={{ __html: `${defs}${shaped}` }}
+      />
+      {hasIcon ? (
+        data.iconSvg !== undefined ? (
+          <div
+            className="arq-node-icon"
+            style={{ position: "absolute", left: iconBox.x, top: iconBox.y, width: iconBox.w, height: iconBox.h }}
+            // SAFE ONLY WHILE THE RESOLVER IS BUILT-IN-ONLY. Today `createIconResolver([])` (or
+            // packs installed via the platform) is the only source reaching this component. Icon
+            // pack import (spec 7.2, slice 4) makes this a user-supplied string: that task MUST
+            // land the import-time sanitizer (strip <script>, on* handlers, <foreignObject>, and
+            // any non-fragment href/url()) before an installed pack's SVG text reaches this sink.
+            dangerouslySetInnerHTML={{ __html: data.iconSvg }}
+          />
+        ) : (
+          <div
+            className="arq-node-icon arq-node-icon-missing"
+            style={{ position: "absolute", left: iconBox.x, top: iconBox.y, width: iconBox.w, height: iconBox.h }}
+            title={`Missing icon ${data.iconId ?? ""}`}
+          >
+            {data.iconId}
+          </div>
+        )
+      ) : null}
+      <div
+        className="arq-node-label"
+        style={{
+          position: "absolute",
+          left: 0,
+          top: labelTop,
+          width: rect.w,
+          textAlign: s.textAlign,
+          fontSize: s.fontSize,
+        }}
+      >
+        {lines.map((line, i) => (
           <div key={i}>{line}</div>
         ))}
       </div>
-      <div className="arq-node-badge">{data.nodeType}</div>
     </div>
   );
 }

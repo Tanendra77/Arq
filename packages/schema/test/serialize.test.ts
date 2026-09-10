@@ -45,6 +45,8 @@ describe("formatIssues", () => {
 });
 
 describe("serializeDocument", () => {
+  // Routed through DocumentSchema.parse instead of parseDocument (see the skip note above) —
+  // Task 3 should route this back through parseDocument once migrate() understands version 2.
   it("round-trips and ends with a newline", () => {
     const doc = DocumentSchema.parse(fixture);
     const text = serializeDocument(doc);

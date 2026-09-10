@@ -13,7 +13,11 @@ describe("nodes", () => {
   });
 
   it("rejects a leftover v1 type field", () => {
-    expect(DocumentSchema.safeParse({ ...base, nodes: [{ id: "a", type: "broker", label: "A" }] }).success).toBe(false);
+    // shape is present and valid, so .strict() rejecting the unknown `type` key is the only
+    // thing that can fail this — without a valid shape it would fail for a missing key instead.
+    expect(
+      DocumentSchema.safeParse({ ...base, nodes: [{ id: "a", shape: "rect", type: "broker", label: "A" }] }).success,
+    ).toBe(false);
   });
 
   it("carries optional style and meta", () => {
@@ -77,6 +81,47 @@ describe("edge endpoints", () => {
       edges: [{ id: "e1", from: "a", to: "b", meta: { qos: 1 } }],
     };
     expect(DocumentSchema.safeParse(doc).success).toBe(false);
+  });
+});
+
+describe("document-level refinements", () => {
+  it("rejects duplicate node ids", () => {
+    const r = DocumentSchema.safeParse({ ...base, nodes: [node("a"), node("a")] });
+    expect(r.success).toBe(false);
+    if (!r.success) expect(JSON.stringify(r.error.issues)).toContain("duplicate node id");
+  });
+
+  it("rejects a node whose group does not exist", () => {
+    const doc = { ...base, nodes: [{ id: "a", shape: "rect", label: "A", group: "ghost" }] };
+    const r = DocumentSchema.safeParse(doc);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(JSON.stringify(r.error.issues)).toContain("missing group");
+  });
+
+  it("rejects a group parent cycle", () => {
+    const doc = {
+      ...base,
+      groups: [
+        { id: "g1", label: "G1", kind: "generic", parent: "g2" },
+        { id: "g2", label: "G2", kind: "generic", parent: "g1" },
+      ],
+    };
+    const r = DocumentSchema.safeParse(doc);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(JSON.stringify(r.error.issues)).toContain("cycle");
+  });
+
+  it("rejects tuple-form pinned entries", () => {
+    // Node "a" exists so the pinned-orphan check can't be what fails this — only PinnedSchema's
+    // object shape can.
+    const doc = { ...base, nodes: [node("a")], layout: { pinned: { a: [10, 20] } } };
+    const r = DocumentSchema.safeParse(doc);
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      const issue = r.error.issues.find((i) => i.path.join(".") === "layout.pinned.a");
+      expect(issue).toBeDefined();
+      expect(issue?.message).not.toMatch(/matches no node or group/);
+    }
   });
 });
 

@@ -11,9 +11,7 @@ import {
 import fixture from "./fixtures/event-flow.json";
 
 describe("parseDocument", () => {
-  // Unskip in task 3: parseDocument runs migrate() first, and migrate still only admits
-  // version 1, so no version 2 document can reach DocumentSchema through this path yet.
-  it.skip("parses valid JSON text", () => {
+  it("parses valid JSON text", () => {
     const r = parseDocument(JSON.stringify(fixture));
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.document.title).toBe("Order ingestion");
@@ -45,10 +43,10 @@ describe("formatIssues", () => {
 });
 
 describe("serializeDocument", () => {
-  // Routed through DocumentSchema.parse instead of parseDocument (see the skip note above) —
-  // Task 3 should route this back through parseDocument once migrate() understands version 2.
   it("round-trips and ends with a newline", () => {
-    const doc = DocumentSchema.parse(fixture);
+    const parsed = parseDocument(JSON.stringify(fixture));
+    if (!parsed.ok) throw new Error(`fixture failed to parse: ${parsed.errors.join(", ")}`);
+    const doc = parsed.document;
     const text = serializeDocument(doc);
     expect(text.endsWith("\n")).toBe(true);
     expect(text.startsWith("{\n  \"version\": 2,")).toBe(true);
@@ -66,9 +64,15 @@ describe("serializeDocument", () => {
 });
 
 describe("migrate", () => {
-  it("returns version 1 input unchanged", () => {
-    const v1 = { version: 1, title: "old" };
-    expect(migrate(v1)).toBe(v1);
+  // Full migration coverage lives in migrate.test.ts; this just smoke-tests that
+  // parseDocument's dependency on migrate() still behaves as expected.
+  it("migrates version 1 input to version 2", () => {
+    const v1 = { version: 1, title: "old", nodes: [], edges: [] };
+    expect(migrate(v1)).toEqual({ version: 2, title: "old", nodes: [], edges: [] });
+  });
+  it("passes version 2 input through unchanged", () => {
+    const v2 = { version: 2, title: "old" };
+    expect(migrate(v2)).toBe(v2);
   });
   it("throws MigrationError for other versions", () => {
     expect(() => migrate({ version: 0 })).toThrow(MigrationError);

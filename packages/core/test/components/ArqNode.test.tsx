@@ -57,4 +57,26 @@ describe("ArqNode", () => {
     expect(svg).toHaveAttribute("width", String(DEFAULT_NODE_SIZE.w));
     expect(svg).toHaveAttribute("height", String(DEFAULT_NODE_SIZE.h));
   });
+
+  it("references its glow filter by id instead of defining one itself", () => {
+    const node: ArqFlowNode = {
+      id: "a",
+      type: "arq",
+      position: { x: 0, y: 0 },
+      data: {
+        label: "A",
+        shape: "rect",
+        style: { glow: { color: "#ff0000" } },
+        iconSvg: undefined,
+        iconId: undefined,
+        pinned: undefined,
+      },
+    };
+    const { container } = renderNode(node);
+    const svg = container.querySelector(".arq-node-shape");
+    // EdgeDefs (mounted once per document via collectDefs) owns the <filter> element; a glowing
+    // node must only reference it, never redefine it, or the id ends up duplicated in the DOM.
+    expect(svg?.getAttribute("style")).toContain("url(#arq-glow-ff0000)");
+    expect(container.querySelector("filter")).toBeNull();
+  });
 });

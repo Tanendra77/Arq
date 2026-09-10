@@ -121,8 +121,12 @@ describe("document-level refinements", () => {
   it("rejects an edge or group id using the reserved __ep: prefix", () => {
     const edgeDoc = { ...base, nodes: [node("a"), node("b")], edges: [{ id: "__ep:x", from: "a", to: "b" }] };
     const groupDoc = { ...base, groups: [{ id: "__ep:g", label: "G", kind: "generic" }] };
-    expect(DocumentSchema.safeParse(edgeDoc).success).toBe(false);
-    expect(DocumentSchema.safeParse(groupDoc).success).toBe(false);
+    const edgeResult = DocumentSchema.safeParse(edgeDoc);
+    const groupResult = DocumentSchema.safeParse(groupDoc);
+    expect(edgeResult.success).toBe(false);
+    expect(groupResult.success).toBe(false);
+    if (!edgeResult.success) expect(JSON.stringify(edgeResult.error.issues)).toContain("reserved");
+    if (!groupResult.success) expect(JSON.stringify(groupResult.error.issues)).toContain("reserved");
   });
 
   it("still accepts an ordinary id containing _ or : elsewhere", () => {

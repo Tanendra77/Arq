@@ -3,11 +3,6 @@ import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { DASH_ARRAY, METRICS, glowId, resolveNodeStyle, shapeOutline, shapeRect, wrapLabel } from "@arq/render";
 import type { ArqFlowNode } from "../flow/to-flow";
 
-/** A drop shadow filter matching the one `@arq/render` writes into the exported SVG's `<defs>`. */
-function glowFilter(color: string): string {
-  return `<filter id="${glowId(color)}" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="3" flood-color="${color}" flood-opacity="0.9"/></filter>`;
-}
-
 function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
   if (!("shape" in data)) return null; // the hidden node standing in for a loose edge endpoint: no visual
   const s = resolveNodeStyle(data.style);
@@ -27,8 +22,13 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
         ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
       )
     : "";
+  // Referenced only, never defined here: `EdgeDefs` mounts `collectDefs(doc)` once per document,
+  // which already emits `<filter id="arq-glow-<color>">` for every glowing node and edge. Defining
+  // it again per-node would duplicate that id in the DOM.
+  // Referenced only, never defined here: `EdgeDefs` mounts `collectDefs(doc)` once per document,
+  // which already emits `<filter id="arq-glow-<color>">` for every glowing node and edge. Defining
+  // it again per-node would duplicate that id in the DOM.
   const filterId = s.glow ? glowId(s.glow.color) : undefined;
-  const defs = s.glow ? `<defs>${glowFilter(s.glow.color)}</defs>` : "";
 
   const lines = wrapLabel(data.label);
   const hasIcon = data.iconId !== undefined;
@@ -53,7 +53,7 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
         style={{ position: "absolute", inset: 0, filter: filterId ? `url(#${filterId})` : undefined }}
         // The outline string comes only from `shapeOutline` in @arq/render plus attribute values
         // this component computed itself — never from document/user content.
-        dangerouslySetInnerHTML={{ __html: `${defs}${shaped}` }}
+        dangerouslySetInnerHTML={{ __html: shaped }}
       />
       {hasIcon ? (
         data.iconSvg !== undefined ? (

@@ -54,7 +54,7 @@ export function wrapLabel(label: string): string[] {
   return lines;
 }
 
-export const DEFAULT_NODE_SIZE = { w: 120, h: 64 } as const;
+export const DEFAULT_NODE_SIZE = { w: 120, h: 80 } as const;
 export const DEFAULT_TEXT_SIZE = { w: 120, h: 24 } as const;
 
 /**

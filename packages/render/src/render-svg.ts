@@ -77,7 +77,7 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
     .map((line, i) => `<tspan x="${fmt(tx)}" y="${fmt(labelTop + i * m.labelLineHeight + m.labelLineHeight * 0.75)}">${escapeXml(line)}</tspan>`)
     .join("");
 
-  return `<g class="arq-node" data-id="${escapeXml(id)}" data-shape="${n.shape}"${filter}>${shaped}${icon}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${FG}">${text}</text></g>`;
+  return `<g class="arq-node" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${filter}>${shaped}${icon}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${FG}">${text}</text></g>`;
 }
 
 function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string {

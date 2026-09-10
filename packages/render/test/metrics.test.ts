@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_NODE_SIZE,
+  METRICS,
   resolveEdgeStyle,
   resolveNodeStyle,
   shapeOutline,
@@ -41,6 +42,12 @@ describe("shapeRect", () => {
 
   it("treats a missing pinned entry as the origin", () => {
     expect(shapeRect(undefined, "rect")).toEqual({ x: 0, y: 0, w: DEFAULT_NODE_SIZE.w, h: DEFAULT_NODE_SIZE.h });
+  });
+
+  it("is tall enough for an icon-bearing node's icon, gap and one label line", () => {
+    expect(DEFAULT_NODE_SIZE.h).toBeGreaterThanOrEqual(
+      METRICS.padding * 2 + METRICS.iconSize + METRICS.gap + METRICS.labelLineHeight,
+    );
   });
 });
 

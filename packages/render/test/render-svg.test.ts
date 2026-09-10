@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DocumentSchema } from "@arq/schema";
-import { layoutDocument, renderSvg, METRICS } from "../src/index";
+import { layoutDocument, renderSvg, METRICS, DEFAULT_NODE_SIZE } from "../src/index";
 import fixture from "./fixtures/two-nodes.json";
 
 const doc = DocumentSchema.parse(fixture);
@@ -21,8 +21,9 @@ const defsOf = (svg: string) => svg.slice(svg.indexOf("<defs>"), svg.indexOf("</
 describe("layoutDocument", () => {
   it("computes node rects, group rects and padded bounds", () => {
     const l = layoutDocument(doc);
-    expect(l.nodes.get("rect1")).toEqual({ x: 40, y: 60, w: METRICS.nodeWidth, h: 96 });
-    expect(l.nodes.get("ell")).toEqual({ x: 260, y: 160, w: 120, h: 64 });
+    // rect1 has no pinned w/h, so it takes the real default size, icon and all.
+    expect(l.nodes.get("rect1")).toEqual({ x: 40, y: 60, w: DEFAULT_NODE_SIZE.w, h: DEFAULT_NODE_SIZE.h });
+    expect(l.nodes.get("ell")).toEqual({ x: 260, y: 160, w: 120, h: DEFAULT_NODE_SIZE.h });
     // A text-shaped node takes DEFAULT_TEXT_SIZE, not the box size.
     expect(l.nodes.get("txt")).toEqual({ x: 40, y: 340, w: 120, h: 24 });
     expect(l.groups.get("dc")).toEqual({ x: 0, y: 0, w: 680, h: 260 });
@@ -71,6 +72,11 @@ describe("renderSvg", () => {
     expect(nodeGroup(svg, "txt")).not.toMatch(/<(rect|ellipse|polygon)\b/);
   });
 
+  it("carries a color attribute on the node group for currentColor icons to inherit", () => {
+    const svg = renderSvg(doc, opts);
+    expect(svg).toMatch(/<g class="arq-node" data-id="rect1"[^>]*\bcolor="#1a1a1a"/);
+  });
+
   it("applies resolved style to a node", () => {
     const svg = renderSvg(doc, opts);
     expect(svg).toContain('fill="#ffffff"');
@@ -99,7 +105,7 @@ describe("renderSvg", () => {
     const svg = renderSvg(doc, opts);
     expect(svg).toContain('filter="url(#arq-glow-');
     expect(svg).not.toContain("box-shadow");
-    expect(svg).toContain('data-id="dia" data-shape="diamond" filter="url(#arq-glow-f59e0b)"');
+    expect(svg).toContain('data-id="dia" data-shape="diamond" color="#1a1a1a" filter="url(#arq-glow-f59e0b)"');
     expect(svg).toContain('data-id="e3" filter="url(#arq-glow-22c55e)"');
     expect(defsOf(svg)).toContain('id="arq-glow-f59e0b"');
     expect(defsOf(svg)).toContain('id="arq-glow-22c55e"');

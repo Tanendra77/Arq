@@ -1,4 +1,6 @@
-import { METRICS, type Point } from "./metrics";
+import type { ArqEdge, Endpoint, Routing } from "@arq/schema";
+import { isNodeRef } from "@arq/schema";
+import { METRICS, type Point, type Rect } from "./metrics";
 
 const fmt = (n: number) => String(Math.round(n * 100) / 100);
 const pt = (p: Point) => `${fmt(p.x)} ${fmt(p.y)}`;
@@ -50,7 +52,7 @@ function midpoint(points: Point[]): Point {
 const BACKWARD_STUB = 20;
 const BACKWARD_CLEARANCE = 60;
 
-export function edgePath(start: Point, end: Point): { d: string; mid: Point } {
+function orthogonalPath(start: Point, end: Point): { d: string; mid: Point } {
   let points: Point[];
   if (start.y === end.y && end.x >= start.x) {
     points = [start, end];
@@ -69,4 +71,49 @@ export function edgePath(start: Point, end: Point): { d: string; mid: Point } {
     ];
   }
   return { d: roundedPolyline(points, METRICS.cornerRadius), mid: midpoint(points) };
+}
+
+/** A node endpoint anchors on the right edge for a source and the left edge for a target;
+ *  matching the handle positions the canvas draws. A point endpoint is used as authored. */
+export function resolveEndpoint(ep: Endpoint, nodes: Map<string, Rect>): Point | undefined {
+  if (!isNodeRef(ep)) return { x: ep.x, y: ep.y };
+  const r = nodes.get(ep);
+  return r ? { x: r.x + r.w, y: r.y + r.h / 2 } : undefined;
+}
+
+function targetAnchor(ep: Endpoint, nodes: Map<string, Rect>): Point | undefined {
+  if (!isNodeRef(ep)) return { x: ep.x, y: ep.y };
+  const r = nodes.get(ep);
+  return r ? { x: r.x, y: r.y + r.h / 2 } : undefined;
+}
+
+export function edgeEnds(e: ArqEdge, nodes: Map<string, Rect>): { start: Point; end: Point } | undefined {
+  const start = resolveEndpoint(e.from, nodes);
+  const end = targetAnchor(e.to, nodes);
+  if (!start || !end) return undefined;
+  return { start, end };
+}
+
+function curvedPath(start: Point, end: Point): { d: string; mid: Point } {
+  const dx = Math.max(Math.abs(end.x - start.x) / 2, 30);
+  const c1 = { x: start.x + dx, y: start.y };
+  const c2 = { x: end.x - dx, y: end.y };
+  const at = (t: number, a: number, b: number, c: number, d: number) => {
+    const u = 1 - t;
+    return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
+  };
+  // Round through fmt (not raw floats) so the midpoint is deterministic byte-for-byte —
+  // a cubic bezier midpoint like 24.999999999999996 would otherwise fail SVG parity tests.
+  return {
+    d: `M${pt(start)} C${pt(c1)} ${pt(c2)} ${pt(end)}`,
+    mid: { x: Number(fmt(at(0.5, start.x, c1.x, c2.x, end.x))), y: Number(fmt(at(0.5, start.y, c1.y, c2.y, end.y))) },
+  };
+}
+
+export function edgePath(start: Point, end: Point, routing: Routing): { d: string; mid: Point } {
+  if (routing === "straight") {
+    return { d: `M${pt(start)} L${pt(end)}`, mid: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 } };
+  }
+  if (routing === "curved") return curvedPath(start, end);
+  return orthogonalPath(start, end);
 }

@@ -92,9 +92,9 @@ export function shapeOutline(shape: NodeShape, r: Rect, radius: number): string 
     case "ellipse":
       return `<ellipse cx="${fmt(cx)}" cy="${fmt(cy)}" rx="${fmt(r.w / 2)}" ry="${fmt(r.h / 2)}"/>`;
     case "diamond":
-      return `<polygon points="${fmt(cx)} ${fmt(r.y)},${fmt(r.x + r.w)} ${fmt(cy)},${fmt(cx)} ${fmt(r.y + r.h)},${fmt(r.x)} ${fmt(cy)}"/>`;
+      return `<polygon points="${fmt(cx)},${fmt(r.y)} ${fmt(r.x + r.w)},${fmt(cy)} ${fmt(cx)},${fmt(r.y + r.h)} ${fmt(r.x)},${fmt(cy)}"/>`;
     case "triangle":
-      return `<polygon points="${fmt(cx)} ${fmt(r.y)},${fmt(r.x + r.w)} ${fmt(r.y + r.h)},${fmt(r.x)} ${fmt(r.y + r.h)}"/>`;
+      return `<polygon points="${fmt(cx)},${fmt(r.y)} ${fmt(r.x + r.w)},${fmt(r.y + r.h)} ${fmt(r.x)},${fmt(r.y + r.h)}"/>`;
     case "text":
       return "";
   }

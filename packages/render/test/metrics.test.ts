@@ -59,9 +59,12 @@ describe("shapeOutline", () => {
     expect(out).toContain('ry="25"');
   });
 
-  it("emits four points for a diamond and three for a triangle", () => {
-    expect(shapeOutline("diamond", r, 0).match(/,/g)?.length).toBe(3);
-    expect(shapeOutline("triangle", r, 0).match(/,/g)?.length).toBe(2);
+  it("emits the diamond points top,right,bottom,left in conventional x,y form", () => {
+    expect(shapeOutline("diamond", r, 0)).toBe('<polygon points="50,0 100,25 50,50 0,25"/>');
+  });
+
+  it("emits the triangle points apex,bottom-right,bottom-left in conventional x,y form", () => {
+    expect(shapeOutline("triangle", r, 0)).toBe('<polygon points="50,0 100,50 0,50"/>');
   });
 
   it("emits nothing for text", () => {

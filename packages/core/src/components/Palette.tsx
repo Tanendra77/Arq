@@ -1,7 +1,9 @@
-import type { ArrowStyle, NodeShape } from "@arq/schema";
+import type { ArrowStyle, EdgeStyle, NodeShape, NodeStyle } from "@arq/schema";
 import { ARROW_BODY, edgePath, shapeOutline } from "@arq/render";
 import { useEditor } from "../store/context";
 import { DRAG_MIME, encodeDragPayload } from "../flow/drag-payload";
+import { useSettings } from "./SettingsModal";
+import type { Settings } from "../settings";
 
 export type PaletteItem =
   | { key: string; label: string; kind: "node"; shape: NodeShape }
@@ -19,6 +21,22 @@ export const PALETTE_ITEMS: readonly PaletteItem[] = [
 
 /** Length of the free-floating line/arrow a palette edge item drops onto the canvas. */
 export const FREE_LINE_LENGTH = 120;
+
+/**
+ * The settings-driven creation defaults, applied once into a new element's own `style` at the
+ * moment it is created (here and in Canvas's onDrop) and never again — a document must render
+ * identically on every machine no matter what its author's local settings say, so these values
+ * are baked into the element rather than read at render time.
+ */
+export function nodeCreationStyle(settings: Settings): NodeStyle {
+  return { fill: settings.nodeFill, stroke: settings.nodeStroke };
+}
+
+export function edgeCreationStyle(item: Extract<PaletteItem, { kind: "edge" }>, settings: Settings): EdgeStyle {
+  // "Line" is defined by having no arrowhead; only an item that already wants one takes the
+  // configurable style, so turning the setting to "none" cannot silently turn Line into Arrow.
+  return { stroke: settings.edgeStroke, endArrow: item.endArrow === "none" ? "none" : settings.edgeArrow };
+}
 
 const SWATCH_BOX = { x: 4, y: 4, w: 24, h: 24 };
 
@@ -47,17 +65,18 @@ export function Palette() {
   const addNode = useEditor((s) => s.addNode);
   const addEdge = useEditor((s) => s.addEdge);
   const count = useEditor((s) => s.document.nodes.length + s.document.edges.length);
+  const [settings] = useSettings();
 
   const place = (item: PaletteItem) => {
     const cx = 80 + (count % 6) * 40;
     const cy = 80 + (count % 6) * 40;
     if (item.kind === "node") {
-      addNode({ shape: item.shape, label: item.label, position: { x: cx, y: cy } });
+      addNode({ shape: item.shape, label: item.label, position: { x: cx, y: cy }, style: nodeCreationStyle(settings) });
     } else {
       addEdge({
         from: { x: cx - FREE_LINE_LENGTH / 2, y: cy },
         to: { x: cx + FREE_LINE_LENGTH / 2, y: cy },
-        style: { endArrow: item.endArrow },
+        style: edgeCreationStyle(item, settings),
       });
     }
   };

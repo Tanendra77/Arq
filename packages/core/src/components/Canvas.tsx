@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, type DragEvent } from "react";
 import {
   Background,
+  BackgroundVariant,
   Controls,
   ReactFlow,
   ReactFlowProvider,
@@ -20,10 +21,16 @@ import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqNode } from "./ArqNode";
 import { ArqEdge, EdgeDefs } from "./ArqEdge";
-import { PALETTE_ITEMS, FREE_LINE_LENGTH } from "./Palette";
+import { PALETTE_ITEMS, FREE_LINE_LENGTH, nodeCreationStyle, edgeCreationStyle } from "./Palette";
+import { useSettings } from "./SettingsModal";
 
 const nodeTypes = { arq: ArqNode };
 const edgeTypes = { arq: ArqEdge };
+
+const GRID_VARIANT: Record<"dots" | "lines", BackgroundVariant> = {
+  dots: BackgroundVariant.Dots,
+  lines: BackgroundVariant.Lines,
+};
 
 /**
  * Split a React Flow deletion into the two store calls it needs.
@@ -73,6 +80,7 @@ function CanvasInner() {
   const setPinned = useEditor((s) => s.setPinned);
   const setSelection = useEditor((s) => s.setSelection);
   const { screenToFlowPosition } = useReactFlow();
+  const [settings] = useSettings();
 
   // Phase 1 has no user packs wired yet; a plan B task injects installed packs here.
   const resolveIcon = useMemo(() => createIconResolver([]), []);
@@ -142,16 +150,16 @@ function CanvasInner() {
       e.preventDefault();
       const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
       if (item.kind === "node") {
-        addNode({ shape: item.shape, label: item.label, position });
+        addNode({ shape: item.shape, label: item.label, position, style: nodeCreationStyle(settings) });
       } else {
         addEdge({
           from: { x: position.x - FREE_LINE_LENGTH / 2, y: position.y },
           to: { x: position.x + FREE_LINE_LENGTH / 2, y: position.y },
-          style: { endArrow: item.endArrow },
+          style: edgeCreationStyle(item, settings),
         });
       }
     },
-    [addNode, addEdge, screenToFlowPosition],
+    [addNode, addEdge, screenToFlowPosition, settings],
   );
 
   return (
@@ -175,9 +183,13 @@ function CanvasInner() {
         panOnDrag={[1, 2]}
         minZoom={0.1}
         maxZoom={4}
+        snapToGrid={settings.snap}
+        snapGrid={[settings.gridSize, settings.gridSize]}
       >
         <EdgeDefs doc={doc} />
-        <Background />
+        {settings.grid !== "off" ? (
+          <Background variant={GRID_VARIANT[settings.grid]} gap={settings.gridSize} />
+        ) : null}
         <Controls />
       </ReactFlow>
     </div>

@@ -1,5 +1,9 @@
 :root { color-scheme: light dark; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; --arq-accent: #00c895; }
 @media (prefers-color-scheme: dark) { :root { --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; } }
+/* Explicit `theme` setting (SettingsModal sets `data-theme` on the root) overrides whatever the
+   OS reports; "system" leaves the attribute unset so the media query above wins. */
+:root[data-theme="light"] { color-scheme: light; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; }
+:root[data-theme="dark"] { color-scheme: dark; --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; }
 html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sans-serif; color: var(--arq-fg); background: var(--arq-bg); }
 .arq-app { display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: 220px 1fr 260px; grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
 .arq-toolbar { grid-area: toolbar; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--arq-line); }
@@ -48,3 +52,6 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-toolbar-sep { width: 1px; height: 20px; background: var(--arq-line); margin: 0 4px; }
 .arq-toolbar-title { margin-left: auto; opacity: 0.8; }
 .arq-toolbar-error { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); background: #b3261e; color: #fff; padding: 8px 12px; border-radius: 6px; display: flex; gap: 12px; z-index: 10; }
+.arq-modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.arq-modal { background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; max-height: 80vh; overflow: auto; }
+.arq-modal h2 { margin: 0; font-size: 14px; }

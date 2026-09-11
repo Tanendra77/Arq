@@ -16,4 +16,5 @@ export * from "./commands/shortcuts";
 export * from "./commands/export-commands";
 export * from "./components/Toolbar";
 export * from "./components/Inspector";
+export * from "./components/SettingsModal";
 export * from "./settings";

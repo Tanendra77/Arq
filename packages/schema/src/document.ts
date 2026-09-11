@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { Id, IconId } from "./ids";
-import { EdgeStyleSchema, GROUP_KINDS, NODE_SHAPES, NodeStyleSchema } from "./shapes";
+import { ColorSchema, EdgeStyleSchema, GROUP_KINDS, NODE_SHAPES, NodeStyleSchema } from "./shapes";
 
 export const PointSchema = z.object({ x: z.number(), y: z.number() }).strict();
 
@@ -68,6 +68,9 @@ const DocumentBase = z.object({
   version: z.literal(2),
   kind: z.enum(["event-flow", "deployment", "topology", "generic"]).default("generic"),
   title: z.string().default("Untitled"),
+  // Optional so every pre-existing v2 document stays valid; absent means "use @arq/render's
+  // STYLE_DEFAULTS.canvasBackground" (see render-svg.ts), never retyped here.
+  canvasBackground: ColorSchema.optional(),
   nodes: z.array(NodeSchema).default([]),
   edges: z.array(EdgeSchema).default([]),
   groups: z.array(GroupSchema).default([]),

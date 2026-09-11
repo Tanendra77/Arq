@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
   ARROW_STYLES, DASH_STYLES, ROUTING_MODES,
   type ArqEdge, type ArqNode, type ArrowStyle, type Routing,
@@ -13,8 +13,6 @@ const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
 // Matches the editor's own accent color (--arq-accent in styles.css).
 const DEFAULT_GLOW_COLOR = "#00c895";
 
-const CANVAS_BG_KEY = "arq.canvasBackground";
-
 /** The shared value across a selection, or undefined when they disagree. Returning the first
  *  element's value instead would misrepresent every other selected element. */
 export function commonValue<T>(values: T[]): T | undefined {
@@ -23,41 +21,25 @@ export function commonValue<T>(values: T[]): T | undefined {
 }
 
 /**
- * Canvas background is a display preference, not diagram content: `Document` is a `.strict()`
- * zod schema with no such field, and adding one is a schema change, which is out of scope for
- * this task. It is stored per-browser instead and applied as a CSS custom property that
- * `styles.css` reads for the canvas surface, so the control is fully wired rather than a no-op —
- * it just does not travel inside the saved `.arq` file the way title does.
+ * Keeps the canvas surface (`--arq-canvas-bg` in styles.css) in sync with the document's own
+ * `canvasBackground` field, whichever panel the Inspector currently shows. Mounted once at the
+ * Inspector's top level (not inside `DocumentPanel`) so the canvas still reflects the document's
+ * value even while a selection panel is displayed instead.
  */
-function loadCanvasBackground(): string {
-  try {
-    return localStorage.getItem(CANVAS_BG_KEY) ?? STYLE_DEFAULTS.canvasBackground;
-  } catch {
-    return STYLE_DEFAULTS.canvasBackground;
-  }
-}
-
-function applyCanvasBackground(color: string): void {
-  document.documentElement.style.setProperty("--arq-canvas-bg", color);
-  try {
-    localStorage.setItem(CANVAS_BG_KEY, color);
-  } catch {
-    // Storage blocked (private mode etc.): the color still applies for this session.
-  }
+function useSyncCanvasBackground(canvasBackground: string | undefined): void {
+  useEffect(() => {
+    if (canvasBackground !== undefined) {
+      document.documentElement.style.setProperty("--arq-canvas-bg", canvasBackground);
+    } else {
+      document.documentElement.style.removeProperty("--arq-canvas-bg");
+    }
+  }, [canvasBackground]);
 }
 
 function DocumentPanel() {
   const store = useEditorStore();
   const title = useEditor((s) => s.document.title);
-  const [canvasBg, setCanvasBg] = useState(loadCanvasBackground);
-
-  // Restores the last-saved preference once on mount; later changes go through the field's own
-  // onChange below, which calls applyCanvasBackground directly.
-  useEffect(() => {
-    document.documentElement.style.setProperty("--arq-canvas-bg", canvasBg);
-    // Intentionally mount-only: see comment above.
-    // eslint-disable-next-line
-  }, []);
+  const canvasBackground = useEditor((s) => s.document.canvasBackground);
 
   return (
     <div className="arq-inspector-inner">
@@ -69,11 +51,12 @@ function DocumentPanel() {
       />
       <ColorField
         label="Canvas background"
-        value={canvasBg}
-        onChange={(v) => {
-          setCanvasBg(v);
-          applyCanvasBackground(v);
-        }}
+        value={canvasBackground ?? STYLE_DEFAULTS.canvasBackground}
+        onChange={(v) => store.getState().mutate(
+          "set canvas background",
+          (d) => { d.canvasBackground = v; },
+          { mergeKey: "canvasBackground" },
+        )}
       />
     </div>
   );
@@ -236,6 +219,8 @@ export function Inspector() {
   const selection = useEditor((s) => s.selection);
   const nodes = useEditor((s) => s.document.nodes);
   const edges = useEditor((s) => s.document.edges);
+  const canvasBackground = useEditor((s) => s.document.canvasBackground);
+  useSyncCanvasBackground(canvasBackground);
 
   const selectedNodes = nodes.filter((n) => selection.nodes.includes(n.id));
   const selectedEdges = edges.filter((e) => selection.edges.includes(e.id));

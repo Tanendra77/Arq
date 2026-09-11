@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DocumentSchema } from "@arq/schema";
-import { layoutDocument, renderSvg, METRICS, DEFAULT_NODE_SIZE } from "../src/index";
+import { layoutDocument, renderSvg, METRICS, DEFAULT_NODE_SIZE, STYLE_DEFAULTS } from "../src/index";
 import fixture from "./fixtures/two-nodes.json";
 
 const doc = DocumentSchema.parse(fixture);
@@ -13,6 +13,14 @@ const opts = { resolveIcon, font: "system" } as const;
 function nodeGroup(svg: string, id: string): string {
   const m = new RegExp(`<g class="arq-node" data-id="${id}"[^>]*>([\\s\\S]*?)</g>`).exec(svg);
   if (!m?.[1]) throw new Error(`no node group for ${id}`);
+  return m[1];
+}
+
+/** The full-canvas background rect's own fill — the one right after `<title>`, distinct from
+ *  any node/label fill that might coincidentally share the same color. */
+function canvasFillOf(svg: string): string {
+  const m = /<title>[^<]*<\/title><rect[^>]*\bfill="([^"]+)"/.exec(svg);
+  if (!m?.[1]) throw new Error("no canvas background rect found");
   return m[1];
 }
 
@@ -150,5 +158,24 @@ describe("renderSvg", () => {
     const { INTER_WOFF2_BASE64 } = await import("../src/font.generated");
     const svg = renderSvg(doc, { resolveIcon, font: "embed" });
     expect(svg.includes("@font-face")).toBe(INTER_WOFF2_BASE64 !== null);
+  });
+
+  it("uses STYLE_DEFAULTS.canvasBackground for the canvas rect when the document doesn't set one", () => {
+    expect(canvasFillOf(renderSvg(doc, opts))).toBe(STYLE_DEFAULTS.canvasBackground);
+  });
+
+  it("paints the canvas rect with the document's own canvasBackground when set", () => {
+    const custom = DocumentSchema.parse({ ...fixture, canvasBackground: "#123456" });
+    expect(canvasFillOf(renderSvg(custom, opts))).toBe("#123456");
+  });
+
+  it("keeps the edge-label plate on the default background even with a custom canvasBackground", () => {
+    const custom = DocumentSchema.parse({ ...fixture, canvasBackground: "#123456" });
+    const svg = renderSvg(custom, opts);
+    // e1 is the only edge with a label ("orders/new"); its plate must still contrast against a
+    // non-default canvas, so it keeps the default fill rather than following canvasBackground.
+    const labelPlate = /<g><rect[^>]*\bfill="([^"]+)"[^>]*\/><text/.exec(svg);
+    expect(labelPlate?.[1]).toBe(STYLE_DEFAULTS.canvasBackground);
+    expect(canvasFillOf(svg)).toBe("#123456");
   });
 });

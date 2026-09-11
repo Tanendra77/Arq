@@ -30,6 +30,8 @@ const r2 = (n: number): number => Math.round(n * 100) / 100;
 const fmt = (n: number): string => String(r2(n));
 
 const FG = STYLE_DEFAULTS.edge.stroke;
+// The edge-label plate's background — always the default, regardless of the document's own
+// canvas background, because a label plate needs to contrast with the canvas, not match it.
 const BG = STYLE_DEFAULTS.canvasBackground;
 const LINE = STYLE_DEFAULTS.node.stroke;
 
@@ -108,5 +110,8 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
   const groups = doc.groups.map((g) => { const r = layout.groups.get(g.id); return r ? renderGroup(g.id, g.label, r) : ""; }).join("");
   const edges = doc.edges.map((e) => renderEdge(doc, e.id, layout.nodes)).join("");
   const nodes = doc.nodes.map((n) => renderNode(doc, n.id, layout.nodes.get(n.id)!, opts.resolveIcon)).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title><rect x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" fill="${BG}"/>${groups}${edges}${nodes}</svg>`;
+  // The full-canvas background rect is the one place the document's own color (when set) wins
+  // over the default — this is what makes screen and export agree on canvas color.
+  const canvasFill = doc.canvasBackground ?? STYLE_DEFAULTS.canvasBackground;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title><rect x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" fill="${canvasFill}"/>${groups}${edges}${nodes}</svg>`;
 }

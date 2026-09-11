@@ -148,6 +148,23 @@ describe("document-level refinements", () => {
   });
 });
 
+describe("canvasBackground", () => {
+  it("accepts a valid hex background", () => {
+    expect(DocumentSchema.safeParse({ ...base, canvasBackground: "#112233" }).success).toBe(true);
+  });
+
+  it("rejects a non-hex value", () => {
+    const r = DocumentSchema.safeParse({ ...base, canvasBackground: "blue" });
+    expect(r.success).toBe(false);
+  });
+
+  it("still parses without the field", () => {
+    const r = DocumentSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.canvasBackground).toBeUndefined();
+  });
+});
+
 describe("isNodeRef", () => {
   it("distinguishes ids from points", () => {
     expect(isNodeRef("a")).toBe(true);

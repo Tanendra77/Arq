@@ -35,6 +35,23 @@ describe("Inspector", () => {
     expect(screen.getByLabelText("Canvas background")).toBeInTheDocument();
   });
 
+  it("writes canvas background into the document, not localStorage", () => {
+    const store = renderInspector({ nodes: [], edges: [] });
+    fireEvent.change(screen.getByLabelText("Canvas background"), { target: { value: "#112233" } });
+    expect(store.getState().document.canvasBackground).toBe("#112233");
+  });
+
+  it("collapses several canvas-background edits into one undo entry", () => {
+    const store = renderInspector({ nodes: [], edges: [] });
+    const before = store.getState().past.length;
+    const bg = screen.getByLabelText("Canvas background");
+    fireEvent.change(bg, { target: { value: "#111111" } });
+    fireEvent.change(bg, { target: { value: "#222222" } });
+    fireEvent.change(bg, { target: { value: "#333333" } });
+    expect(store.getState().past.length).toBe(before + 1);
+    expect(store.getState().document.canvasBackground).toBe("#333333");
+  });
+
   it("shows shape controls for a selected node", () => {
     renderInspector({ nodes: ["a"], edges: [] });
     expect(screen.getByLabelText("Fill")).toBeInTheDocument();

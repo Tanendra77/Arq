@@ -4,20 +4,25 @@ import { readFileSync } from "node:fs";
 test("create, connect, save, reload, open, export", async ({ page }) => {
   await page.goto("/");
 
-  await page.getByText("Application", { exact: true }).dblclick();
-  await page.getByText("Broker", { exact: true }).dblclick();
+  await page.getByRole("button", { name: "Rectangle" }).dblclick();
+  await page.getByRole("button", { name: "Ellipse" }).dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
 
-  // Spread the nodes apart by dragging the second one to the right.
+  // Spread the nodes apart by dragging the second one to the right. The two palette items land
+  // only 40px apart (see Palette's `place()`), and `fitView` zooms in hard on such a tight pair
+  // (up to the 4x `maxZoom` in Canvas.tsx) — a fixed screen-pixel drag amount can then leave the
+  // on-screen boxes still touching, so the offset scales with the node's own on-screen width to
+  // guarantee a real gap at any zoom level.
   const nodes = page.locator(".react-flow__node");
   const box = await nodes.nth(1).boundingBox();
   if (!box) throw new Error("node not laid out");
+  const dragBy = box.width + 50;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.mouse.move(box.x + box.width / 2 + 300, box.y + box.height / 2, { steps: 10 });
+  await page.mouse.move(box.x + box.width / 2 + dragBy, box.y + box.height / 2, { steps: 10 });
   await page.mouse.up();
 
-  // Connect app -> broker via handles.
+  // Connect rectangle -> ellipse via handles.
   const src = nodes.nth(0).locator(".react-flow__handle.source");
   const dst = nodes.nth(1).locator(".react-flow__handle.target");
   const s = await src.boundingBox();
@@ -35,11 +40,11 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   if (!savedPath) throw new Error("no download path");
   const saved = JSON.parse(readFileSync(savedPath, "utf8")) as {
     nodes: unknown[];
-    edges: { kind: string }[];
+    edges: unknown[];
     layout: { pinned: Record<string, { x: number }> };
   };
   expect(saved.nodes).toHaveLength(2);
-  expect(saved.edges[0]?.kind).toBe("publish");
+  expect(saved.edges).toHaveLength(1);
   expect(Object.values(saved.layout.pinned).some((p) => p.x > 200)).toBe(true);
 
   // Reload and open the saved file.
@@ -62,8 +67,8 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   if (!svgPath) throw new Error("no svg download path");
   const svg = readFileSync(svgPath, "utf8");
   expect(svg.startsWith("<svg")).toBe(true);
-  expect(svg).toContain(">Application<");
-  expect(svg).toContain(">Broker<");
+  expect(svg).toContain(">Rectangle<");
+  expect(svg).toContain(">Ellipse<");
 
   // Export PNG.
   const [pngDl] = await Promise.all([

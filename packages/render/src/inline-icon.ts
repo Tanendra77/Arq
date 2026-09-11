@@ -97,8 +97,14 @@ export function inlineIcon(svgText: string, prefix: string, box: Rect): string {
   return `<svg x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet"${carried}>${body}</svg>`;
 }
 
+// The same two-decimal rounding every other emitted coordinate in this package goes through
+// (see metrics.ts, edge-path.ts, render-svg.ts) — without it, a centre computed by addition
+// (box.x + box.w / 2) can land on a binary-float artifact like 517.3199999999999 even when
+// every input was a clean two-decimal number, breaking the byte-identical Node/browser guarantee.
+const fmt = (n: number): string => String(Math.round(n * 100) / 100);
+
 export function placeholderBox(box: Rect, text: string): string {
-  return `<g class="arq-icon-missing"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="4" fill="none" stroke="#999" stroke-dasharray="4 3"/><text x="${box.x + box.w / 2}" y="${box.y + box.h / 2}" font-size="7" text-anchor="middle" dominant-baseline="middle" fill="#999">${escapeXml(text)}</text></g>`;
+  return `<g class="arq-icon-missing"><rect x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}" rx="4" fill="none" stroke="#999" stroke-dasharray="4 3"/><text x="${fmt(box.x + box.w / 2)}" y="${fmt(box.y + box.h / 2)}" font-size="7" text-anchor="middle" dominant-baseline="middle" fill="#999">${escapeXml(text)}</text></g>`;
 }
 
 export function escapeXml(s: string): string {

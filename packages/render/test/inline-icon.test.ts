@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { inlineIcon } from "../src/index";
+import { inlineIcon, placeholderBox } from "../src/index";
 
 const icon = `<?xml version="1.0"?><!-- c --><svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72"><defs><linearGradient id="a"/></defs><path fill="url(#a)" d="M0 0"/><use href="#a"/><use xlink:href="#a"/></svg>`;
 
@@ -94,5 +94,18 @@ describe("inlineIcon injection hardening", () => {
     // raw quote that would end the attribute and let `onload` parse as a new one.
     expect(out).toContain('id="n-a&quot;onload=&quot;alert(1)"');
     expect(out).not.toContain('"onload="');
+  });
+});
+
+describe("placeholderBox", () => {
+  it("rounds a fractional centre instead of emitting a raw binary-float artifact", () => {
+    // 501.32 + 32/2 is 517.3199999999999 in raw IEEE-754 addition — this is exactly the class of
+    // value the centre coordinates must not leak into exported SVG.
+    const raw = 501.32 + 32 / 2;
+    expect(String(raw)).toBe("517.3199999999999");
+    const out = placeholderBox({ x: 501.32, y: 0, w: 32, h: 32 }, "missing");
+    expect(out).toContain('x="517.32"');
+    expect(out).toContain('y="16"');
+    expect(out).not.toContain("517.3199999999999");
   });
 });

@@ -1,21 +1,25 @@
 # Arq
 
-A desktop and web diagramming tool for event-driven architecture, built around
-Solace PubSub+ topologies but usable for any messaging or infrastructure diagram.
+A desktop and web diagramming tool for event-driven architecture, born out of Solace PubSub+
+topology diagrams but built as a general-purpose shape editor usable for any messaging or
+infrastructure diagram.
 
 Three things make it different from a general-purpose drawing tool:
 
-1. **Schema-aware.** A broker node knows it has VPNs. A queue knows what binds to it.
-   The model is semantic, not a bag of rectangles.
-2. **JSON in, diagram out.** Diagrams are declarative JSON, so a script or an LLM can
-   generate one without ever emitting coordinates.
-3. **Screen matches export.** Node metrics and edge geometry live in one package that both
-   the canvas and the SVG exporter import, so what you export is what you saw.
+1. **Declarative JSON, not a blob of coordinates.** A diagram is a plain, schema-validated
+   document — nodes, edges, groups — so a script or an LLM can generate one without ever
+   emitting pixel positions.
+2. **Screen matches export.** Node metrics and edge geometry live in one package that both
+   the canvas and the SVG exporter import, so what you export is what you saw, byte for byte.
+3. **Free-form shapes with real styling, not a fixed icon set.** Rectangles, ellipses,
+   diamonds, triangles, text, lines and arrows, each with its own fill, stroke, dash, glow and
+   arrowheads — an edge can even end on a bare point instead of a node, so a connector and a
+   free-floating line are the same thing.
 
-> **Status: pre-alpha.** Phase 1 (scaffold, skeleton editor, export) is complete and tested.
-> The editor creates, connects, saves and exports diagrams today. Icon-pack import, the
-> schema-generated inspector, group editing and flow animation are **not built yet** — see
-> [Roadmap](#roadmap).
+> **Status: phase 2 complete.** The editor creates, styles, connects, saves and exports
+> diagrams today, with an Inspector for per-object properties and a Settings panel for
+> defaults. Icon-pack import, group editing on the canvas, automatic layout and flow animation
+> are **not built yet** — see [Roadmap](#roadmap).
 
 ---
 
@@ -53,35 +57,59 @@ There is no hosted build yet. Run it locally — see [Development](#development)
 
 The desktop and web builds are the same editor; only the file dialogs differ.
 
-### Creating nodes
+### Creating shapes
 
-The **palette** on the left lists the node types. Either **drag** a type onto the canvas or
-**double-click** it to drop one in. Palette items are keyboard reachable — Tab to one and
-press **Enter** or **Space**.
+The **palette** on the left has two tabs: **Shapes** (built in) and **Icons** (for imported
+icon packs, not built yet). Shapes offers exactly seven items:
 
-Node types:
+**Rectangle** · **Ellipse** · **Diamond** · **Triangle** · **Text** · **Line** · **Arrow**
 
-`broker` · `queue` · `topic` · `app` · `consumer` · `publisher` · `mesh` · `gateway` ·
-`store` · `external` · `shape`
+Either **drag** an item onto the canvas or **double-click** it to drop one in. Palette items
+are keyboard reachable — Tab to one and press **Enter** or **Space**. Rectangle through Text
+create nodes; Line and Arrow create a free-floating edge with no attached node — differing
+only in whether the end carries an arrowhead.
 
-### Connecting nodes
+### Connecting
 
-Drag from a node's **source handle** to another node's **target handle**. Arq picks the edge
-kind from what you connected — an app to a broker becomes `publish`, for example.
+Drag from a node's **source handle** to another node's **target handle** to connect two nodes.
+An edge's endpoints aren't limited to nodes, though: dragging a Line or Arrow palette item onto
+open canvas creates an edge whose ends are bare `{x, y}` points, which you can later drag onto
+a node to attach it. Edges carry no semantic type — they're styled, not typed: routing
+(straight, curved or orthogonal), an arrowhead per end (none, arrow, triangle, diamond or
+circle), stroke colour, width, dash and an optional glow, all editable in the Inspector.
 
-Edge kinds:
+### The Inspector
 
-`publish` · `subscribe` · `bind` · `bridge` · `dmr` · `replication` · `request-reply` ·
-`generic`
+The panel on the right edits whatever is selected: the document (title, canvas background)
+when nothing is selected, or the style of the selected node(s) or edge(s) otherwise. Selecting
+several objects at once edits them together — a field that disagrees across the selection
+shows as blank/indeterminate rather than picking one value arbitrarily, and setting it applies
+to all of them.
 
-Each kind renders with its own stroke style; `request-reply` routes back around the nodes
-rather than overlapping the outbound edge.
+### Settings
+
+The toolbar's **Settings** button opens a modal for theme (light/dark/system), grid
+(off/dots/lines), snap-to-grid, and the fill/stroke/arrowhead defaults used for newly created
+shapes and edges. Settings apply only at creation time — they're baked into the new element's
+own `style`, never rewritten into an existing document, so a `.arq` file always renders the
+same regardless of who opens it or what their local settings are.
 
 ### Moving and deleting
 
 Drag a node to position it. Selected nodes move with the **arrow keys** (1px, or 10px with
 **Shift**), and a run of arrow presses collapses into a single undo entry, so one undo reverts
 the whole gesture. **Delete** or **Backspace** removes the selection, also as one undo entry.
+
+### Navigating the canvas
+
+| Input | Action |
+|---|---|
+| Two-finger scroll / mouse wheel | Pan |
+| Pinch | Zoom |
+| `Ctrl` + wheel | Zoom |
+| `Ctrl +` / `Ctrl -` | Zoom step in / out |
+| `Ctrl 0` | Reset zoom to 100% |
+| `Ctrl 1` | Fit view to content |
 
 ### Toolbar and shortcuts
 
@@ -106,7 +134,8 @@ than being swallowed.
 
 **Export SVG** writes a self-contained `.svg` — icons are inlined, so there are no external
 references and the file renders anywhere. **Export PNG** rasterizes that same SVG at the scale
-chosen in the adjacent dropdown (1x, 2x or 3x).
+chosen in the adjacent dropdown (1x, 2x or 3x). Both honour the document's `canvasBackground`
+when it's set, from the same Inspector-edited field the canvas renders live.
 
 Because the canvas and the exporter share one geometry module, exported node sizes and edge
 routes match what you saw on screen.
@@ -120,15 +149,28 @@ arrays in authored order and a trailing newline, so they diff cleanly in git.
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "kind": "event-flow",
   "title": "Order ingestion",
+  "canvasBackground": "#ffffff",
   "nodes": [
-    { "id": "oms", "type": "app", "label": "OMS", "props": {} },
-    { "id": "pr", "type": "broker", "label": "PR broker", "props": {} }
+    { "id": "oms", "shape": "rect", "label": "OMS", "style": { "fill": "#e8f0fe", "stroke": "#1a73e8" } },
+    { "id": "pr", "shape": "ellipse", "label": "PR broker", "meta": { "vpn": "BSE_PROD" } }
   ],
   "edges": [
-    { "id": "e1", "from": "oms", "to": "pr", "kind": "publish", "label": "orders/new", "props": {} }
+    {
+      "id": "e1",
+      "from": "oms",
+      "to": "pr",
+      "label": "orders/new",
+      "style": { "routing": "curved", "endArrow": "arrow", "strokeDash": "dashed" }
+    },
+    {
+      "id": "e2",
+      "from": "pr",
+      "to": { "x": 480, "y": 260 },
+      "style": { "endArrow": "none" }
+    }
   ],
   "groups": [{ "id": "dc", "label": "Mumbai DC", "kind": "dc" }],
   "layout": { "pinned": { "oms": { "x": 40, "y": 80 }, "pr": { "x": 300, "y": 120 } } }
@@ -137,11 +179,28 @@ arrays in authored order and a trailing newline, so they diff cleanly in git.
 
 Notes for anyone generating these by hand or by script:
 
+- `node.shape` is one of `rect` · `ellipse` · `diamond` · `triangle` · `text`. There is no
+  domain typing left in the schema — `oms` and `pr` above are both just shapes; nothing about
+  the document says one is an application and the other a broker beyond the label and `meta`
+  you choose to put there.
+- `node.style` and `edge.style` are both optional; unset fields fall back to the renderer's
+  defaults. There is no more per-type `props` object — anything you'd have put there goes in
+  the free-form `meta` map instead (string values only), which nothing in the editor currently
+  reads back.
+- `edge.from` / `edge.to` are each **either a node id or a loose `{ x, y }` point** (see `e2`
+  above), so a free-floating line and a connector are the same shape in the schema. When it's a
+  node id, it must name a real node — the schema rejects dangling references and duplicate ids,
+  and reports every problem at once rather than stopping at the first.
+- `edge.kind` still exists as an optional free-text string for round-tripping older
+  documents and future use, but nothing in the editor reads it today; edge appearance comes
+  entirely from `edge.style`.
 - `layout.pinned` values are **objects** `{ x, y, w?, h? }`, never tuples.
 - Group kinds are `region` · `dc` · `vpc` · `cluster` · `zone` · `generic`.
-- Every `edge.from` and `edge.to` must name a real node. The schema rejects dangling
-  references and duplicate ids, and reports every problem at once rather than stopping at the
-  first.
+- `canvasBackground` is optional; omit it to use the editor's default background.
+- Opening a version 1 document migrates it automatically: typed nodes become rectangles
+  carrying a `solace/<type>` icon id, edge kinds map to an equivalent `style`, and every v1
+  `props` value is preserved in `meta` rather than silently dropped. Saving always writes
+  version 2.
 - Undo history and selection are view state and are never written to the file.
 
 ---
@@ -255,26 +314,27 @@ Please open an issue before starting anything large, so the approach can be agre
 
 ## Roadmap
 
-Phase 1 is complete. What exists today, and what does not:
+Phases 1 and 2 are complete. What exists today, and what does not:
 
 | Area | State |
 |---|---|
-| Document schema, parse/serialize/migrate | Built |
+| Document schema, parse/serialize/migrate (v1 → v2) | Built |
 | Editor store, undo/redo, selection | Built |
-| Canvas, palette, node and edge creation | Built |
+| Generic shape model — nodes, styled edges, point endpoints | Built |
+| Canvas, palette (7 shapes), pan/zoom navigation | Built |
+| Inspector panel (document and per-selection styling) | Built |
+| Settings panel (theme, grid, snap, creation defaults) | Built |
 | Toolbar, file lifecycle, keyboard shortcuts | Built |
-| SVG and PNG export | Built |
+| SVG and PNG export, `canvasBackground` | Built |
 | Web app and Windows desktop app | Built |
 | Icon-pack import (draw.io libraries) | Not built |
-| Schema-generated inspector panel | Not built |
 | Group editing on the canvas | Not built |
 | Automatic layout | Not built |
 | Animated edges | Not built |
 | AI diagram generation | Not built |
 | Live broker metrics | Not built |
 
-`PROJECT.md` holds the full design rationale and the longer-term plan. Note that it still uses
-the retired working name "Meshdraw" in places.
+`PROJECT.md` holds the full design rationale and the longer-term plan.
 
 ---
 

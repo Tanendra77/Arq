@@ -57,7 +57,12 @@ export function NumberField({
         data-indeterminate={indeterminate ? "true" : undefined}
         onChange={(e) => {
           const n = e.target.valueAsNumber;
-          if (!Number.isNaN(n)) onChange(n);
+          // `min` on a number input is a validity hint, not a clamp — the browser still fires
+          // this handler for an out-of-range value. Reject here rather than in each caller: this
+          // is the only path stroke width, corner radius, font size and grid size share before
+          // reaching the store, and the store's own merge (`setStyle`) does not schema-parse.
+          if (Number.isNaN(n) || (min !== undefined && n < min)) return;
+          onChange(n);
         }}
       />
     </label>

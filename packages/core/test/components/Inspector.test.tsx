@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { emptyDocument } from "@arq/schema";
+import { emptyDocument, parseDocument, serializeDocument } from "@arq/schema";
 import { Inspector } from "../../src/components/Inspector";
 import { EditorStoreProvider } from "../../src/store/context";
 import { createEditorStore, type EditorStore, type Selection } from "../../src/store/editor-store";
@@ -107,6 +107,23 @@ describe("Inspector", () => {
     fireEvent.change(width, { target: { value: "4" } });
     expect(store.getState().past.length).toBe(before + 1);
     expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.strokeWidth).toBe(4);
+  });
+
+  it("rejects a stroke width of 0 so it never reaches the store (min is a validity hint, not a clamp)", () => {
+    const store = renderInspector({ nodes: ["a"], edges: [] });
+    const width = screen.getByLabelText("Stroke width");
+    fireEvent.change(width, { target: { value: "3" } });
+    fireEvent.change(width, { target: { value: "0" } });
+    expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.strokeWidth).toBe(3);
+  });
+
+  it("a document edited through the inspector, including rejected 0 entries, still round-trips through serializeDocument/parseDocument", () => {
+    const store = renderInspector({ nodes: ["a"], edges: [] });
+    fireEvent.change(screen.getByLabelText("Stroke width"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Stroke width"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Font size"), { target: { value: "0" } });
+    const result = parseDocument(serializeDocument(store.getState().document));
+    expect(result.ok).toBe(true);
   });
 
   it("hides corner radius for a non-rect shape", () => {

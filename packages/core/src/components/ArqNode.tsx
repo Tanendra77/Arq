@@ -25,9 +25,6 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
   // Referenced only, never defined here: `EdgeDefs` mounts `collectDefs(doc)` once per document,
   // which already emits `<filter id="arq-glow-<color>">` for every glowing node and edge. Defining
   // it again per-node would duplicate that id in the DOM.
-  // Referenced only, never defined here: `EdgeDefs` mounts `collectDefs(doc)` once per document,
-  // which already emits `<filter id="arq-glow-<color>">` for every glowing node and edge. Defining
-  // it again per-node would duplicate that id in the DOM.
   const filterId = s.glow ? glowId(s.glow.color) : undefined;
 
   const lines = wrapLabel(data.label);

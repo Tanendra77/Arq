@@ -29,6 +29,27 @@ describe("settings", () => {
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);
   });
 
+  it("drops a malformed colour to its default but keeps other valid fields in the same blob", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, nodeFill: "blue", theme: "dark" }));
+    const s = loadSettings();
+    expect(s.nodeFill).toBe(DEFAULT_SETTINGS.nodeFill);
+    expect(s.theme).toBe("dark");
+  });
+
+  it("drops a bogus edgeArrow to its default but keeps other valid fields in the same blob", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, edgeArrow: "star", gridSize: 25 }));
+    const s = loadSettings();
+    expect(s.edgeArrow).toBe(DEFAULT_SETTINGS.edgeArrow);
+    expect(s.gridSize).toBe(25);
+  });
+
+  it("drops a non-positive gridSize to its default but keeps other valid fields in the same blob", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, gridSize: -5, theme: "light" }));
+    const s = loadSettings();
+    expect(s.gridSize).toBe(DEFAULT_SETTINGS.gridSize);
+    expect(s.theme).toBe("light");
+  });
+
   it("survives a localStorage that throws", () => {
     const spy = vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); });
     expect(loadSettings()).toEqual(DEFAULT_SETTINGS);

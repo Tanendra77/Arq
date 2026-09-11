@@ -1,0 +1,247 @@
+import { useEffect, useState } from "react";
+import {
+  ARROW_STYLES, DASH_STYLES, ROUTING_MODES,
+  type ArqEdge, type ArqNode, type ArrowStyle, type Routing,
+} from "@arq/schema";
+import { resolveEdgeStyle, resolveNodeStyle, STYLE_DEFAULTS } from "@arq/render";
+import { useEditor, useEditorStore } from "../store/context";
+import type { StylePatch } from "../store/editor-store";
+import { CheckboxField, ColorField, NumberField, SelectField, TextField } from "./inspector/Field";
+
+const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
+// The starting color the first time a selection's glow is switched on (no prior color to reuse).
+// Matches the editor's own accent color (--arq-accent in styles.css).
+const DEFAULT_GLOW_COLOR = "#00c895";
+
+const CANVAS_BG_KEY = "arq.canvasBackground";
+
+/** The shared value across a selection, or undefined when they disagree. Returning the first
+ *  element's value instead would misrepresent every other selected element. */
+export function commonValue<T>(values: T[]): T | undefined {
+  const [first, ...rest] = values;
+  return rest.every((v) => v === first) ? first : undefined;
+}
+
+/**
+ * Canvas background is a display preference, not diagram content: `Document` is a `.strict()`
+ * zod schema with no such field, and adding one is a schema change, which is out of scope for
+ * this task. It is stored per-browser instead and applied as a CSS custom property that
+ * `styles.css` reads for the canvas surface, so the control is fully wired rather than a no-op —
+ * it just does not travel inside the saved `.arq` file the way title does.
+ */
+function loadCanvasBackground(): string {
+  try {
+    return localStorage.getItem(CANVAS_BG_KEY) ?? STYLE_DEFAULTS.canvasBackground;
+  } catch {
+    return STYLE_DEFAULTS.canvasBackground;
+  }
+}
+
+function applyCanvasBackground(color: string): void {
+  document.documentElement.style.setProperty("--arq-canvas-bg", color);
+  try {
+    localStorage.setItem(CANVAS_BG_KEY, color);
+  } catch {
+    // Storage blocked (private mode etc.): the color still applies for this session.
+  }
+}
+
+function DocumentPanel() {
+  const store = useEditorStore();
+  const title = useEditor((s) => s.document.title);
+  const [canvasBg, setCanvasBg] = useState(loadCanvasBackground);
+
+  // Restores the last-saved preference once on mount; later changes go through the field's own
+  // onChange below, which calls applyCanvasBackground directly.
+  useEffect(() => {
+    document.documentElement.style.setProperty("--arq-canvas-bg", canvasBg);
+    // Intentionally mount-only: see comment above.
+    // eslint-disable-next-line
+  }, []);
+
+  return (
+    <div className="arq-inspector-inner">
+      <h3>Document</h3>
+      <TextField
+        label="Title"
+        value={title}
+        onChange={(v) => store.getState().mutate("set title", (d) => { d.title = v; })}
+      />
+      <ColorField
+        label="Canvas background"
+        value={canvasBg}
+        onChange={(v) => {
+          setCanvasBg(v);
+          applyCanvasBackground(v);
+        }}
+      />
+    </div>
+  );
+}
+
+function GlowFields({
+  on, color, onToggle, onColor,
+}: {
+  on: boolean | undefined; color: string | undefined;
+  onToggle: (v: boolean) => void; onColor: (v: string) => void;
+}) {
+  return (
+    <>
+      <CheckboxField label="Glow" checked={on === true} indeterminate={on === undefined} onChange={onToggle} />
+      {on === true ? (
+        <ColorField label="Glow color" value={color} indeterminate={color === undefined} onChange={onColor} />
+      ) : null}
+    </>
+  );
+}
+
+function NodePanel({ nodes }: { nodes: ArqNode[] }) {
+  const store = useEditorStore();
+  const ids = nodes.map((n) => n.id);
+  const resolved = nodes.map((n) => resolveNodeStyle(n.style));
+  const allRect = nodes.every((n) => n.shape === "rect");
+  const only = nodes.length === 1 ? nodes[0] : undefined;
+
+  const fill = commonValue(resolved.map((r) => r.fill));
+  const stroke = commonValue(resolved.map((r) => r.stroke));
+  const strokeWidth = commonValue(resolved.map((r) => r.strokeWidth));
+  const strokeDash = commonValue(resolved.map((r) => r.strokeDash));
+  const radius = allRect ? commonValue(resolved.map((r) => r.radius)) : undefined;
+  const fontSize = commonValue(resolved.map((r) => r.fontSize));
+  const textAlign = commonValue(resolved.map((r) => r.textAlign));
+  const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
+  const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
+
+  const patch = (p: StylePatch, mergeKey?: string) =>
+    store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
+
+  return (
+    <div className="arq-inspector-inner">
+      <h3>{nodes.length === 1 ? "Shape" : `${nodes.length} shapes`}</h3>
+      <ColorField label="Fill" value={fill} indeterminate={fill === undefined}
+        onChange={(v) => patch({ fill: v }, "style:fill")} />
+      <ColorField label="Stroke" value={stroke} indeterminate={stroke === undefined}
+        onChange={(v) => patch({ stroke: v }, "style:stroke")} />
+      <NumberField label="Stroke width" value={strokeWidth} indeterminate={strokeWidth === undefined} min={0.5} step={0.5}
+        onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
+      <SelectField label="Dash" value={strokeDash} indeterminate={strokeDash === undefined} options={DASH_STYLES}
+        onChange={(v) => patch({ strokeDash: v })} />
+      {allRect ? (
+        <NumberField label="Corner radius" value={radius} indeterminate={radius === undefined} min={0} step={1}
+          onChange={(v) => patch({ radius: v }, "style:radius")} />
+      ) : null}
+      {only ? (
+        <TextField label="Label" value={only.label} onChange={(v) => store.getState().setLabel(only.id, v)} />
+      ) : null}
+      <NumberField label="Font size" value={fontSize} indeterminate={fontSize === undefined} min={8} step={1}
+        onChange={(v) => patch({ fontSize: v }, "style:fontSize")} />
+      <SelectField label="Text alignment" value={textAlign} indeterminate={textAlign === undefined} options={TEXT_ALIGNMENTS}
+        onChange={(v) => patch({ textAlign: v })} />
+      <GlowFields
+        on={glowOn}
+        color={glowColor}
+        onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
+        onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
+      />
+    </div>
+  );
+}
+
+function EdgePanel({ edges }: { edges: ArqEdge[] }) {
+  const store = useEditorStore();
+  const ids = edges.map((e) => e.id);
+  const resolved = edges.map((e) => resolveEdgeStyle(e.style));
+  const only = edges.length === 1 ? edges[0] : undefined;
+
+  const stroke = commonValue(resolved.map((r) => r.stroke));
+  const strokeWidth = commonValue(resolved.map((r) => r.strokeWidth));
+  const strokeDash = commonValue(resolved.map((r) => r.strokeDash));
+  const routing = commonValue(resolved.map((r) => r.routing));
+  // resolveEdgeStyle widens the arrow fields to plain string (see render-svg.ts); the schema has
+  // already constrained the stored value to ArrowStyle, so this narrows rather than asserts.
+  const startArrow = commonValue(resolved.map((r) => r.startArrow)) as ArrowStyle | undefined;
+  const endArrow = commonValue(resolved.map((r) => r.endArrow)) as ArrowStyle | undefined;
+  const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
+  const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
+
+  const patch = (p: StylePatch, mergeKey?: string) =>
+    store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
+
+  return (
+    <div className="arq-inspector-inner">
+      <h3>{edges.length === 1 ? "Line" : `${edges.length} lines`}</h3>
+      <SelectField label="Routing" value={routing} indeterminate={routing === undefined} options={ROUTING_MODES}
+        onChange={(v) => patch({ routing: v })} />
+      <SelectField label="Start arrow" value={startArrow} indeterminate={startArrow === undefined} options={ARROW_STYLES}
+        onChange={(v) => patch({ startArrow: v })} />
+      <SelectField label="End arrow" value={endArrow} indeterminate={endArrow === undefined} options={ARROW_STYLES}
+        onChange={(v) => patch({ endArrow: v })} />
+      <ColorField label="Stroke" value={stroke} indeterminate={stroke === undefined}
+        onChange={(v) => patch({ stroke: v }, "style:stroke")} />
+      <NumberField label="Stroke width" value={strokeWidth} indeterminate={strokeWidth === undefined} min={0.5} step={0.5}
+        onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
+      <SelectField label="Dash" value={strokeDash} indeterminate={strokeDash === undefined} options={DASH_STYLES}
+        onChange={(v) => patch({ strokeDash: v })} />
+      {only ? (
+        <TextField label="Label" value={only.label ?? ""} onChange={(v) => store.getState().setLabel(only.id, v)} />
+      ) : null}
+      <GlowFields
+        on={glowOn}
+        color={glowColor}
+        onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
+        onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
+      />
+    </div>
+  );
+}
+
+/** Multi-selection spanning both nodes and edges: only fields both style vocabularies share
+ *  (stroke, stroke width, dash, glow) are meaningful across the whole selection. */
+function MixedPanel({ nodes, edges }: { nodes: ArqNode[]; edges: ArqEdge[] }) {
+  const store = useEditorStore();
+  const ids = [...nodes.map((n) => n.id), ...edges.map((e) => e.id)];
+  const nodeResolved = nodes.map((n) => resolveNodeStyle(n.style));
+  const edgeResolved = edges.map((e) => resolveEdgeStyle(e.style));
+
+  const stroke = commonValue([...nodeResolved.map((r) => r.stroke), ...edgeResolved.map((r) => r.stroke)]);
+  const strokeWidth = commonValue([...nodeResolved.map((r) => r.strokeWidth), ...edgeResolved.map((r) => r.strokeWidth)]);
+  const strokeDash = commonValue([...nodeResolved.map((r) => r.strokeDash), ...edgeResolved.map((r) => r.strokeDash)]);
+  const glows = [...nodeResolved.map((r) => r.glow), ...edgeResolved.map((r) => r.glow)];
+  const glowOn = commonValue(glows.map((g) => g !== undefined));
+  const glowColor = glowOn === true ? commonValue(glows.flatMap((g) => (g ? [g.color] : []))) : undefined;
+
+  const patch = (p: StylePatch, mergeKey?: string) =>
+    store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
+
+  return (
+    <div className="arq-inspector-inner">
+      <h3>{ids.length} objects</h3>
+      <ColorField label="Stroke" value={stroke} indeterminate={stroke === undefined}
+        onChange={(v) => patch({ stroke: v }, "style:stroke")} />
+      <NumberField label="Stroke width" value={strokeWidth} indeterminate={strokeWidth === undefined} min={0.5} step={0.5}
+        onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
+      <SelectField label="Dash" value={strokeDash} indeterminate={strokeDash === undefined} options={DASH_STYLES}
+        onChange={(v) => patch({ strokeDash: v })} />
+      <GlowFields
+        on={glowOn}
+        color={glowColor}
+        onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
+        onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
+      />
+    </div>
+  );
+}
+
+export function Inspector() {
+  const selection = useEditor((s) => s.selection);
+  const nodes = useEditor((s) => s.document.nodes);
+  const edges = useEditor((s) => s.document.edges);
+
+  const selectedNodes = nodes.filter((n) => selection.nodes.includes(n.id));
+  const selectedEdges = edges.filter((e) => selection.edges.includes(e.id));
+
+  if (selectedNodes.length === 0 && selectedEdges.length === 0) return <DocumentPanel />;
+  if (selectedEdges.length === 0) return <NodePanel nodes={selectedNodes} />;
+  if (selectedNodes.length === 0) return <EdgePanel edges={selectedEdges} />;
+  return <MixedPanel nodes={selectedNodes} edges={selectedEdges} />;
+}

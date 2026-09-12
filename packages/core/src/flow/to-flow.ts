@@ -26,6 +26,19 @@ export type IconResolver = (id: string | undefined) => string | undefined;
 /** Deterministic id for the hidden node standing in for a loose endpoint. */
 export const endpointNodeId = (edgeId: string, which: "from" | "to") => `__ep:${edgeId}:${which}`;
 
+/**
+ * The inverse of `endpointNodeId`, or null for an ordinary node id. Dragging one of these hidden
+ * nodes has to move the *edge's* endpoint, not write a `layout.pinned` entry under a synthetic id
+ * the document reserves and nothing ever reads back.
+ */
+export function parseEndpointNodeId(id: string): { edgeId: string; which: "from" | "to" } | null {
+  if (!id.startsWith("__ep:")) return null;
+  const last = id.lastIndexOf(":");
+  const which = id.slice(last + 1);
+  if (which !== "from" && which !== "to") return null;
+  return { edgeId: id.slice("__ep:".length, last), which };
+}
+
 export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Selection): { nodes: ArqFlowNode[]; edges: ArqFlowEdge[] } {
   const selNodes = new Set(selection.nodes);
   const selEdges = new Set(selection.edges);

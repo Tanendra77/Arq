@@ -32,6 +32,9 @@ export const FREE_LINE_LENGTH = 120;
  */
 export const DEFAULT_NODE_LABEL = "Text";
 
+/** Floor for a drag-sized shape, shared with ArqNode's resize handles. */
+export const MIN_NODE_SIZE = 20;
+
 /**
  * The settings-driven creation defaults, applied once into a new element's own `style` at the
  * moment it is created and never again — a document must render identically on every machine no
@@ -58,6 +61,7 @@ export function placeItem(
   position: { x: number; y: number },
   settings: Settings,
   api: { addNode: (input: NewNode) => string; addEdge: (input: NewEdge) => string },
+  size?: { w: number; h: number },
 ): void {
   if (item.kind === "node") {
     api.addNode({
@@ -65,6 +69,10 @@ export function placeItem(
       label: DEFAULT_NODE_LABEL,
       position,
       style: nodeCreationStyle(settings),
+      // A drag-sized shape carries its own w/h; a plain click leaves it unset so `shapeRect`'s
+      // per-shape default applies. Below the minimum a node would be unusable, and `PinnedSchema`
+      // rejects a non-positive dimension outright.
+      ...(size !== undefined ? { size: { w: Math.max(size.w, MIN_NODE_SIZE), h: Math.max(size.h, MIN_NODE_SIZE) } } : {}),
     });
   } else {
     api.addEdge({

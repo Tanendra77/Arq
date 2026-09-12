@@ -1,4 +1,4 @@
-import type { ArqEdge, Endpoint, Routing } from "@arq/schema";
+import type { ArqEdge, Endpoint, LabelPosition, Routing } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
 import { METRICS, type Point, type Rect } from "./metrics";
 
@@ -26,8 +26,8 @@ function roundedPolyline(points: Point[], r: number): string {
   return d;
 }
 
-/** The point half way along the polyline by arc length; where an edge label sits. */
-function midpoint(points: Point[]): Point {
+/** The point a fraction `t` along the polyline by arc length; where an edge label sits. */
+function pointAt(points: Point[], t: number): Point {
   let total = 0;
   const lens: number[] = [];
   for (let i = 1; i < points.length; i++) {
@@ -35,7 +35,7 @@ function midpoint(points: Point[]): Point {
     lens.push(l);
     total += l;
   }
-  let remaining = total / 2;
+  let remaining = total * t;
   for (let i = 1; i < points.length; i++) {
     const l = lens[i - 1]!;
     if (remaining <= l) {
@@ -52,7 +52,7 @@ function midpoint(points: Point[]): Point {
 const BACKWARD_STUB = 20;
 const BACKWARD_CLEARANCE = 60;
 
-function orthogonalPath(start: Point, end: Point): { d: string; mid: Point } {
+function orthogonalPoints(start: Point, end: Point): Point[] {
   let points: Point[];
   if (start.y === end.y && end.x >= start.x) {
     points = [start, end];
@@ -70,50 +70,108 @@ function orthogonalPath(start: Point, end: Point): { d: string; mid: Point } {
       end,
     ];
   }
-  return { d: roundedPolyline(points, METRICS.cornerRadius), mid: midpoint(points) };
+  return points;
 }
 
-/** A node endpoint anchors on the right edge for a source and the left edge for a target;
- *  matching the handle positions the canvas draws. A point endpoint is used as authored. */
-export function resolveEndpoint(ep: Endpoint, nodes: Map<string, Rect>): Point | undefined {
-  if (!isNodeRef(ep)) return { x: ep.x, y: ep.y };
-  const r = nodes.get(ep);
-  return r ? { x: r.x + r.w, y: r.y + r.h / 2 } : undefined;
+/**
+ * The four side midpoints of a rect, in a fixed order. The order is the tie-break when two sides
+ * are equidistant, so the same document always picks the same anchor and exports the same bytes.
+ */
+function sideAnchors(r: Rect): Point[] {
+  return [
+    { x: r.x + r.w, y: r.y + r.h / 2 }, // right
+    { x: r.x, y: r.y + r.h / 2 }, // left
+    { x: r.x + r.w / 2, y: r.y }, // top
+    { x: r.x + r.w / 2, y: r.y + r.h }, // bottom
+  ];
 }
 
-function targetAnchor(ep: Endpoint, nodes: Map<string, Rect>): Point | undefined {
-  if (!isNodeRef(ep)) return { x: ep.x, y: ep.y };
-  const r = nodes.get(ep);
-  return r ? { x: r.x, y: r.y + r.h / 2 } : undefined;
+/**
+ * Where an edge meets a box: the side facing whatever is on the other end, rather than a fixed
+ * right-for-source / left-for-target pair. This is what lets an arrow mount on any part of a
+ * shape — attach one above a node and the line lands on its top edge, not its left.
+ *
+ * A zero-size rect (the box a loose point endpoint stands in for) returns that point unchanged,
+ * so the same function serves both kinds of endpoint.
+ */
+export function anchorOn(r: Rect, towards: Point): Point {
+  let best = { x: r.x, y: r.y };
+  let bestDist = Infinity;
+  for (const p of sideAnchors(r)) {
+    const dist = (p.x - towards.x) ** 2 + (p.y - towards.y) ** 2;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = p;
+    }
+  }
+  return best;
+}
+
+/** The rect an endpoint occupies: a node's box, or the degenerate box at a loose point. */
+export function endpointRect(ep: Endpoint, nodes: Map<string, Rect>): Rect | undefined {
+  if (!isNodeRef(ep)) return { x: ep.x, y: ep.y, w: 0, h: 0 };
+  return nodes.get(ep);
+}
+
+/**
+ * The two points an edge is drawn between. Each end aims at the *centre* of the other end's box
+ * first, then picks its own facing side — so the choice is symmetric and does not depend on which
+ * end is resolved first.
+ */
+export function anchorPair(from: Rect, to: Rect): { start: Point; end: Point } {
+  const fromCentre = { x: from.x + from.w / 2, y: from.y + from.h / 2 };
+  const toCentre = { x: to.x + to.w / 2, y: to.y + to.h / 2 };
+  return { start: anchorOn(from, toCentre), end: anchorOn(to, fromCentre) };
 }
 
 export function edgeEnds(e: ArqEdge, nodes: Map<string, Rect>): { start: Point; end: Point } | undefined {
-  const start = resolveEndpoint(e.from, nodes);
-  const end = targetAnchor(e.to, nodes);
-  if (!start || !end) return undefined;
-  return { start, end };
+  const from = endpointRect(e.from, nodes);
+  const to = endpointRect(e.to, nodes);
+  if (!from || !to) return undefined;
+  return anchorPair(from, to);
 }
 
-function curvedPath(start: Point, end: Point): { d: string; mid: Point } {
+function curveControls(start: Point, end: Point): { c1: Point; c2: Point } {
   const dx = Math.max(Math.abs(end.x - start.x) / 2, 30);
-  const c1 = { x: start.x + dx, y: start.y };
-  const c2 = { x: end.x - dx, y: end.y };
-  const at = (t: number, a: number, b: number, c: number, d: number) => {
+  return { c1: { x: start.x + dx, y: start.y }, c2: { x: end.x - dx, y: end.y } };
+}
+
+function curvePointAt(start: Point, end: Point, t: number): Point {
+  const { c1, c2 } = curveControls(start, end);
+  const at = (a: number, b: number, c: number, d: number) => {
     const u = 1 - t;
     return u * u * u * a + 3 * u * u * t * b + 3 * u * t * t * c + t * t * t * d;
   };
-  // Round through fmt (not raw floats) so the midpoint is deterministic byte-for-byte —
-  // a cubic bezier midpoint like 24.999999999999996 would otherwise fail SVG parity tests.
-  return {
-    d: `M${pt(start)} C${pt(c1)} ${pt(c2)} ${pt(end)}`,
-    mid: { x: Number(fmt(at(0.5, start.x, c1.x, c2.x, end.x))), y: Number(fmt(at(0.5, start.y, c1.y, c2.y, end.y))) },
-  };
+  // Round through fmt (not raw floats) so the point is deterministic byte-for-byte — a cubic
+  // bezier midpoint like 24.999999999999996 would otherwise fail SVG parity tests.
+  return { x: Number(fmt(at(start.x, c1.x, c2.x, end.x))), y: Number(fmt(at(start.y, c1.y, c2.y, end.y))) };
+}
+
+/** The point a fraction `t` along an edge, whichever way it is routed. */
+function pathPointAt(start: Point, end: Point, routing: Routing, t: number): Point {
+  if (routing === "straight") return { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t };
+  if (routing === "curved") return curvePointAt(start, end, t);
+  return pointAt(orthogonalPoints(start, end), t);
+}
+
+/** How far along the path each label position sits. Off the ends so a start/end label clears the
+ *  arrowhead and whatever the edge is attached to. */
+const LABEL_T: Record<LabelPosition, number> = { start: 0.2, middle: 0.5, end: 0.8 };
+
+/** Where an edge's label plate is centred. The canvas and the SVG exporter both call this, so a
+ *  label never sits in one place on screen and another in the export. */
+export function edgeLabelPoint(start: Point, end: Point, routing: Routing, pos: LabelPosition): Point {
+  return pathPointAt(start, end, routing, LABEL_T[pos]);
 }
 
 export function edgePath(start: Point, end: Point, routing: Routing): { d: string; mid: Point } {
   if (routing === "straight") {
-    return { d: `M${pt(start)} L${pt(end)}`, mid: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 } };
+    return { d: `M${pt(start)} L${pt(end)}`, mid: pathPointAt(start, end, routing, 0.5) };
   }
-  if (routing === "curved") return curvedPath(start, end);
-  return orthogonalPath(start, end);
+  if (routing === "curved") {
+    const { c1, c2 } = curveControls(start, end);
+    return { d: `M${pt(start)} C${pt(c1)} ${pt(c2)} ${pt(end)}`, mid: curvePointAt(start, end, 0.5) };
+  }
+  const points = orthogonalPoints(start, end);
+  return { d: roundedPolyline(points, METRICS.cornerRadius), mid: pointAt(points, 0.5) };
 }

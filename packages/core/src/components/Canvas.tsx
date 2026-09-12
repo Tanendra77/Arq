@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, type DragEvent, type MouseEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -14,18 +14,35 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import type { Endpoint } from "@arq/schema";
+import { isNodeRef } from "@arq/schema";
 import { useEditor } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
-import { toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
+import { parseEndpointNodeId, toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
 import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
-import { ArqNode } from "./ArqNode";
+import { ArqEndpointNode, ArqNode } from "./ArqNode";
 import { ArqEdge, EdgeDefs } from "./ArqEdge";
-import { PALETTE_ITEMS, placeItem, useActiveTool } from "./Palette";
+import { PALETTE_ITEMS, edgeCreationStyle, placeItem, useActiveTool, type PaletteItem } from "./Palette";
 import { useSettings } from "./SettingsModal";
 
-const nodeTypes = { arq: ArqNode };
+// `arqEndpoint` must be registered: React Flow renders its own default node — a visible empty
+// box — for any type it does not know, which is what made one dropped arrow look like two boxes.
+const nodeTypes = { arq: ArqNode, arqEndpoint: ArqEndpointNode };
 const edgeTypes = { arq: ArqEdge };
+
+/** Below this many pixels a press-and-release is a click, not a drag-to-size gesture. */
+const DRAG_SIZE_THRESHOLD = 6;
+
+/** A rect from two corners in any order. */
+export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number }) {
+  return {
+    x: Math.min(a.x, b.x),
+    y: Math.min(a.y, b.y),
+    w: Math.abs(a.x - b.x),
+    h: Math.abs(a.y - b.y),
+  };
+}
 
 const GRID_VARIANT: Record<"dots" | "lines", BackgroundVariant> = {
   dots: BackgroundVariant.Dots,
@@ -79,9 +96,34 @@ function CanvasInner() {
   const removeEdges = useEditor((s) => s.removeEdges);
   const setPinned = useEditor((s) => s.setPinned);
   const setSelection = useEditor((s) => s.setSelection);
-  const { screenToFlowPosition } = useReactFlow();
+  const setEndpoint = useEditor((s) => s.setEndpoint);
+  const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
   const [settings] = useSettings();
   const [tool, setTool] = useActiveTool();
+  const armed: PaletteItem | undefined = PALETTE_ITEMS.find((i) => i.key === tool);
+
+  const wrapRef = useRef<HTMLDivElement>(null);
+  /** Where a drag-to-size gesture started, in screen coordinates; null when none is in flight. */
+  const sizingFrom = useRef<{ x: number; y: number } | null>(null);
+  /** The dashed preview of that gesture, in coordinates local to the canvas wrapper. */
+  const [sizingBox, setSizingBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  /** First click of a two-click edge placement: the end already fixed, waiting for the second. */
+  const [pendingFrom, setPendingFrom] = useState<Endpoint | null>(null);
+
+  // Escape abandons whatever placement is in flight rather than leaving a half-placed arrow with
+  // no way out but committing it.
+  useEffect(() => {
+    if (armed === undefined && pendingFrom === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      setPendingFrom(null);
+      setTool(null);
+      sizingFrom.current = null;
+      setSizingBox(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [armed, pendingFrom, setTool]);
 
   // Phase 1 has no user packs wired yet; a plan B task injects installed packs here.
   const resolveIcon = useMemo(() => createIconResolver([]), []);
@@ -105,10 +147,16 @@ function CanvasInner() {
   const onNodeDragStop = useCallback(
     (_e: unknown, _node: Node, dragged: Node[]) => {
       for (const n of dragged) {
-        setPinned(n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }, { mergeKey: "drag" });
+        const pos = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
+        // A hidden endpoint node is not a document node: moving it moves the edge's own loose end.
+        // Writing it to `layout.pinned` instead would file a rect under a reserved `__ep:` id that
+        // nothing ever reads back.
+        const ep = parseEndpointNodeId(n.id);
+        if (ep) setEndpoint(ep.edgeId, ep.which, pos, { mergeKey: "drag" });
+        else setPinned(n.id, pos, { mergeKey: "drag" });
       }
     },
-    [setPinned],
+    [setPinned, setEndpoint],
   );
 
   const onSelectionChange = useCallback(
@@ -154,25 +202,110 @@ function CanvasInner() {
     [addNode, addEdge, screenToFlowPosition, settings],
   );
 
-  // Click-to-place: with a palette item armed, a click on empty canvas drops it where the pointer
-  // is and disarms the tool, so a shape can be added without a drag. With nothing armed this is
-  // not registered at all, leaving React Flow's own click-to-deselect behaviour untouched.
-  const onPaneClick = useCallback(
-    (e: MouseEvent) => {
-      const item = PALETTE_ITEMS.find((i) => i.key === tool);
-      if (!item) return;
-      placeItem(item, screenToFlowPosition({ x: e.clientX, y: e.clientY }), settings, { addNode, addEdge });
+  /**
+   * One end of an armed edge placement. The first call fixes the start; the second draws the edge
+   * and disarms. Either end is a bare point or a node id, so an arrow can run from empty canvas to
+   * empty canvas, or mount on a shape at one or both ends.
+   */
+  const takeEdgeEnd = useCallback(
+    (ep: Endpoint) => {
+      if (armed?.kind !== "edge") return;
+      if (pendingFrom === null) {
+        setPendingFrom(ep);
+        return;
+      }
+      // Both ends on the same shape anchor to the same point, drawing a zero-length line. Treat the
+      // second click as a misclick and keep waiting rather than creating an invisible edge.
+      if (isNodeRef(ep) && isNodeRef(pendingFrom) && ep === pendingFrom) return;
+      addEdge({ from: pendingFrom, to: ep, style: edgeCreationStyle(armed, settings) });
+      setPendingFrom(null);
       setTool(null);
     },
-    [tool, setTool, addNode, addEdge, screenToFlowPosition, settings],
+    [armed, pendingFrom, addEdge, settings, setTool],
   );
+
+  // Shapes are placed on mouse-up (so a press-and-drag can size them, below); only edges are
+  // placed from a click. With nothing armed neither runs, leaving React Flow's own
+  // click-to-deselect behaviour untouched.
+  const onPaneClick = useCallback(
+    (e: MouseEvent) => takeEdgeEnd(screenToFlowPosition({ x: e.clientX, y: e.clientY })),
+    [takeEdgeEnd, screenToFlowPosition],
+  );
+
+  // Clicking a shape while an edge tool is armed mounts that end on the shape rather than pinning
+  // it to a bare coordinate, so the arrow keeps following the shape when it later moves.
+  const onNodeClick = useCallback(
+    (e: MouseEvent, node: Node) => {
+      if (armed?.kind !== "edge") return;
+      e.stopPropagation();
+      // A hidden loose-endpoint node is not something an arrow can mount to; treat a click on one
+      // as a click on the canvas underneath it.
+      if (parseEndpointNodeId(node.id)) takeEdgeEnd(screenToFlowPosition({ x: e.clientX, y: e.clientY }));
+      else takeEdgeEnd(node.id);
+    },
+    [armed, takeEdgeEnd, screenToFlowPosition],
+  );
+
+  // Drag-to-size, for shape tools only: press, drag out the box you want, release. A release
+  // within DRAG_SIZE_THRESHOLD of the press is a plain click and places the default size instead.
+  const onMouseDown = useCallback(
+    (e: MouseEvent) => {
+      if (armed?.kind !== "node" || e.button !== 0) return;
+      sizingFrom.current = { x: e.clientX, y: e.clientY };
+    },
+    [armed],
+  );
+
+  const onMouseMove = useCallback((e: MouseEvent) => {
+    const from = sizingFrom.current;
+    const wrap = wrapRef.current;
+    if (!from || !wrap) return;
+    const o = wrap.getBoundingClientRect();
+    setSizingBox(rectFrom({ x: from.x - o.left, y: from.y - o.top }, { x: e.clientX - o.left, y: e.clientY - o.top }));
+  }, []);
+
+  const onMouseUp = useCallback(
+    (e: MouseEvent) => {
+      const from = sizingFrom.current;
+      sizingFrom.current = null;
+      setSizingBox(null);
+      if (!from || armed?.kind !== "node") return;
+      const a = screenToFlowPosition(from);
+      const b = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const box = rectFrom(a, b);
+      const dragged = Math.abs(e.clientX - from.x) >= DRAG_SIZE_THRESHOLD || Math.abs(e.clientY - from.y) >= DRAG_SIZE_THRESHOLD;
+      placeItem(
+        armed,
+        dragged ? { x: box.x, y: box.y } : a,
+        settings,
+        { addNode, addEdge },
+        dragged ? { w: Math.round(box.w), h: Math.round(box.h) } : undefined,
+      );
+      setTool(null);
+    },
+    [armed, screenToFlowPosition, settings, addNode, addEdge, setTool],
+  );
+
+  // The dot marking a two-click arrow's fixed first end. Only a loose point needs one: an end
+  // already mounted on a shape is visible as the shape.
+  const pendingEndScreen = (() => {
+    const wrap = wrapRef.current;
+    if (pendingFrom === null || isNodeRef(pendingFrom) || !wrap) return null;
+    const p = flowToScreenPosition(pendingFrom);
+    const o = wrap.getBoundingClientRect();
+    return { x: p.x - o.left, y: p.y - o.top };
+  })();
 
   return (
     <div
+      ref={wrapRef}
       className={`arq-canvas${tool !== null ? " armed" : ""}`}
       data-testid="canvas"
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onMouseDown={onMouseDown}
+      onMouseMove={onMouseMove}
+      onMouseUp={onMouseUp}
     >
       <ReactFlow
         nodes={nodes}
@@ -186,6 +319,7 @@ function CanvasInner() {
         onDelete={onDelete}
         onSelectionChange={onSelectionChange}
         onPaneClick={onPaneClick}
+        onNodeClick={onNodeClick}
         deleteKeyCode={["Delete", "Backspace"]}
         fitView
         panOnScroll
@@ -203,6 +337,18 @@ function CanvasInner() {
         ) : null}
         <Controls />
       </ReactFlow>
+      {/* Placement feedback, drawn over the flow rather than inside it: the dashed box a shape
+          will occupy on release, and the anchored first end of a two-click arrow. */}
+      {sizingBox !== null ? (
+        <div
+          className="arq-sizing-preview"
+          data-testid="sizing-preview"
+          style={{ left: sizingBox.x, top: sizingBox.y, width: sizingBox.w, height: sizingBox.h }}
+        />
+      ) : null}
+      {pendingEndScreen !== null ? (
+        <div className="arq-pending-end" data-testid="pending-end" style={{ left: pendingEndScreen.x, top: pendingEndScreen.y }} />
+      ) : null}
     </div>
   );
 }

@@ -15,6 +15,10 @@ export type Routing = (typeof ROUTING_MODES)[number];
 export const GROUP_KINDS = ["region", "dc", "vpc", "cluster", "zone", "generic"] as const;
 export type GroupKind = (typeof GROUP_KINDS)[number];
 
+/** Where an edge's label sits along its own path: a fraction of the way from source to target. */
+export const LABEL_POSITIONS = ["start", "middle", "end"] as const;
+export type LabelPosition = (typeof LABEL_POSITIONS)[number];
+
 /**
  * Hex only. Named colours are rejected so the renderer never has to carry a colour table, and
  * so an exported SVG cannot depend on a browser's notion of "rebeccapurple".
@@ -41,6 +45,7 @@ export const EdgeStyleSchema = z.object({
   routing: z.enum(ROUTING_MODES).optional(),
   startArrow: z.enum(ARROW_STYLES).optional(),
   endArrow: z.enum(ARROW_STYLES).optional(),
+  labelPos: z.enum(LABEL_POSITIONS).optional(),
   glow: GlowSchema.optional(),
 }).strict();
 

@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactFlowProps } from "@xyflow/react";
 import { emptyDocument } from "@arq/schema";
 import { markerId, STYLE_DEFAULTS } from "@arq/render";
 import { Canvas, mergeMeasured, planDeletion } from "../../src/components/Canvas";
 import { DEFAULT_NODE_LABEL, setActiveTool } from "../../src/components/Palette";
-import type { ArqFlowNode } from "../../src/flow/to-flow";
+import { endpointNodeId, type ArqFlowNode } from "../../src/flow/to-flow";
 import { EditorStoreProvider } from "../../src/store/context";
 import { createEditorStore } from "../../src/store/editor-store";
 import { createFakePlatform } from "../platform-fake";
@@ -46,26 +46,86 @@ function renderCanvasAndReadReactFlowProps(): ReactFlowProps {
 }
 
 describe("Canvas", () => {
-  it("places the armed palette tool where the canvas is clicked, then disarms it", () => {
+  function renderCanvasWithStore() {
     capturedProps = undefined;
     const store = createEditorStore(emptyDocument());
-    render(
+    const r = render(
       <EditorStoreProvider store={store} platform={createFakePlatform()}>
         <Canvas />
       </EditorStoreProvider>,
     );
+    return { store, canvas: r.getByTestId("canvas") };
+  }
+
+  it("places the armed shape where the canvas is pressed, then disarms it", () => {
+    const { store, canvas } = renderCanvasWithStore();
     act(() => setActiveTool("ellipse"));
-    act(() => capturedProps?.onPaneClick?.({ clientX: 40, clientY: 60 } as never));
+    // A press and release at the same point is a click, not a drag-to-size gesture.
+    fireEvent.mouseDown(canvas, { clientX: 40, clientY: 60, button: 0 });
+    fireEvent.mouseUp(canvas, { clientX: 40, clientY: 60 });
     expect(store.getState().document.nodes).toHaveLength(1);
     expect(store.getState().document.nodes[0]?.shape).toBe("ellipse");
     // Every creation path goes through `placeItem`, so a click-placed node carries the same
     // editable placeholder a dropped one does — never the palette item's own name.
     expect(store.getState().document.nodes[0]?.label).toBe(DEFAULT_NODE_LABEL);
+    // A click alone leaves the size unset, so `shapeRect`'s per-shape default applies.
+    const pinned = store.getState().document.layout.pinned[store.getState().document.nodes[0]!.id];
+    expect(pinned?.w).toBeUndefined();
 
-    // Disarmed by the placement: a second click on empty canvas adds nothing.
-    act(() => capturedProps?.onPaneClick?.({ clientX: 90, clientY: 90 } as never));
+    // Disarmed by the placement: pressing again adds nothing.
+    fireEvent.mouseDown(canvas, { clientX: 90, clientY: 90, button: 0 });
+    fireEvent.mouseUp(canvas, { clientX: 90, clientY: 90 });
     expect(store.getState().document.nodes).toHaveLength(1);
     setActiveTool(null);
+  });
+
+  it("sizes a shape from the drag, taking the top-left corner whichever way it is dragged", () => {
+    const { store, canvas } = renderCanvasWithStore();
+    act(() => setActiveTool("rect"));
+    // Dragged up and to the left: the released corner is the origin, not the pressed one.
+    fireEvent.mouseDown(canvas, { clientX: 200, clientY: 150, button: 0 });
+    fireEvent.mouseMove(canvas, { clientX: 120, clientY: 90 });
+    fireEvent.mouseUp(canvas, { clientX: 120, clientY: 90 });
+    const doc = store.getState().document;
+    const pinned = doc.layout.pinned[doc.nodes[0]!.id];
+    expect(pinned).toMatchObject({ x: 120, y: 90, w: 80, h: 60 });
+    setActiveTool(null);
+  });
+
+  it("draws an arrow from two clicks, mounting an end on whatever shape is clicked", () => {
+    const { store, canvas } = renderCanvasWithStore();
+    const a = store.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 } });
+
+    act(() => setActiveTool("arrow"));
+    // First click: a bare point on empty canvas. No edge yet — the tool stays armed.
+    act(() => capturedProps?.onPaneClick?.({ clientX: 10, clientY: 10 } as never));
+    expect(store.getState().document.edges).toHaveLength(0);
+
+    // Second click lands on a shape, so that end mounts to the node rather than to a coordinate.
+    act(() => capturedProps?.onNodeClick?.({ clientX: 80, clientY: 40, stopPropagation() {} } as never, { id: a } as never));
+    const e = store.getState().document.edges[0]!;
+    // The pane end stayed a bare coordinate (fitView has already panned the viewport, so the exact
+    // numbers are the viewport's business — what matters is that it is a point, not a node ref).
+    expect(typeof e.from).toBe("object");
+    expect(e.to).toBe(a);
+    expect(e.label).toBeUndefined(); // an arrow gets no text until the user double-clicks it
+
+    // Disarmed by the completed placement.
+    act(() => capturedProps?.onPaneClick?.({ clientX: 200, clientY: 200 } as never));
+    expect(store.getState().document.edges).toHaveLength(1);
+    setActiveTool(null);
+  });
+
+  it("moves a loose edge end rather than filing a layout rect under its reserved id", () => {
+    const { store } = renderCanvasWithStore();
+    const id = store.getState().addEdge({ from: { x: 0, y: 0 }, to: { x: 100, y: 0 } });
+    act(() =>
+      capturedProps?.onNodeDragStop?.({} as never, {} as never, [
+        { id: endpointNodeId(id, "to"), position: { x: 40, y: 70 } } as never,
+      ]),
+    );
+    expect(store.getState().document.edges[0]?.to).toEqual({ x: 40, y: 70 });
+    expect(store.getState().document.layout.pinned[endpointNodeId(id, "to")]).toBeUndefined();
   });
 
   it("configures the canvas to pan on scroll and zoom on pinch", () => {

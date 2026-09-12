@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY } from "../src/settings";
+import { DARK_SHAPE_COLORS, DEFAULT_SETTINGS, loadSettings, saveSettings, SETTINGS_KEY, themeColorDefaults } from "../src/settings";
 
 beforeEach(() => localStorage.clear());
 
@@ -32,8 +32,30 @@ describe("settings", () => {
   it("drops a malformed colour to its default but keeps other valid fields in the same blob", () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, nodeFill: "blue", theme: "dark" }));
     const s = loadSettings();
-    expect(s.nodeFill).toBe(DEFAULT_SETTINGS.nodeFill);
+    // The default a colour drops back to is the one for the *stored theme*, not the light-mode
+    // constant: a dark-mode user who has never opened the colour pickers gets dark shape colours.
+    expect(s.nodeFill).toBe(themeColorDefaults("dark").nodeFill);
     expect(s.theme).toBe("dark");
+  });
+
+  it("defaults shape colours to a dark fill with a light outline under the dark theme", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, theme: "dark" }));
+    const s = loadSettings();
+    expect(s.nodeFill).toBe(DARK_SHAPE_COLORS.nodeFill);
+    expect(s.nodeStroke).toBe(DARK_SHAPE_COLORS.nodeStroke);
+    expect(s.nodeFill).not.toBe(DEFAULT_SETTINGS.nodeFill);
+  });
+
+  it("keeps the light defaults under the light theme", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, theme: "light" }));
+    const s = loadSettings();
+    expect(s.nodeFill).toBe(DEFAULT_SETTINGS.nodeFill);
+    expect(s.nodeStroke).toBe(DEFAULT_SETTINGS.nodeStroke);
+  });
+
+  it("keeps a colour the user actually chose, whatever the theme", () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, theme: "dark", nodeFill: "#ff00ff" }));
+    expect(loadSettings().nodeFill).toBe("#ff00ff");
   });
 
   it("drops a bogus edgeArrow to its default but keeps other valid fields in the same blob", () => {

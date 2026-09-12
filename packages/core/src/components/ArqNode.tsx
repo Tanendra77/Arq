@@ -3,10 +3,9 @@ import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { DASH_ARRAY, METRICS, glowId, resolveNodeStyle, shapeOutline, shapeRect, wrapLabel } from "@arq/render";
 import { useEditor } from "../store/context";
 import type { ArqFlowNode } from "../flow/to-flow";
-
-/** Floor for the resize handles. `PinnedSchema` requires a positive w/h, so a node can never be
- *  dragged down to a zero dimension that the document schema would then refuse to load. */
-const MIN_SIZE = 20;
+// Same floor drag-to-size uses. `PinnedSchema` requires a positive w/h, so a node must never be
+// resizable down to a zero dimension the document schema would then refuse to load.
+import { MIN_NODE_SIZE } from "./Palette";
 
 function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   // Hooks run before the endpoint-node bail-out below: that branch is decided by props, but the
@@ -63,8 +62,8 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
           the handle: ArqNode sizes itself from the document, not from React Flow's own width. */}
       <NodeResizer
         isVisible={selected === true}
-        minWidth={MIN_SIZE}
-        minHeight={MIN_SIZE}
+        minWidth={MIN_NODE_SIZE}
+        minHeight={MIN_NODE_SIZE}
         onResize={(_e, p) =>
           setPinned(
             id,
@@ -151,3 +150,25 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
 }
 
 export const ArqNode = memo(ArqNodeImpl);
+
+/**
+ * The stand-in node for a loose (unattached) edge end.
+ *
+ * React Flow needs every edge to name a real node with real handles, so a free-floating line gets
+ * one of these at each unattached end. It must be registered in `nodeTypes`: without an entry,
+ * React Flow falls back to its own default node and each loose end draws as a visible empty box —
+ * which is why dropping a single arrow used to appear to insert two boxes.
+ *
+ * It renders as a small grab dot rather than nothing at all, so the end can be dragged to a new
+ * position (Canvas routes that drag to `setEndpoint`).
+ */
+function ArqEndpointNodeImpl() {
+  return (
+    <div className="arq-endpoint" title="Drag to move this end">
+      <Handle type="target" position={Position.Left} className="arq-endpoint-handle" />
+      <Handle type="source" position={Position.Right} className="arq-endpoint-handle" />
+    </div>
+  );
+}
+
+export const ArqEndpointNode = memo(ArqEndpointNodeImpl);

@@ -1,19 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { edgeEnds, edgePath, resolveEndpoint } from "../src/edge-path";
+import { anchorOn, edgeEnds, edgeLabelPoint, edgePath, endpointRect } from "../src/edge-path";
 
 const boxes = new Map([["a", { x: 0, y: 0, w: 100, h: 50 }], ["b", { x: 300, y: 0, w: 100, h: 50 }]]);
+const boxA = { x: 0, y: 0, w: 100, h: 50 };
 
-describe("resolveEndpoint", () => {
-  it("returns a point endpoint verbatim", () => {
-    expect(resolveEndpoint({ x: 7, y: 9 }, boxes)).toEqual({ x: 7, y: 9 });
-  });
-
-  it("anchors a node endpoint on its box edge", () => {
-    expect(resolveEndpoint("a", boxes)).toEqual({ x: 100, y: 25 });
+describe("endpointRect", () => {
+  it("gives a point endpoint a degenerate box, so one anchor rule covers both kinds", () => {
+    expect(endpointRect({ x: 7, y: 9 }, boxes)).toEqual({ x: 7, y: 9, w: 0, h: 0 });
   });
 
   it("returns undefined for a node that is not laid out", () => {
-    expect(resolveEndpoint("ghost", boxes)).toBeUndefined();
+    expect(endpointRect("ghost", boxes)).toBeUndefined();
+  });
+});
+
+describe("anchorOn", () => {
+  it("takes the side facing the other end, not a fixed side", () => {
+    expect(anchorOn(boxA, { x: 500, y: 25 })).toEqual({ x: 100, y: 25 }); // right
+    expect(anchorOn(boxA, { x: -500, y: 25 })).toEqual({ x: 0, y: 25 }); // left
+    expect(anchorOn(boxA, { x: 50, y: -500 })).toEqual({ x: 50, y: 0 }); // top
+    expect(anchorOn(boxA, { x: 50, y: 500 })).toEqual({ x: 50, y: 50 }); // bottom
+  });
+
+  it("breaks an exact tie the same way every time, so exports stay byte-stable", () => {
+    // Dead centre: every side midpoint is a different distance only because the box is wider than
+    // it is tall, so use a square to force the tie. Right wins by declaration order.
+    const square = { x: 0, y: 0, w: 100, h: 100 };
+    expect(anchorOn(square, { x: 50, y: 50 })).toEqual({ x: 100, y: 50 });
   });
 });
 
@@ -28,8 +41,45 @@ describe("edgeEnds", () => {
     expect(edgeEnds(e, boxes)?.end).toEqual({ x: 200, y: 25 });
   });
 
+  it("mounts each end on the side facing the other node", () => {
+    // b sits to the right of a, so the line leaves a's right edge and lands on b's left.
+    expect(edgeEnds({ id: "e", from: "a", to: "b" }, boxes)).toEqual({
+      start: { x: 100, y: 25 },
+      end: { x: 300, y: 25 },
+    });
+    // Reversed, the anchors swap with it rather than staying pinned right-to-left.
+    expect(edgeEnds({ id: "e", from: "b", to: "a" }, boxes)).toEqual({
+      start: { x: 300, y: 25 },
+      end: { x: 100, y: 25 },
+    });
+  });
+
+  it("mounts on the top edge when the other end is above", () => {
+    const e = { id: "e", from: { x: 50, y: -300 }, to: "a" } as const;
+    expect(edgeEnds(e, boxes)?.end).toEqual({ x: 50, y: 0 });
+  });
+
   it("returns undefined when a referenced node is missing", () => {
     expect(edgeEnds({ id: "e", from: "ghost", to: "b" }, boxes)).toBeUndefined();
+  });
+});
+
+describe("edgeLabelPoint", () => {
+  const s = { x: 0, y: 0 };
+  const t = { x: 100, y: 0 };
+
+  it("puts start, middle and end labels at different points along the path", () => {
+    expect(edgeLabelPoint(s, t, "straight", "start")).toEqual({ x: 20, y: 0 });
+    expect(edgeLabelPoint(s, t, "straight", "middle")).toEqual({ x: 50, y: 0 });
+    expect(edgeLabelPoint(s, t, "straight", "end")).toEqual({ x: 80, y: 0 });
+  });
+
+  it("agrees with edgePath's own midpoint at the middle position, for every routing", () => {
+    const a = { x: 0, y: 0 };
+    const b = { x: 140, y: 60 };
+    for (const routing of ["straight", "curved", "orthogonal"] as const) {
+      expect(edgeLabelPoint(a, b, routing, "middle")).toEqual(edgePath(a, b, routing).mid);
+    }
   });
 });
 

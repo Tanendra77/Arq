@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import {
-  ARROW_STYLES, DASH_STYLES, ROUTING_MODES,
+  ARROW_STYLES, DASH_STYLES, LABEL_POSITIONS, ROUTING_MODES,
   type ArqEdge, type ArqNode, type ArrowStyle, type Routing,
 } from "@arq/schema";
 import { resolveEdgeStyle, resolveNodeStyle, STYLE_DEFAULTS } from "@arq/render";
@@ -144,6 +144,7 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
   // already constrained the stored value to ArrowStyle, so this narrows rather than asserts.
   const startArrow = commonValue(resolved.map((r) => r.startArrow)) as ArrowStyle | undefined;
   const endArrow = commonValue(resolved.map((r) => r.endArrow)) as ArrowStyle | undefined;
+  const labelPos = commonValue(resolved.map((r) => r.labelPos));
   const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
   const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
 
@@ -168,6 +169,8 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
       {only ? (
         <TextField label="Label" value={only.label ?? ""} onChange={(v) => store.getState().setLabel(only.id, v)} />
       ) : null}
+      <SelectField label="Label position" value={labelPos} indeterminate={labelPos === undefined} options={LABEL_POSITIONS}
+        onChange={(v) => patch({ labelPos: v })} />
       <GlowFields
         on={glowOn}
         color={glowColor}

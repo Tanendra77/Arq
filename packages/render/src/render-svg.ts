@@ -1,6 +1,6 @@
 import type { ArrowStyle, Document } from "@arq/schema";
 import { collectDefs, glowId, markerId } from "./defs";
-import { edgeEnds, edgePath } from "./edge-path";
+import { edgeEnds, edgeLabelPoint, edgePath } from "./edge-path";
 import { FONT_STACK, fontFaceCss } from "./font";
 import { escapeXml, inlineIcon, placeholderBox } from "./inline-icon";
 import { layoutDocument } from "./layout-document";
@@ -95,8 +95,11 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
   const mk = (kind: "start" | "end", arrow: string) =>
     arrow === "none" ? "" : ` marker-${kind}="url(#${markerId(arrow as ArrowStyle, s.stroke)})"`;
   const path = `<path d="${d}" fill="none" stroke="${s.stroke}" stroke-width="${fmt(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}${mk("end", s.endArrow)}${mk("start", s.startArrow)}/>`;
+  // `mid` is the path's own midpoint; the label sits wherever the style says, which is only the
+  // same point when labelPos is "middle".
+  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos);
   const label = e.label
-    ? `<g><rect x="${fmt(mid.x - e.label.length * 3.2 - 4)}" y="${fmt(mid.y - 8)}" width="${fmt(e.label.length * 6.4 + 8)}" height="16" rx="3" fill="${BG}" stroke="${LINE}"/><text x="${fmt(mid.x)}" y="${fmt(mid.y)}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="${FG}">${escapeXml(e.label)}</text></g>`
+    ? `<g><rect x="${fmt(lp.x - e.label.length * 3.2 - 4)}" y="${fmt(lp.y - 8)}" width="${fmt(e.label.length * 6.4 + 8)}" height="16" rx="3" fill="${BG}" stroke="${LINE}"/><text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="${FG}">${escapeXml(e.label)}</text></g>`
     : "";
   return `<g class="arq-edge" data-id="${escapeXml(id)}"${filter}>${path}${label}</g>`;
 }

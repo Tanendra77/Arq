@@ -18,9 +18,13 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-field input, .arq-field select { font: inherit; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 4px; padding: 4px 6px; }
 .arq-field input[type="color"] { padding: 2px; height: 28px; }
 .arq-field-checkbox { flex-direction: row; align-items: center; gap: 6px; }
-.arq-canvas { width: 100%; height: 100%; }
+/* `position: relative` anchors the placement overlays below, which sit over the flow. */
+.arq-canvas { width: 100%; height: 100%; position: relative; }
 /* A palette tool is armed: the next click on empty canvas places it. */
 .arq-canvas.armed, .arq-canvas.armed .react-flow__pane { cursor: crosshair; }
+.arq-sizing-preview { position: absolute; pointer-events: none; z-index: 5; border: 1px dashed var(--arq-accent); border-radius: 4px; background: color-mix(in srgb, var(--arq-accent) 12%, transparent); }
+/* Marks the fixed first end of a two-click arrow while its second end is still being chosen. */
+.arq-pending-end { position: absolute; pointer-events: none; z-index: 5; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--arq-accent); }
 .arq-palette-tabs { display: flex; border-bottom: 1px solid var(--arq-line); }
 .arq-palette-tabs button { flex: 1; padding: 6px; background: none; border: 0; color: inherit; cursor: pointer; }
 .arq-palette-tabs button.active { border-bottom: 2px solid var(--arq-accent); }
@@ -55,7 +59,16 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
    found and dragged; it never appears in the exported SVG, which only draws documented content. */
 .react-flow__node-arqEndpoint { width: 8px; height: 8px; border-radius: 50%; background: var(--arq-line); cursor: grab; }
 .arq-edge { stroke-linecap: round; }
-.arq-edge-label { position: absolute; pointer-events: all; font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; }
+/* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
+.arq-edge-hit { pointer-events: stroke; cursor: pointer; }
+.arq-edge-label { position: absolute; pointer-events: all; font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; cursor: text; }
+.arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-size: 11px; width: 100px; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; }
+/* The draggable dot standing in for an unattached edge end. Its handles exist only so React Flow
+   will render the edge at all; the dot itself is what the user grabs, hence pointer-events: none
+   on the handles (otherwise a press would start a new connection instead of moving the end). */
+.arq-endpoint { position: relative; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--arq-accent); opacity: 0.55; cursor: grab; }
+.arq-endpoint:hover { opacity: 1; }
+.arq-endpoint-handle { opacity: 0; width: 6px; height: 6px; min-width: 0; min-height: 0; border: 0; pointer-events: none; }
 .arq-toolbar button { padding: 4px 10px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; }
 .arq-toolbar button:disabled { opacity: 0.4; cursor: default; }
 .arq-toolbar-sep { width: 1px; height: 20px; background: var(--arq-line); margin: 0 4px; }

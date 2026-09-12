@@ -1,6 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ARROW_STYLES } from "@arq/schema";
-import { loadSettings, saveSettings, type Settings } from "../settings";
+import { loadSettings, saveSettings, themeColorDefaults, type Settings } from "../settings";
 import { CheckboxField, ColorField, NumberField, SelectField } from "./inspector/Field";
 
 const THEMES = ["light", "dark", "system"] as const;
@@ -42,6 +42,24 @@ export function useSettings(): [Settings, (patch: Partial<Settings>) => void] {
   return [settings, setSettings];
 }
 
+/**
+ * Colours to carry along with a theme switch.
+ *
+ * Once any setting is saved the whole blob is persisted, including the colours — so without this a
+ * user who had never picked a colour would still be stuck on the old theme's shape palette after
+ * switching. Only colours still sitting at a theme default move; anything the user actually chose
+ * is left exactly as they set it.
+ */
+export function retheme(current: Settings, next: Settings["theme"]): Partial<Settings> {
+  const from = themeColorDefaults(current.theme);
+  const to = themeColorDefaults(next);
+  const patch: Partial<Settings> = {};
+  if (current.nodeFill === from.nodeFill) patch.nodeFill = to.nodeFill;
+  if (current.nodeStroke === from.nodeStroke) patch.nodeStroke = to.nodeStroke;
+  if (current.edgeStroke === from.edgeStroke) patch.edgeStroke = to.edgeStroke;
+  return patch;
+}
+
 /** Keeps the app root's `data-theme` (styles.css keys its dark/light variables off it) in sync
  *  with the setting. "system" removes the attribute so the `prefers-color-scheme` media query
  *  takes back over, matching DEFAULT_SETTINGS.theme. */
@@ -81,7 +99,7 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
       >
         <h2 id="arq-settings-title">Settings</h2>
         <SelectField label="Theme" value={settings.theme} options={THEMES}
-          onChange={(v) => setSettingsPatch({ theme: v })} />
+          onChange={(v) => setSettingsPatch({ theme: v, ...retheme(settings, v) })} />
         <SelectField label="Grid" value={settings.grid} options={GRID_MODES}
           onChange={(v) => setSettingsPatch({ grid: v })} />
         <NumberField label="Grid size" value={settings.gridSize} min={2} step={1}

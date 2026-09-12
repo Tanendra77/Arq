@@ -1,9 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import type { ReactFlowProps } from "@xyflow/react";
 import { emptyDocument } from "@arq/schema";
 import { markerId, STYLE_DEFAULTS } from "@arq/render";
 import { Canvas, mergeMeasured, planDeletion } from "../../src/components/Canvas";
+import { DEFAULT_NODE_LABEL, setActiveTool } from "../../src/components/Palette";
 import type { ArqFlowNode } from "../../src/flow/to-flow";
 import { EditorStoreProvider } from "../../src/store/context";
 import { createEditorStore } from "../../src/store/editor-store";
@@ -45,6 +46,28 @@ function renderCanvasAndReadReactFlowProps(): ReactFlowProps {
 }
 
 describe("Canvas", () => {
+  it("places the armed palette tool where the canvas is clicked, then disarms it", () => {
+    capturedProps = undefined;
+    const store = createEditorStore(emptyDocument());
+    render(
+      <EditorStoreProvider store={store} platform={createFakePlatform()}>
+        <Canvas />
+      </EditorStoreProvider>,
+    );
+    act(() => setActiveTool("ellipse"));
+    act(() => capturedProps?.onPaneClick?.({ clientX: 40, clientY: 60 } as never));
+    expect(store.getState().document.nodes).toHaveLength(1);
+    expect(store.getState().document.nodes[0]?.shape).toBe("ellipse");
+    // Every creation path goes through `placeItem`, so a click-placed node carries the same
+    // editable placeholder a dropped one does — never the palette item's own name.
+    expect(store.getState().document.nodes[0]?.label).toBe(DEFAULT_NODE_LABEL);
+
+    // Disarmed by the placement: a second click on empty canvas adds nothing.
+    act(() => capturedProps?.onPaneClick?.({ clientX: 90, clientY: 90 } as never));
+    expect(store.getState().document.nodes).toHaveLength(1);
+    setActiveTool(null);
+  });
+
   it("configures the canvas to pan on scroll and zoom on pinch", () => {
     const props = renderCanvasAndReadReactFlowProps();
     expect(props.panOnScroll).toBe(true);

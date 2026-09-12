@@ -67,8 +67,10 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   if (!svgPath) throw new Error("no svg download path");
   const svg = readFileSync(svgPath, "utf8");
   expect(svg.startsWith("<svg")).toBe(true);
-  expect(svg).toContain(">Rectangle<");
-  expect(svg).toContain(">Ellipse<");
+  // Both palette items now create the same editable placeholder label (DEFAULT_NODE_LABEL), so the
+  // two nodes are told apart by their outlines rather than by their text.
+  expect(svg.match(/>Text</g)).toHaveLength(2);
+  expect(svg).toContain("<ellipse");
 
   // Export PNG.
   const [pngDl] = await Promise.all([

@@ -5,7 +5,7 @@
 :root[data-theme="light"] { color-scheme: light; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; }
 :root[data-theme="dark"] { color-scheme: dark; --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; }
 html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sans-serif; color: var(--arq-fg); background: var(--arq-bg); }
-.arq-app { display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: 220px 1fr 260px; grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
+.arq-app { display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: 112px 1fr 260px; grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
 .arq-toolbar { grid-area: toolbar; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--arq-line); }
 .arq-palette { grid-area: palette; border-right: 1px solid var(--arq-line); overflow: auto; }
 /* `--arq-canvas-bg` is unset by default (the canvas shows through to the app background); the
@@ -19,13 +19,19 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-field input[type="color"] { padding: 2px; height: 28px; }
 .arq-field-checkbox { flex-direction: row; align-items: center; gap: 6px; }
 .arq-canvas { width: 100%; height: 100%; }
+/* A palette tool is armed: the next click on empty canvas places it. */
+.arq-canvas.armed, .arq-canvas.armed .react-flow__pane { cursor: crosshair; }
 .arq-palette-tabs { display: flex; border-bottom: 1px solid var(--arq-line); }
 .arq-palette-tabs button { flex: 1; padding: 6px; background: none; border: 0; color: inherit; cursor: pointer; }
 .arq-palette-tabs button.active { border-bottom: 2px solid var(--arq-accent); }
-.arq-palette-list { list-style: none; margin: 0; padding: 6px; }
-.arq-palette-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: grab; user-select: none; }
+/* Symbol-only tiles packed into rows and columns: the item name lives in `title`/`aria-label`
+   rather than beside every swatch, so the panel is a compact grid instead of a tall list. */
+.arq-palette-list { list-style: none; margin: 0; padding: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 4px; }
+.arq-palette-list li { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; border-radius: 4px; cursor: grab; user-select: none; }
 .arq-palette-list li:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
+.arq-palette-list li.armed { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--arq-accent); }
 .arq-palette-icon svg { width: 24px; height: 24px; display: block; }
+.arq-palette-glyph { font-size: 16px; font-weight: 600; line-height: 1; }
 /*
  * A node's own fill/stroke/shape come from the inline <svg data-shape> ArqNode draws with
  * `shapeOutline` (the same function the SVG exporter calls) — this stylesheet never paints the
@@ -40,7 +46,10 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 /* Font metrics mirror METRICS in @arq/render (labelFontSize/labelLineHeight); position (top/left/
    width) is computed inline from `shapeRect`/`wrapLabel` so it lines up with the exported SVG's
    text block. */
-.arq-node-label { font-weight: 500; overflow-wrap: anywhere; line-height: 16px; pointer-events: none; }
+/* Hit-testable (unlike the rest of the node's decoration) purely so double-click can open the
+   inline editor; a single click still bubbles to the node, so select and drag are unaffected. */
+.arq-node-label { font-weight: 500; overflow-wrap: anywhere; line-height: 16px; cursor: text; }
+.arq-node-label-input { font: inherit; font-weight: 500; line-height: 16px; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; padding: 0 2px; box-sizing: border-box; }
 /* The hidden node standing in for a loose edge endpoint (`endpointNodeId` in flow/to-flow.ts).
    Drawn as a small grabbable dot rather than invisible, so a free-floating line end can still be
    found and dragged; it never appears in the exported SVG, which only draws documented content. */

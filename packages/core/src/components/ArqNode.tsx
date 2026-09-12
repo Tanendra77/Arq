@@ -1,9 +1,21 @@
-import { memo } from "react";
-import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { memo, useState } from "react";
+import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
 import { DASH_ARRAY, METRICS, glowId, resolveNodeStyle, shapeOutline, shapeRect, wrapLabel } from "@arq/render";
+import { useEditor } from "../store/context";
 import type { ArqFlowNode } from "../flow/to-flow";
 
-function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
+/** Floor for the resize handles. `PinnedSchema` requires a positive w/h, so a node can never be
+ *  dragged down to a zero dimension that the document schema would then refuse to load. */
+const MIN_SIZE = 20;
+
+function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
+  // Hooks run before the endpoint-node bail-out below: that branch is decided by props, but the
+  // hook order must not change with it.
+  const setPinned = useEditor((s) => s.setPinned);
+  const setLabel = useEditor((s) => s.setLabel);
+  // null while not editing; otherwise the in-progress draft, so Escape can discard it.
+  const [draft, setDraft] = useState<string | null>(null);
+
   if (!("shape" in data)) return null; // the hidden node standing in for a loose edge endpoint: no visual
   const s = resolveNodeStyle(data.style);
   // Same call the SVG exporter makes (`layoutDocument` -> `shapeRect(doc.layout.pinned[id], shape)`),
@@ -34,12 +46,33 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
   // `renderNode` in @arq/render so a `text` shape (no outline, no icon) reads the same both places.
   const labelTop = hasIcon ? iconBox.y + iconBox.h + METRICS.gap : (rect.h - lines.length * METRICS.labelLineHeight) / 2;
 
+  const commit = () => {
+    if (draft !== null && draft !== data.label) setLabel(id, draft);
+    setDraft(null);
+  };
+
   return (
     <div
       className={`arq-node${selected === true ? " selected" : ""}`}
       style={{ width: rect.w, height: rect.h, position: "relative" }}
       data-shape={data.shape}
     >
+      {/* Live-commits through the same `setPinned` a node drag uses, under its own merge key so a
+          whole resize gesture collapses into one undo entry (and never merges into a preceding
+          move). Writing on every step rather than only at the end is what makes the shape follow
+          the handle: ArqNode sizes itself from the document, not from React Flow's own width. */}
+      <NodeResizer
+        isVisible={selected === true}
+        minWidth={MIN_SIZE}
+        minHeight={MIN_SIZE}
+        onResize={(_e, p) =>
+          setPinned(
+            id,
+            { x: Math.round(p.x), y: Math.round(p.y), w: Math.round(p.width), h: Math.round(p.height) },
+            { mergeKey: "resize" },
+          )
+        }
+      />
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       <svg
@@ -74,21 +107,45 @@ function ArqNodeImpl({ data, selected }: NodeProps<ArqFlowNode>) {
           </div>
         )
       ) : null}
-      <div
-        className="arq-node-label"
-        style={{
-          position: "absolute",
-          left: 0,
-          top: labelTop,
-          width: rect.w,
-          textAlign: s.textAlign,
-          fontSize: s.fontSize,
-        }}
-      >
-        {lines.map((line, i) => (
-          <div key={i}>{line}</div>
-        ))}
-      </div>
+      {draft !== null ? (
+        // `nodrag`/`nopan` are React Flow's own opt-outs: without them a click into the field
+        // starts a node drag and the caret never lands.
+        <input
+          className="arq-node-label-input nodrag nopan"
+          style={{ position: "absolute", left: 0, top: labelTop, width: rect.w, textAlign: s.textAlign, fontSize: s.fontSize }}
+          value={draft}
+          autoFocus
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            e.stopPropagation(); // Delete/Backspace in the field must edit text, not delete the node
+            if (e.key === "Enter") commit();
+            else if (e.key === "Escape") setDraft(null);
+          }}
+        />
+      ) : (
+        <div
+          className="arq-node-label"
+          style={{
+            position: "absolute",
+            left: 0,
+            top: labelTop,
+            width: rect.w,
+            textAlign: s.textAlign,
+            fontSize: s.fontSize,
+          }}
+          title="Double-click to edit"
+          // stopPropagation so the canvas does not also take this as a zoom-to-fit double-click.
+          onDoubleClick={(e) => {
+            e.stopPropagation();
+            setDraft(data.label);
+          }}
+        >
+          {lines.map((line, i) => (
+            <div key={i}>{line}</div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

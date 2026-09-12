@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, type DragEvent, type MouseEvent } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -21,7 +21,7 @@ import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqNode } from "./ArqNode";
 import { ArqEdge, EdgeDefs } from "./ArqEdge";
-import { PALETTE_ITEMS, FREE_LINE_LENGTH, nodeCreationStyle, edgeCreationStyle } from "./Palette";
+import { PALETTE_ITEMS, placeItem, useActiveTool } from "./Palette";
 import { useSettings } from "./SettingsModal";
 
 const nodeTypes = { arq: ArqNode };
@@ -81,6 +81,7 @@ function CanvasInner() {
   const setSelection = useEditor((s) => s.setSelection);
   const { screenToFlowPosition } = useReactFlow();
   const [settings] = useSettings();
+  const [tool, setTool] = useActiveTool();
 
   // Phase 1 has no user packs wired yet; a plan B task injects installed packs here.
   const resolveIcon = useMemo(() => createIconResolver([]), []);
@@ -148,22 +149,31 @@ function CanvasInner() {
       const item = payload ? PALETTE_ITEMS.find((i) => i.key === payload.item) : undefined;
       if (!item) return;
       e.preventDefault();
-      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      if (item.kind === "node") {
-        addNode({ shape: item.shape, label: item.label, position, style: nodeCreationStyle(settings) });
-      } else {
-        addEdge({
-          from: { x: position.x - FREE_LINE_LENGTH / 2, y: position.y },
-          to: { x: position.x + FREE_LINE_LENGTH / 2, y: position.y },
-          style: edgeCreationStyle(item, settings),
-        });
-      }
+      placeItem(item, screenToFlowPosition({ x: e.clientX, y: e.clientY }), settings, { addNode, addEdge });
     },
     [addNode, addEdge, screenToFlowPosition, settings],
   );
 
+  // Click-to-place: with a palette item armed, a click on empty canvas drops it where the pointer
+  // is and disarms the tool, so a shape can be added without a drag. With nothing armed this is
+  // not registered at all, leaving React Flow's own click-to-deselect behaviour untouched.
+  const onPaneClick = useCallback(
+    (e: MouseEvent) => {
+      const item = PALETTE_ITEMS.find((i) => i.key === tool);
+      if (!item) return;
+      placeItem(item, screenToFlowPosition({ x: e.clientX, y: e.clientY }), settings, { addNode, addEdge });
+      setTool(null);
+    },
+    [tool, setTool, addNode, addEdge, screenToFlowPosition, settings],
+  );
+
   return (
-    <div className="arq-canvas" data-testid="canvas" onDragOver={onDragOver} onDrop={onDrop}>
+    <div
+      className={`arq-canvas${tool !== null ? " armed" : ""}`}
+      data-testid="canvas"
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -175,6 +185,7 @@ function CanvasInner() {
         onNodeDragStop={onNodeDragStop}
         onDelete={onDelete}
         onSelectionChange={onSelectionChange}
+        onPaneClick={onPaneClick}
         deleteKeyCode={["Delete", "Backspace"]}
         fitView
         panOnScroll

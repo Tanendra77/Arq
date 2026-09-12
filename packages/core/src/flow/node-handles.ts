@@ -1,4 +1,6 @@
-import type { Pinned } from "@arq/schema";
+import type { NodeShape, Pinned } from "@arq/schema";
+
+import { shapeRect } from "@arq/render";
 
 /** The four corners, named by which one stays put when the opposite is dragged. */
 export const CORNERS = ["nw", "ne", "se", "sw"] as const;
@@ -40,7 +42,7 @@ export function resizeRotated(
   pointer: Point,
   degrees: number,
   min: number,
-): Pinned {
+): { x: number; y: number; w: number; h: number } {
   const rad = (degrees * Math.PI) / 180;
   const centre = { x: pinned.x + pinned.w / 2, y: pinned.y + pinned.h / 2 };
 
@@ -82,4 +84,28 @@ export function angleFromPointer(
   const deg = (Math.atan2(pointer.y - cy, pointer.x - cx) * 180) / Math.PI + 90;
   const wrapped = ((deg % 360) + 360) % 360;
   return snap ? Math.round(wrapped / 15) * 15 : Math.round(wrapped);
+}
+
+/**
+ * The node whose box contains `p`, if any, tested against the document's own rects.
+ *
+ * `margin` widens every box, which is what makes an arrow end snap to a shape it is merely near
+ * rather than demanding a hit inside it. Later nodes win, matching paint order — the one on top.
+ */
+export function nodeAt(
+  nodes: readonly { id: string; shape: NodeShape }[],
+  pinned: Record<string, Pinned | undefined>,
+  p: Point,
+  margin = 0,
+): string | undefined {
+  let hit: string | undefined;
+  for (const n of nodes) {
+    const pin = pinned[n.id];
+    if (!pin) continue;
+    const r = shapeRect(pin, n.shape);
+    if (p.x >= r.x - margin && p.x <= r.x + r.w + margin && p.y >= r.y - margin && p.y <= r.y + r.h + margin) {
+      hit = n.id;
+    }
+  }
+  return hit;
 }

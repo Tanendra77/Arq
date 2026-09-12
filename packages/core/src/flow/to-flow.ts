@@ -61,7 +61,9 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
       id,
       type: "arqEndpoint",
       position: { x: ep.x, y: ep.y },
-      draggable: true,
+      // Geometry only: React Flow needs a node to hang an edge end on, but moving that end is
+      // ArqEdge's job (one code path for bound and loose ends alike), so this is not draggable.
+      draggable: false,
       selected: selNodes.has(id),
       data: {},
     });

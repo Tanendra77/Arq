@@ -312,9 +312,14 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     },
 
     setPinned(id, pinned, opts) {
-      if (samePinned(get().document.layout.pinned[id], pinned)) return;
+      // Merged, not replaced. A move only knows x/y, so assigning the argument wholesale dropped
+      // whatever width and height a resize had stored — dragging a resized shape snapped it back
+      // to the default size. Anything a caller does supply still wins.
+      const prev = get().document.layout.pinned[id];
+      const next = { ...prev, ...pinned };
+      if (samePinned(prev, next)) return;
       get().mutate("move", (d) => {
-        d.layout.pinned[id] = { ...pinned };
+        d.layout.pinned[id] = next;
       }, opts);
     },
 

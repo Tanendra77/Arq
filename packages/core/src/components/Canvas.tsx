@@ -24,6 +24,7 @@ import { isNodeRef } from "@arq/schema";
 import { useEditor } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
 import { parseEndpointNodeId, toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
+import { nodeAt } from "../flow/node-handles";
 import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqEndpointNode, ArqNode } from "./ArqNode";
@@ -45,6 +46,9 @@ const DRAG_THRESHOLD = 6;
 
 /** One fixed seed for whatever the in-flight gesture previews. */
 const PREVIEW_SEED = 1;
+
+/** How far outside a shape an arrow end still snaps to it. */
+export const SNAP_MARGIN = 12;
 
 /** A rect from two corners in any order. */
 export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number }) {
@@ -162,7 +166,6 @@ function CanvasInner() {
   const removeEdges = useEditor((s) => s.removeEdges);
   const setPinned = useEditor((s) => s.setPinned);
   const setSelection = useEditor((s) => s.setSelection);
-  const setEndpoint = useEditor((s) => s.setEndpoint);
   const past = useEditor((s) => s.past);
   const future = useEditor((s) => s.future);
   const { screenToFlowPosition, flowToScreenPosition, fitView } = useReactFlow();
@@ -230,16 +233,14 @@ function CanvasInner() {
   const onNodeDragStop = useCallback(
     (_e: unknown, _node: Node, dragged: Node[]) => {
       for (const n of dragged) {
-        const pos = { x: Math.round(n.position.x), y: Math.round(n.position.y) };
-        // A hidden endpoint node is not a document node: moving it moves the edge's own loose end.
-        // Writing it to `layout.pinned` instead would file a rect under a reserved `__ep:` id that
-        // nothing ever reads back.
-        const ep = parseEndpointNodeId(n.id);
-        if (ep) setEndpoint(ep.edgeId, ep.which, pos, { mergeKey: "drag" });
-        else setPinned(n.id, pos, { mergeKey: "drag" });
+        // The hidden stand-ins for loose edge ends are geometry only — ArqEdge owns moving those,
+        // so that both kinds of end are edited the same way. Nothing else here should ever write a
+        // `layout.pinned` rect under a reserved `__ep:` id.
+        if (parseEndpointNodeId(n.id)) continue;
+        setPinned(n.id, { x: Math.round(n.position.x), y: Math.round(n.position.y) }, { mergeKey: "drag" });
       }
     },
-    [setPinned, setEndpoint],
+    [setPinned],
   );
 
   const onSelectionChange = useCallback(
@@ -285,31 +286,10 @@ function CanvasInner() {
     [addNode, addEdge, screenToFlowPosition, settings],
   );
 
-  /**
-   * The node under a flow-space point, if any.
-   *
-   * Hit-tested against the document's own rects (`shapeRect`, the exporter's function) rather than
-   * by asking the DOM what is under the cursor: an arrow end binds to a shape, and a shape is what
-   * the document says it is. Later nodes win, matching paint order — the one drawn on top.
-   */
-  const nodeAt = useCallback(
-    (p: { x: number; y: number }): string | undefined => {
-      let hit: string | undefined;
-      for (const n of doc.nodes) {
-        const pin = doc.layout.pinned[n.id];
-        if (!pin) continue;
-        const r = shapeRect(pin, n.shape);
-        if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) hit = n.id;
-      }
-      return hit;
-    },
-    [doc],
-  );
-
-  /** An arrow end at this point: bound to whatever shape is under it, else the bare point. */
+  /** An arrow end at this point: bound to whatever shape is under or near it, else the bare point. */
   const endpointAt = useCallback(
-    (p: { x: number; y: number }): Endpoint => nodeAt(p) ?? p,
-    [nodeAt],
+    (p: { x: number; y: number }): Endpoint => nodeAt(doc.nodes, doc.layout.pinned, p, SNAP_MARGIN) ?? p,
+    [doc],
   );
 
   /**

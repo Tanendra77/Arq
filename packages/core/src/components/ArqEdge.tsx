@@ -19,6 +19,8 @@ import {
   type Rect,
 } from "@arq/render";
 import { useEditor } from "../store/context";
+import { nodeAt } from "../flow/node-handles";
+import { SNAP_MARGIN } from "./Canvas";
 import type { ArqFlowNode, ArqFlowEdge } from "../flow/to-flow";
 
 /**
@@ -47,6 +49,8 @@ function animProps(a: PathAnim): { className: string; style: CSSProperties } {
 function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEdge>) {
   const setLabel = useEditor((s) => s.setLabel);
   const setStyle = useEditor((s) => s.setStyle);
+  const setEndpoint = useEditor((s) => s.setEndpoint);
+  const doc = useEditor((s) => s.document);
   const { screenToFlowPosition } = useReactFlow();
   const sourceNode = useInternalNode<ArqFlowNode>(source);
   const targetNode = useInternalNode<ArqFlowNode>(target);
@@ -103,6 +107,36 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
           />
         ))}
       </g>
+      {/* One grab dot per end, whether that end is bound to a shape or floating. Dragging either
+          re-points it: release on (or near) a shape and it binds there, release on empty canvas and
+          it becomes a loose point again. Both ends behave identically, which is why the hidden
+          stand-in nodes are no longer draggable themselves. */}
+      {selected === true
+        ? ([
+            ["from", start],
+            ["to", end],
+          ] as const).map(([which, at]) => (
+            <circle
+              key={which}
+              className="arq-edge-end nodrag nopan"
+              data-testid={`end-${which}-${id}`}
+              cx={at.x}
+              cy={at.y}
+              r={6}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+                const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+                const snapped = nodeAt(doc.nodes, doc.layout.pinned, p, SNAP_MARGIN);
+                setEndpoint(id, which, snapped ?? { x: Math.round(p.x), y: Math.round(p.y) }, { mergeKey: "endpoint" });
+              }}
+              onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+            />
+          ))
+        : null}
       {/* Slides the middle leg of a right-angled route. Only shown while the edge is selected, and
           only for a route that actually has such a leg. */}
       {handle !== undefined ? (

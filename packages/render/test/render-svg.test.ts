@@ -278,14 +278,16 @@ describe("flow animation", () => {
     expect(line).toContain('class="arq-flow"');
     expect(line).toMatch(/stroke-dasharray="8 6"/);
     // The period drives the keyframe, so any pattern loops seamlessly.
-    expect(line).toContain("--arq-flow-period:14");
+    // With a unit. As a CSS property (which is what a keyframe sets) stroke-dashoffset needs a
+    // length, so a bare number made `calc(var(...) * -2)` invalid and the line sat perfectly still.
+    expect(line).toContain("--arq-flow-period:14px");
   });
 
   it("keeps the author's own dash pattern when one is set", () => {
     const svg = renderSvg(flowDoc({ animate: "flow", strokeDash: "dotted" }), opts);
     const line = /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
     expect(line).toMatch(/stroke-dasharray="2 4"/);
-    expect(line).toContain("--arq-flow-period:6");
+    expect(line).toContain("--arq-flow-period:6px");
   });
 
   it("animates the stroke only, never the arrowhead", () => {

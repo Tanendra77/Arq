@@ -71,7 +71,14 @@ export type PathAnim =
  *  editor and the `<style>` block `renderSvg` writes — so an exported file animates on its own. */
 export const FLOW_CLASS = "arq-flow";
 
-/** Custom property the keyframes read, so one rule animates any dash pattern seamlessly. */
+/**
+ * Custom property the keyframes read, so one rule animates any dash pattern seamlessly.
+ *
+ * It carries a `px` length, not a bare number. As a *presentation attribute* `stroke-dashoffset`
+ * accepts a plain number, but as a CSS property — which is what a keyframe sets — it needs a
+ * `<length-percentage>`; a unitless value made `calc(var(...) * -2)` invalid, the declaration was
+ * dropped, and the animation ran with the offset pinned at zero. It looked completely still.
+ */
 export const FLOW_PERIOD_VAR = "--arq-flow-period";
 
 export const PACKET_CLASS = "arq-packet";
@@ -131,7 +138,7 @@ export function animAttrs(a: PathAnim): { className: string; style: Record<strin
     ...(a.reverse ? { "animation-direction": "reverse" } : {}),
   };
   return a.kind === "flow"
-    ? { className: FLOW_CLASS, style: { ...common, [FLOW_PERIOD_VAR]: String(r2(a.period)) } }
+    ? { className: FLOW_CLASS, style: { ...common, [FLOW_PERIOD_VAR]: `${r2(a.period)}px` } }
     : {
         className: PACKET_CLASS,
         style: { ...common, "offset-path": `path('${a.path}')`, "animation-delay": `${r2(a.delay)}s` },

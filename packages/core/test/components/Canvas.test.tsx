@@ -141,16 +141,29 @@ describe("Canvas", () => {
     setActiveTool(null);
   });
 
-  it("moves a loose edge end rather than filing a layout rect under its reserved id", () => {
+  it("never files a layout rect under a loose end's reserved id", () => {
     const { store } = renderCanvasWithStore();
     const id = store.getState().addEdge({ from: { x: 0, y: 0 }, to: { x: 100, y: 0 } });
+    // Edge ends are moved by ArqEdge's own grips; a stray node-drag event for one must do nothing.
     act(() =>
       capturedProps?.onNodeDragStop?.({} as never, {} as never, [
         { id: endpointNodeId(id, "to"), position: { x: 40, y: 70 } } as never,
       ]),
     );
-    expect(store.getState().document.edges[0]?.to).toEqual({ x: 40, y: 70 });
     expect(store.getState().document.layout.pinned[endpointNodeId(id, "to")]).toBeUndefined();
+    expect(store.getState().document.edges[0]?.to).toEqual({ x: 100, y: 0 });
+  });
+
+  it("snaps a placed arrow end to a shape it merely lands near, not only inside", () => {
+    const { store, canvas } = renderCanvasWithStore();
+    const a = store.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 }, size: { w: 100, h: 100 } });
+    act(() => setActiveTool("arrow"));
+    // Release just outside the shape's right edge — within SNAP_MARGIN, so it binds anyway.
+    fireEvent.mouseDown(canvas, { clientX: 400, clientY: 400, button: 0 });
+    fireEvent.mouseMove(canvas, { clientX: 106, clientY: 50 });
+    fireEvent.mouseUp(canvas, { clientX: 106, clientY: 50 });
+    expect(store.getState().document.edges[0]?.to).toBe(a);
+    setActiveTool(null);
   });
 
   it("configures the canvas to pan on scroll and zoom on pinch", () => {
@@ -213,10 +226,14 @@ describe("Canvas", () => {
         <Canvas />
       </EditorStoreProvider>,
     );
+    // The marching overlay is a clean single path, laid over the (faded) line itself.
     const flowing = container.querySelector("g.arq-edge path.arq-flow");
     expect(flowing).not.toBeNull();
+    expect(flowing).toHaveAttribute("d", "M0 0 L200 0");
     expect(flowing).toHaveAttribute("stroke-dasharray", "8 6");
-    expect((flowing as SVGPathElement).style.getPropertyValue("--arq-flow-period")).toBe("14");
+    // A length, not a bare number: as a CSS property stroke-dashoffset needs one, and without it
+    // the keyframe's calc() was invalid and the dashes never moved.
+    expect((flowing as SVGPathElement).style.getPropertyValue("--arq-flow-period")).toBe("14px");
   });
 
   it("draws nodes hand-drawn by default, and the exact primitive at roughness 0", () => {

@@ -292,3 +292,20 @@ describe("setSelection", () => {
     expect(s.getState().selection.nodes).toEqual([]);
   });
 });
+
+describe("setPinned", () => {
+  it("keeps a stored size when a move only supplies a position", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 }, size: { w: 300, h: 40 } });
+    // What a node drag does: it knows where the node landed, not how big it is.
+    s.getState().setPinned(a, { x: 120, y: 90 });
+    expect(s.getState().document.layout.pinned[a]).toEqual({ x: 120, y: 90, w: 300, h: 40 });
+  });
+
+  it("still lets a resize replace the size", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 }, size: { w: 300, h: 40 } });
+    s.getState().setPinned(a, { x: 0, y: 0, w: 50, h: 60 });
+    expect(s.getState().document.layout.pinned[a]).toEqual({ x: 0, y: 0, w: 50, h: 60 });
+  });
+});

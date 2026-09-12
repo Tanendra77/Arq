@@ -96,6 +96,9 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 /* Selection halo, drawn under the edge. Deliberately a path and not a CSS filter — see ArqEdge. */
 /* Slides the middle leg of a right-angled route; only rendered while the edge is selected. */
 .arq-bend-handle { fill: var(--arq-accent); stroke: var(--arq-bg); stroke-width: 1.5; cursor: ew-resize; }
+/* Either end of a selected line; drag to re-point it, onto a shape or onto empty canvas. */
+.arq-edge-end { fill: var(--arq-bg); stroke: var(--arq-accent); stroke-width: 2; cursor: grab; }
+.arq-edge-end:hover { fill: var(--arq-accent); }
 .arq-edge-halo { fill: none; stroke: var(--arq-accent); stroke-width: 6; stroke-linecap: round; opacity: 0.35; pointer-events: none; }
 /* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
 .arq-edge-hit { pointer-events: stroke; cursor: pointer; }
@@ -104,8 +107,9 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 /* The draggable dot standing in for an unattached edge end. Its handles exist only so React Flow
    will render the edge at all; the dot itself is what the user grabs, hence pointer-events: none
    on the handles (otherwise a press would start a new connection instead of moving the end). */
-.arq-endpoint { position: relative; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; background: var(--arq-accent); opacity: 0.55; cursor: grab; }
-.arq-endpoint:hover { opacity: 1; }
+/* Invisible: it exists so React Flow can resolve the edge's geometry. The grab dot the user sees
+   is `.arq-edge-end`, drawn by ArqEdge at both ends alike. */
+.arq-endpoint { position: relative; width: 1px; height: 1px; }
 .arq-endpoint-handle { opacity: 0; width: 6px; height: 6px; min-width: 0; min-height: 0; border: 0; pointer-events: none; }
 .arq-toolbar button { padding: 4px 10px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; }
 .arq-toolbar button:disabled { opacity: 0.4; cursor: default; }

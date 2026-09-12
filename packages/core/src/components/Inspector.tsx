@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import {
-  ARROW_STYLES, DASH_STYLES, LABEL_POSITIONS,
-  type ArqEdge, type ArqNode, type Animation, type ArrowStyle, type DashStyle,
+  ANIMATION_DIRECTIONS, ANIMATION_SPEEDS, ARROW_STYLES, DASH_STYLES, LABEL_POSITIONS,
+  type ArqEdge, type ArqNode, type Animation, type AnimationDirection, type AnimationSpeed,
+  type ArrowStyle, type DashStyle,
   type LabelPosition, type Routing,
 } from "@arq/schema";
 import { resolveEdgeStyle, resolveNodeStyle, STYLE_DEFAULTS } from "@arq/render";
@@ -9,8 +10,8 @@ import { useEditor, useEditorStore } from "../store/context";
 import type { StylePatch } from "../store/editor-store";
 import { CheckboxField, ColorField, NumberField, TextField } from "./inspector/Field";
 import {
-  IconChoice, alignGlyph, animateGlyph, arrowGlyph, dashGlyph, labelPosGlyph, rotateGlyph,
-  routingGlyph, sketchGlyph,
+  IconChoice, alignGlyph, animateGlyph, arrowGlyph, dashGlyph, directionGlyph, labelPosGlyph,
+  rotateGlyph, routingGlyph, sketchGlyph, speedGlyph,
 } from "./inspector/IconChoice";
 
 const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
@@ -63,8 +64,56 @@ const EDGE_ANIMATE_OPTIONS = [
 
 const NODE_ANIMATE_OPTIONS = [
   { value: "none", title: "Still", glyph: animateGlyph("none") },
+  { value: "flow", title: "Marching border", glyph: animateGlyph("flow") },
   { value: "pulse", title: "Pulse", glyph: animateGlyph("pulse") },
 ] as const satisfies readonly { value: Animation; title: string; glyph: string }[];
+
+const SPEED_TITLES: Record<AnimationSpeed, string> = { slow: "Slow", normal: "Normal", fast: "Fast" };
+const SPEED_OPTIONS = ANIMATION_SPEEDS.map((v) => ({ value: v, title: SPEED_TITLES[v], glyph: speedGlyph(v) }));
+
+const DIRECTION_TITLES: Record<AnimationDirection, string> = { forward: "Forward", reverse: "Reverse" };
+const DIRECTION_OPTIONS = ANIMATION_DIRECTIONS.map((v) => ({
+  value: v, title: DIRECTION_TITLES[v], glyph: directionGlyph(v),
+}));
+
+/**
+ * The animation tab's shared body: what moves, how fast, which way, and glow.
+ *
+ * Speed and direction are hidden while nothing is animating — they would be controls with no
+ * effect, and the panel is better for not carrying them.
+ */
+function AnimationFields({
+  animate, speed, direction, options, glowOn, glowColor, patch,
+}: {
+  animate: Animation | undefined;
+  speed: AnimationSpeed | undefined;
+  direction: AnimationDirection | undefined;
+  options: readonly { value: Animation; title: string; glyph: string }[];
+  glowOn: boolean | undefined;
+  glowColor: string | undefined;
+  patch: (p: StylePatch, mergeKey?: string) => void;
+}) {
+  return (
+    <>
+      <IconChoice label="Motion" value={animate} indeterminate={animate === undefined}
+        options={options} onChange={(v) => patch({ animate: v })} />
+      {animate !== "none" ? (
+        <>
+          <IconChoice label="Speed" value={speed} indeterminate={speed === undefined}
+            options={SPEED_OPTIONS} onChange={(v) => patch({ animateSpeed: v })} />
+          <IconChoice label="Direction" value={direction} indeterminate={direction === undefined}
+            options={DIRECTION_OPTIONS} onChange={(v) => patch({ animateDirection: v })} />
+        </>
+      ) : null}
+      <GlowFields
+        on={glowOn}
+        color={glowColor}
+        onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
+        onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
+      />
+    </>
+  );
+}
 
 /** Quarter turns plus the upright default; anything else goes in the degrees field beside it. */
 const ROTATE_OPTIONS = [0, 45, 90, 180].map((d) => ({
@@ -194,6 +243,8 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const textAlign = commonValue(resolved.map((r) => r.textAlign));
   const rotate = commonValue(resolved.map((r) => r.rotate));
   const animate = commonValue(resolved.map((r) => r.animate));
+  const speed = commonValue(resolved.map((r) => r.animateSpeed));
+  const direction = commonValue(resolved.map((r) => r.animateDirection));
   const roughness = commonValue(resolved.map((r) => r.roughness));
   const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
   const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
@@ -208,16 +259,10 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
       <h3>{nodes.length === 1 ? "Shape" : `${nodes.length} shapes`}</h3>
       <PanelTabs tab={tab} onTab={setTab} />
       {tab === "Animation" ? (
-        <>
-          <IconChoice label="Motion" value={animate} indeterminate={animate === undefined}
-            options={NODE_ANIMATE_OPTIONS} onChange={(v) => patch({ animate: v })} />
-          <GlowFields
-            on={glowOn}
-            color={glowColor}
-            onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
-            onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
-          />
-        </>
+        <AnimationFields
+          animate={animate} speed={speed} direction={direction} options={NODE_ANIMATE_OPTIONS}
+          glowOn={glowOn} glowColor={glowColor} patch={patch}
+        />
       ) : (
         <>
       <div className="arq-field-pair">
@@ -275,6 +320,8 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
   const endArrow = commonValue(resolved.map((r) => r.endArrow)) as ArrowStyle | undefined;
   const labelPos = commonValue(resolved.map((r) => r.labelPos));
   const animate = commonValue(resolved.map((r) => r.animate));
+  const speed = commonValue(resolved.map((r) => r.animateSpeed));
+  const direction = commonValue(resolved.map((r) => r.animateDirection));
   const roughness = commonValue(resolved.map((r) => r.roughness));
   const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
   const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
@@ -288,16 +335,10 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
       <h3>{edges.length === 1 ? "Line" : `${edges.length} lines`}</h3>
       <PanelTabs tab={tab} onTab={setTab} />
       {tab === "Animation" ? (
-        <>
-          <IconChoice label="Motion" value={animate} indeterminate={animate === undefined}
-            options={EDGE_ANIMATE_OPTIONS} onChange={(v) => patch({ animate: v })} />
-          <GlowFields
-            on={glowOn}
-            color={glowColor}
-            onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
-            onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
-          />
-        </>
+        <AnimationFields
+          animate={animate} speed={speed} direction={direction} options={EDGE_ANIMATE_OPTIONS}
+          glowOn={glowOn} glowColor={glowColor} patch={patch}
+        />
       ) : (
         <>
       <IconChoice label="Shape" value={routing} indeterminate={routing === undefined}

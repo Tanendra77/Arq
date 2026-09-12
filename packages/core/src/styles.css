@@ -62,6 +62,16 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
  */
 .arq-node { position: relative; }
 .arq-node.selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--arq-accent) 40%, transparent); border-radius: 4px; }
+/* Corner handles and the rotation grip. They are children of the rotated box, so they turn with
+   the shape and stay on its own corners; `node-handles.ts` does the matching arithmetic. */
+.arq-resize-handle { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border: 1px solid var(--arq-accent); border-radius: 2px; background: var(--arq-bg); }
+.arq-resize-nw { left: 0; top: 0; cursor: nwse-resize; }
+.arq-resize-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.arq-resize-se { left: 100%; top: 100%; cursor: nwse-resize; }
+.arq-resize-sw { left: 0; top: 100%; cursor: nesw-resize; }
+.arq-rotate-grip { position: absolute; left: 50%; top: -22px; width: 11px; height: 11px; margin-left: -6px; border: 1px solid var(--arq-accent); border-radius: 50%; background: var(--arq-bg); cursor: grab; }
+/* The stem joining the grip to the shape, so it reads as attached rather than floating. */
+.arq-rotate-grip::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 12px; margin-left: -0.5px; background: var(--arq-accent); }
 .arq-node-shape { pointer-events: none; }
 /* React Flow needs a handle on each node to resolve edge geometry at all, but Arq does not bind
    arrows to a handle — `anchorOn` picks the side facing the other end, so an arrow meets a shape
@@ -76,7 +86,9 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 /* Hit-testable (unlike the rest of the node's decoration) purely so double-click can open the
    inline editor; a single click still bubbles to the node, so select and drag are unaffected. */
 .arq-node-label { font-family: var(--arq-sketch-font); font-weight: 500; overflow-wrap: anywhere; line-height: 16px; cursor: text; }
-.arq-node-label-input { font: inherit; font-family: var(--arq-sketch-font); font-weight: 500; line-height: 16px; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; padding: 0 2px; box-sizing: border-box; }
+/* No frame while typing: editing a label should look like editing the label, not like a form
+   field dropped on top of the shape. The caret and the live text are the only feedback needed. */
+.arq-node-label-input { font: inherit; font-family: var(--arq-sketch-font); font-weight: 500; line-height: 16px; color: inherit; background: none; border: 0; outline: none; padding: 0; box-sizing: border-box; }
 /* The wrapper React Flow puts around a loose-endpoint node. `.arq-endpoint` below paints the dot;
    this only has to stop the wrapper painting a second one of its own. */
 .react-flow__node-arqEndpoint { background: none; }
@@ -88,7 +100,7 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 /* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
 .arq-edge-hit { pointer-events: stroke; cursor: pointer; }
 .arq-edge-label { position: absolute; pointer-events: all; font-family: var(--arq-sketch-font); font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; cursor: text; }
-.arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-family: var(--arq-sketch-font); font-size: 11px; width: 100px; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; }
+.arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-family: var(--arq-sketch-font); font-size: 11px; width: 100px; text-align: center; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 0; outline: none; border-radius: 3px; }
 /* The draggable dot standing in for an unattached edge end. Its handles exist only so React Flow
    will render the edge at all; the dot itself is what the user grabs, hence pointer-events: none
    on the handles (otherwise a press would start a new connection instead of moving the end). */

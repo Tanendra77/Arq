@@ -126,6 +126,25 @@ export function animateGlyph(animate: Animation): string {
   return svg(stroke(d));
 }
 
+/** Speed, as one, two or three chevrons. */
+export function speedGlyph(speed: "slow" | "normal" | "fast"): string {
+  const count = { slow: 1, normal: 2, fast: 3 }[speed];
+  const body = Array.from({ length: count }, (_, i) => {
+    const x = 7 + i * 6;
+    return `<path d="M${x} 5 L${x + 4} 9 L${x} 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }).join("");
+  return svg(body);
+}
+
+/** Direction, as an arrow pointing the way the animation travels. */
+export function directionGlyph(direction: "forward" | "reverse"): string {
+  const flip = direction === "reverse" ? ' transform="rotate(180 13 9)"' : "";
+  return svg(
+    `<g${flip}>${stroke(`M${LEFT.x} ${LEFT.y} L18 ${RIGHT.y}`)}` +
+      `<path d="M15 5 L20 9 L15 13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></g>`,
+  );
+}
+
 /** Rotation, as a square tipped by the amount it names. */
 export function rotateGlyph(degrees: number): string {
   const cx = BOX.w / 2;

@@ -1,5 +1,5 @@
 import rough from "roughjs";
-import type { NodeShape } from "@arq/schema";
+import type { AnimationSpeed, NodeShape } from "@arq/schema";
 import { DASH_ARRAY, shapeOutline, type Point, type ResolvedEdgeStyle, type ResolvedNodeStyle, type Rect } from "./metrics";
 
 /**
@@ -57,11 +57,15 @@ export interface PathSpec {
   strokeWidth: number;
   fill: string;
   dash: string | undefined;
-  /** Length of one dash period, set only on a path that animates; see `FLOW_CLASS`. */
-  flowPeriod?: number;
-  /** A travelling packet: the route it follows and how far into the loop it starts. */
-  motion?: { path: string; delay: number };
+  /** Painted below full strength — the faint rail an animated line marches over. */
+  opacity?: number;
+  /** How this path animates, if it does. */
+  anim?: PathAnim;
 }
+
+export type PathAnim =
+  | { kind: "flow"; period: number; duration: number; reverse: boolean }
+  | { kind: "packet"; path: string; delay: number; duration: number; reverse: boolean };
 
 /** Class an animated stroke carries. The keyframes live in the stylesheet — `styles.css` for the
  *  editor and the `<style>` block `renderSvg` writes — so an exported file animates on its own. */
@@ -93,7 +97,6 @@ export const FLOW_CSS =
 /** How many dots ride a packet line, and how far apart in the loop they sit. */
 const PACKET_COUNT = 3;
 const PACKET_RADIUS = 3;
-const PACKET_LOOP_SECONDS = 2.4;
 
 /** A dot centred on the origin; `offset-path` moves it along the route. */
 function packetDot(r: number): string {
@@ -103,29 +106,87 @@ function packetDot(r: number): string {
 /** The travelling dots for an edge, evenly spaced around one loop by negative start delays. */
 function packets(d: string, s: ResolvedEdgeStyle): PathSpec[] {
   const r = Math.max(PACKET_RADIUS, s.strokeWidth * 1.6);
+  const duration = PACKET_SECONDS[s.animateSpeed];
   return Array.from({ length: PACKET_COUNT }, (_, i) => ({
     d: packetDot(r2(r)),
     stroke: "none",
     strokeWidth: 0,
     fill: s.stroke,
     dash: undefined,
-    motion: { path: d, delay: r2((-PACKET_LOOP_SECONDS / PACKET_COUNT) * i) },
+    anim: {
+      kind: "packet" as const,
+      path: d,
+      delay: r2((-duration / PACKET_COUNT) * i),
+      duration,
+      reverse: s.animateDirection === "reverse",
+    },
   }));
 }
 
-export function pathSpecToSvg(p: PathSpec): string {
-  let extra = "";
-  if (p.flowPeriod !== undefined) {
-    extra = ` class="${FLOW_CLASS}" style="${FLOW_PERIOD_VAR}:${r2(p.flowPeriod)}"`;
-  } else if (p.motion !== undefined) {
-    extra = ` class="${PACKET_CLASS}" style="offset-path:path('${p.motion.path}');animation-delay:${p.motion.delay}s"`;
-  }
-  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}${extra}/>`;
+/** The class and inline style an animated path carries. Duration and direction are per-element, so
+ *  one pair of keyframes serves every speed and both directions. */
+export function animAttrs(a: PathAnim): { className: string; style: Record<string, string> } {
+  const common = {
+    "animation-duration": `${r2(a.duration)}s`,
+    ...(a.reverse ? { "animation-direction": "reverse" } : {}),
+  };
+  return a.kind === "flow"
+    ? { className: FLOW_CLASS, style: { ...common, [FLOW_PERIOD_VAR]: String(r2(a.period)) } }
+    : {
+        className: PACKET_CLASS,
+        style: { ...common, "offset-path": `path('${a.path}')`, "animation-delay": `${r2(a.delay)}s` },
+      };
 }
+
+export function pathSpecToSvg(p: PathSpec): string {
+  const anim = p.anim
+    ? (() => {
+        const { className, style } = animAttrs(p.anim);
+        const css = Object.entries(style)
+          .map(([k, v]) => `${k}:${v}`)
+          .join(";");
+        return ` class="${className}" style="${css}"`;
+      })()
+    : "";
+  const opacity = p.opacity === undefined ? "" : ` stroke-opacity="${r2(p.opacity)}"`;
+  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}${opacity}${anim}/>`;
+}
+
+/** Seconds per loop at each speed. Dashes cycle quickly; a packet has a whole line to cross. */
+const FLOW_SECONDS: Record<AnimationSpeed, number> = { slow: 1.8, normal: 0.9, fast: 0.45 };
+const PACKET_SECONDS: Record<AnimationSpeed, number> = { slow: 4.2, normal: 2.4, fast: 1.2 };
+
+/** How faint the underlying line is drawn while dashes march over it. */
+const RAIL_OPACITY = 0.3;
 
 /** A still edge keeps whatever dash it was given; an animated one needs *some* pattern to march,
  *  so a solid animated line borrows this one. */
 const FLOW_DASH = "8 6";
+
+/**
+ * The marching-dash overlay, drawn on the *routed* path.
+ *
+ * This is the whole reason a flowing sketch line used to look motionless: rough.js draws a stroke
+ * as dozens of short sub-paths, and `stroke-dashoffset` restarts at every `M`, so the dashes
+ * shuffled within each fragment instead of travelling the line. One clean path over a faint rail
+ * marches the way the eye expects, and it behaves identically whether the line is sketched or not.
+ */
+function flowOverlay(d: string, s: ResolvedEdgeStyle): PathSpec {
+  const dash = DASH_ARRAY[s.strokeDash] ?? FLOW_DASH;
+  return {
+    d,
+    stroke: s.stroke,
+    strokeWidth: s.strokeWidth,
+    fill: "none",
+    dash,
+    anim: {
+      kind: "flow",
+      period: dashPeriod(dash),
+      duration: FLOW_SECONDS[s.animateSpeed],
+      reverse: s.animateDirection === "reverse",
+    },
+  };
+}
 
 function dashPeriod(dash: string): number {
   return dash.split(" ").reduce((a, n) => a + Number(n), 0);
@@ -262,14 +323,43 @@ function sketchPathSpecs(d: string, s: ResolvedEdgeStyle, seed: number): PathSpe
  * above 0 it emits rough.js's sketched version of the same shape.
  */
 export function shapeMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, seed: number): string {
-  if (s.roughness > 0) return sketchShape(shape, r, s, seed);
+  const body = (() => {
+    if (s.roughness > 0) return sketchShape(shape, r, s, seed);
+    const outline = shapeOutline(shape, r, s.radius);
+    if (!outline) return "";
+    const dash = DASH_ARRAY[s.strokeDash];
+    // shapeOutline emits one element with no paint attributes, ending in `/>`.
+    return outline.replace(
+      "/>",
+      ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
+    );
+  })();
+  return body + borderFlowMarkup(shape, r, s);
+}
+
+/**
+ * A shape's border marching, for the same reason a line's does: an unfilled copy of the outline
+ * laid over the shape, dashed and animated. It rides `shapeOutline` — one uninterrupted element —
+ * rather than the sketched body, because dash offset restarts at every sub-path and a rough
+ * outline is dozens of them.
+ */
+export function borderFlowMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle): string {
+  if (s.animate !== "flow") return "";
   const outline = shapeOutline(shape, r, s.radius);
-  if (!outline) return "";
-  const dash = DASH_ARRAY[s.strokeDash];
-  // shapeOutline emits one element with no paint attributes, ending in `/>`.
+  if (!outline) return ""; // a text node has no border to march
+  const dash = DASH_ARRAY[s.strokeDash] ?? FLOW_DASH;
+  const { className, style } = animAttrs({
+    kind: "flow",
+    period: dashPeriod(dash),
+    duration: FLOW_SECONDS[s.animateSpeed],
+    reverse: s.animateDirection === "reverse",
+  });
+  const css = Object.entries(style)
+    .map(([k, v]) => `${k}:${v}`)
+    .join(";");
   return outline.replace(
     "/>",
-    ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
+    ` fill="none" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}" stroke-dasharray="${dash}" class="${className}" style="${css}"/>`,
   );
 }
 
@@ -287,25 +377,24 @@ export function edgePaths(
   ends: { start: Point; end: Point; startDir: Point; endDir: Point },
 ): PathSpec[] {
   const flowing = s.animate === "flow";
-
-  const dash = flowing ? (DASH_ARRAY[s.strokeDash] ?? FLOW_DASH) : DASH_ARRAY[s.strokeDash];
+  const dash = DASH_ARRAY[s.strokeDash];
   const line: PathSpec[] = (
     s.roughness > 0
       ? sketchPathSpecs(d, s, seed)
       : [{ d, stroke: s.stroke, strokeWidth: s.strokeWidth, fill: "none", dash }]
   ).map((p) =>
-    // Only the stroke marches; a fill has no dash to move, and the arrowheads stay put.
-    flowing && dash !== undefined && p.stroke !== "none"
-      ? { ...p, dash, flowPeriod: dashPeriod(dash) }
-      : p,
+    // While dashes march, the line itself becomes a faint rail: undashed, so the only thing moving
+    // is the overlay, and dimmed so the motion is what the eye follows.
+    flowing && p.stroke !== "none" ? { ...p, dash: undefined, opacity: RAIL_OPACITY } : p,
   );
   // Distinct seeds per head, or both ends of the same edge would wobble in lockstep.
   return [
     ...line,
     ...arrowhead(s.startArrow, ends.start, ends.startDir, s, seed + 1),
     ...arrowhead(s.endArrow, ends.end, ends.endDir, s, seed + 2),
-    // Packets ride the *routed* path, not the hand-drawn one: a dot should travel the line the
-    // diagram means, rather than wander with the sketch's wobble.
+    // Both animations ride the *routed* path, not the hand-drawn one: they should travel the line
+    // the diagram means, rather than wander with the sketch's wobble.
+    ...(flowing ? [flowOverlay(d, s)] : []),
     ...(s.animate === "packets" ? packets(d, s) : []),
   ];
 }

@@ -4,9 +4,7 @@ import { EdgeLabelRenderer, useInternalNode, useReactFlow, type EdgeProps, type 
 import {
   anchorPair,
   collectDefs,
-  FLOW_CLASS,
-  FLOW_PERIOD_VAR,
-  PACKET_CLASS,
+  animAttrs,
   bendFromPoint,
   bendHandlePoint,
   edgeLabelPoint,
@@ -17,6 +15,7 @@ import {
   resolveEdgeStyle,
   seedFromId,
   shapeRect,
+  type PathAnim,
   type Rect,
 } from "@arq/render";
 import { useEditor } from "../store/context";
@@ -37,6 +36,12 @@ function endpointBox(n: InternalNode<ArqFlowNode> | undefined): Rect | undefined
   if (!("shape" in n.data)) return { x, y, w: 0, h: 0 };
   const r = shapeRect(n.data.pinned, n.data.shape);
   return { x, y, w: r.w, h: r.h };
+}
+
+/** `animAttrs` speaks CSS property names; React wants them as a style object. */
+function animProps(a: PathAnim): { className: string; style: CSSProperties } {
+  const { className, style } = animAttrs(a);
+  return { className, style: style as CSSProperties };
 }
 
 function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEdge>) {
@@ -91,15 +96,10 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
             strokeWidth={p.strokeWidth}
             fill={p.fill}
             {...(p.dash !== undefined ? { strokeDasharray: p.dash } : {})}
-            {...(p.flowPeriod !== undefined
-              ? { className: FLOW_CLASS, style: { [FLOW_PERIOD_VAR]: p.flowPeriod } as CSSProperties }
-              : {})}
-            {...(p.motion !== undefined
-              ? {
-                  className: PACKET_CLASS,
-                  style: { offsetPath: `path('${p.motion.path}')`, animationDelay: `${p.motion.delay}s` },
-                }
-              : {})}
+            {...(p.opacity !== undefined ? { strokeOpacity: p.opacity } : {})}
+            {/* The class and the per-element duration/direction come from @arq/render, the same
+                values it writes into an exported file, so the two animate in step. */
+            ...(p.anim !== undefined ? animProps(p.anim) : {})}
           />
         ))}
       </g>

@@ -1,4 +1,7 @@
-import type { Animation, DashStyle, EdgeStyle, LabelPosition, NodeShape, NodeStyle, Pinned } from "@arq/schema";
+import type {
+  Animation, AnimationDirection, AnimationSpeed, DashStyle, EdgeStyle, LabelPosition, NodeShape,
+  NodeStyle, Pinned,
+} from "@arq/schema";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -63,9 +66,9 @@ export const DEFAULT_TEXT_SIZE = { w: 120, h: 24 } as const;
  */
 export const STYLE_DEFAULTS = {
   node: { fill: "#ffffff", stroke: "#d0d0d0", strokeWidth: 1.5, strokeDash: "solid",
-          radius: 8, fontSize: 13, textAlign: "center", rotate: 0, animate: "none", roughness: 1 },
+          radius: 8, fontSize: 13, textAlign: "center", rotate: 0, animate: "none", animateSpeed: "normal", animateDirection: "forward", roughness: 1 },
   edge: { stroke: "#1a1a1a", strokeWidth: 1.5, strokeDash: "solid",
-          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", animate: "none", bend: 0.5, roughness: 1 },
+          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", animate: "none", animateSpeed: "normal", animateDirection: "forward", bend: 0.5, roughness: 1 },
   canvasBackground: "#ffffff",
 } as const;
 
@@ -105,6 +108,8 @@ export type ResolvedNodeStyle = {
   radius: number; fontSize: number; textAlign: "left" | "center" | "right";
   rotate: number;
   animate: Animation;
+  animateSpeed: AnimationSpeed;
+  animateDirection: AnimationDirection;
   roughness: number;
   glow: { color: string } | undefined;
 };
@@ -121,6 +126,8 @@ export function resolveNodeStyle(s: NodeStyle | undefined): ResolvedNodeStyle {
     textAlign: s?.textAlign ?? d.textAlign,
     rotate: s?.rotate ?? d.rotate,
     animate: s?.animate ?? d.animate,
+    animateSpeed: s?.animateSpeed ?? d.animateSpeed,
+    animateDirection: s?.animateDirection ?? d.animateDirection,
     roughness: s?.roughness ?? d.roughness,
     glow: s?.glow,
   };
@@ -132,6 +139,8 @@ export type ResolvedEdgeStyle = {
   startArrow: string; endArrow: string;
   labelPos: LabelPosition;
   animate: Animation;
+  animateSpeed: AnimationSpeed;
+  animateDirection: AnimationDirection;
   bend: number;
   roughness: number;
   glow: { color: string } | undefined;
@@ -148,6 +157,8 @@ export function resolveEdgeStyle(s: EdgeStyle | undefined): ResolvedEdgeStyle {
     endArrow: s?.endArrow ?? d.endArrow,
     labelPos: s?.labelPos ?? d.labelPos,
     animate: s?.animate ?? d.animate,
+    animateSpeed: s?.animateSpeed ?? d.animateSpeed,
+    animateDirection: s?.animateDirection ?? d.animateDirection,
     bend: s?.bend ?? d.bend,
     roughness: s?.roughness ?? d.roughness,
     glow: s?.glow,

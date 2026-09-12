@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
+import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import {
   METRICS, PULSE_CLASS, glowId, resolveNodeStyle, seedFromId, shapeMarkup, shapeRect, wrapLabel,
 } from "@arq/render";
@@ -8,12 +8,15 @@ import type { ArqFlowNode } from "../flow/to-flow";
 // Same floor drag-to-size uses. `PinnedSchema` requires a positive w/h, so a node must never be
 // resizable down to a zero dimension the document schema would then refuse to load.
 import { MIN_NODE_SIZE } from "./Palette";
+import { CORNERS, angleFromPointer, resizeRotated } from "../flow/node-handles";
 
 function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   // Hooks run before the endpoint-node bail-out below: that branch is decided by props, but the
   // hook order must not change with it.
   const setPinned = useEditor((s) => s.setPinned);
   const setLabel = useEditor((s) => s.setLabel);
+  const setStyle = useEditor((s) => s.setStyle);
+  const { screenToFlowPosition } = useReactFlow();
   // null while not editing; otherwise the in-progress draft, so Escape can discard it.
   const [draft, setDraft] = useState<string | null>(null);
 
@@ -25,6 +28,8 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   // rect.x/rect.y — passing the pinned x/y through here would draw the shape outside this node's
   // local `viewBox="0 0 w h"` instead of on top of it.
   const rect = shapeRect(data.pinned ? { ...data.pinned, x: 0, y: 0 } : undefined, data.shape);
+  // The same box in document coordinates, which is the frame the handle maths works in.
+  const box = data.pinned ? shapeRect(data.pinned, data.shape) : undefined;
   // The exporter's own painter, seeded off the node id: the hand-drawn wobble on screen is the
   // wobble in the exported file, down to the byte.
   const shaped = shapeMarkup(data.shape, rect, s, seedFromId(id));
@@ -59,22 +64,47 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
       }}
       data-shape={data.shape}
     >
-      {/* Live-commits through the same `setPinned` a node drag uses, under its own merge key so a
-          whole resize gesture collapses into one undo entry (and never merges into a preceding
-          move). Writing on every step rather than only at the end is what makes the shape follow
-          the handle: ArqNode sizes itself from the document, not from React Flow's own width. */}
-      <NodeResizer
-        isVisible={selected === true}
-        minWidth={MIN_NODE_SIZE}
-        minHeight={MIN_NODE_SIZE}
-        onResize={(_e, p) =>
-          setPinned(
-            id,
-            { x: Math.round(p.x), y: Math.round(p.y), w: Math.round(p.width), h: Math.round(p.height) },
-            { mergeKey: "resize" },
-          )
-        }
-      />
+      {/* Corner handles and a rotation grip, drawn inside the rotated box so they sit on the
+          shape's own corners. Both commit through the same `setPinned` a node drag uses, each
+          under its own merge key, so a whole gesture collapses into one undo entry and never
+          merges into a preceding move. Writing on every step rather than only at the end is what
+          makes the shape follow the pointer: ArqNode sizes itself from the document. */}
+      {selected === true && box !== undefined ? (
+        <>
+          <div
+            className="arq-rotate-grip nodrag nopan"
+            data-testid={`rotate-${id}`}
+            title="Drag to rotate (hold Shift for 15° steps)"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+              const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+              setStyle([id], { rotate: angleFromPointer(box, p, e.shiftKey) }, { mergeKey: "rotate" });
+            }}
+            onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+          />
+          {CORNERS.map((corner) => (
+            <div
+              key={corner}
+              className={`arq-resize-handle arq-resize-${corner} nodrag nopan`}
+              data-testid={`resize-${corner}-${id}`}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                e.currentTarget.setPointerCapture(e.pointerId);
+              }}
+              onPointerMove={(e) => {
+                if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+                const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+                setPinned(id, resizeRotated(box, corner, p, s.rotate, MIN_NODE_SIZE), { mergeKey: "resize" });
+              }}
+              onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+            />
+          ))}
+        </>
+      ) : null}
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
       <svg

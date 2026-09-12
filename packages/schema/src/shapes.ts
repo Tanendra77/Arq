@@ -30,9 +30,16 @@ export type GroupKind = (typeof GROUP_KINDS)[number];
 export const ANIMATIONS = ["none", "flow", "packets", "pulse"] as const;
 export type Animation = (typeof ANIMATIONS)[number];
 
-/** What a line can be set to, and what a shape can — both subsets of `ANIMATIONS`. */
+/** What a line can be set to, and what a shape can — both subsets of `ANIMATIONS`. A shape has no
+ *  path for packets to ride, but its outline can march just as a line's can. */
 export const EDGE_ANIMATIONS = ["none", "flow", "packets", "pulse"] as const;
-export const NODE_ANIMATIONS = ["none", "pulse"] as const;
+export const NODE_ANIMATIONS = ["none", "flow", "pulse"] as const;
+
+export const ANIMATION_SPEEDS = ["slow", "normal", "fast"] as const;
+export type AnimationSpeed = (typeof ANIMATION_SPEEDS)[number];
+
+export const ANIMATION_DIRECTIONS = ["forward", "reverse"] as const;
+export type AnimationDirection = (typeof ANIMATION_DIRECTIONS)[number];
 
 /** Where an edge's label sits along its own path: a fraction of the way from source to target. */
 export const LABEL_POSITIONS = ["start", "middle", "end"] as const;
@@ -63,6 +70,8 @@ export const NodeStyleSchema = z.object({
   /** Degrees clockwise about the shape's own centre. */
   rotate: z.number().optional(),
   animate: z.enum(ANIMATIONS).optional(),
+  animateSpeed: z.enum(ANIMATION_SPEEDS).optional(),
+  animateDirection: z.enum(ANIMATION_DIRECTIONS).optional(),
   roughness: RoughnessSchema.optional(),
   glow: GlowSchema.optional(),
 }).strict();
@@ -76,6 +85,8 @@ export const EdgeStyleSchema = z.object({
   endArrow: z.enum(ARROW_STYLES).optional(),
   labelPos: z.enum(LABEL_POSITIONS).optional(),
   animate: z.enum(ANIMATIONS).optional(),
+  animateSpeed: z.enum(ANIMATION_SPEEDS).optional(),
+  animateDirection: z.enum(ANIMATION_DIRECTIONS).optional(),
   /** Where an orthogonal route puts its middle leg, as a fraction between the two ends. */
   bend: z.number().min(0.05).max(0.95).optional(),
   roughness: RoughnessSchema.optional(),

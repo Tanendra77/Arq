@@ -341,3 +341,64 @@ describe("packets, pulse and rotation", () => {
     expect(upright).not.toContain("rotate(");
   });
 });
+
+describe("animation speed, direction and marching borders", () => {
+  const one = (nodes: unknown[], edges: unknown[]) =>
+    DocumentSchema.parse({ version: 2, title: "T", nodes, edges });
+  const edgeGroup = (svg: string) => /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
+
+  it("marches dashes on a clean overlay over a faded rail, so a sketched line visibly moves", () => {
+    const svg = renderSvg(
+      one([], [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { routing: "straight", animate: "flow" } }]),
+      opts,
+    );
+    const group = edgeGroup(svg);
+    // Exactly one animated path, and it is the routed line — not one of rough's many fragments,
+    // where stroke-dashoffset restarts at every sub-path and the dashes never travel.
+    const flowing = [...group.matchAll(/<path [^>]*arq-flow[^>]*\/>/g)].map((m) => m[0]);
+    expect(flowing).toHaveLength(1);
+    expect(flowing[0]).toContain('d="M0 0 L100 0"');
+    // The sketched stroke underneath is dimmed and carries no dash of its own.
+    expect(group).toContain('stroke-opacity="0.3"');
+  });
+
+  it("sets duration from speed and reverses direction per element", () => {
+    const fast = edgeGroup(renderSvg(
+      one([], [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { animate: "flow", animateSpeed: "fast", animateDirection: "reverse" } }]),
+      opts,
+    ));
+    expect(fast).toContain("animation-duration:0.45s");
+    expect(fast).toContain("animation-direction:reverse");
+
+    const slow = edgeGroup(renderSvg(
+      one([], [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { animate: "flow", animateSpeed: "slow" } }]),
+      opts,
+    ));
+    expect(slow).toContain("animation-duration:1.8s");
+    expect(slow).not.toContain("animation-direction");
+  });
+
+  it("spaces packets across whatever loop the chosen speed gives them", () => {
+    const svg = renderSvg(
+      one([], [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { animate: "packets", animateSpeed: "fast" } }]),
+      opts,
+    );
+    const delays = [...edgeGroup(svg).matchAll(/animation-delay:(-?[\d.]+)s/g)].map((m) => Number(m[1]));
+    // One 1.2s loop shared by three dots, each starting a third of the way further in.
+    expect(delays.map(Math.abs)).toEqual([0, 0.4, 0.8]);
+  });
+
+  it("marches a shape's border on an unbroken outline, not the sketched one", () => {
+    const svg = renderSvg(one([{ id: "n1", shape: "rect", label: "A", style: { animate: "flow" } }], []), opts);
+    const group = /<g class="arq-node"[\s\S]*?<\/g>/.exec(svg)![0];
+    // A <rect>, so the dash runs the whole perimeter without restarting.
+    expect(group).toMatch(/<rect[^>]*class="arq-flow"/);
+    expect(group).toMatch(/<rect[^>]*fill="none"/);
+  });
+
+  it("gives a text node no border to march", () => {
+    const svg = renderSvg(one([{ id: "n1", shape: "text", label: "A", style: { animate: "flow" } }], []), opts);
+    // The keyframes are always in the stylesheet; what matters is that nothing references them.
+    expect(/<g class="arq-node"[\s\S]*?<\/g>/.exec(svg)![0]).not.toContain("arq-flow");
+  });
+});

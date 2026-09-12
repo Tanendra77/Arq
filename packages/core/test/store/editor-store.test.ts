@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { emptyDocument } from "@arq/schema";
 import { createEditorStore } from "../../src/store/editor-store";
+import { endpointNodeId } from "../../src/flow/endpoint-id";
 
 const setup = () => createEditorStore(emptyDocument("T"));
 
@@ -249,5 +250,45 @@ describe("editor store", () => {
     const d = s.getState().document;
     expect(d.nodes[0]?.label).toBe("renamed");
     expect(d.edges[0]?.label).toBe("edge");
+  });
+});
+
+describe("setSelection", () => {
+  it("keeps a loose edge endpoint selected: it is canvas-selectable, just not a document node", () => {
+    const s = createEditorStore(emptyDocument());
+    const e = s.getState().addEdge({ from: { x: 0, y: 0 }, to: { x: 100, y: 0 } });
+    const ep = endpointNodeId(e, "to");
+    s.getState().setSelection({ nodes: [ep], edges: [] });
+    // Dropping it here is what looped the canvas: React Flow kept reporting the selection, the
+    // store kept discarding it, and the two re-rendered each other until React unmounted the tree.
+    expect(s.getState().selection.nodes).toEqual([ep]);
+  });
+
+  it("drops a loose endpoint once its edge is gone", () => {
+    const s = createEditorStore(emptyDocument());
+    const e = s.getState().addEdge({ from: { x: 0, y: 0 }, to: { x: 100, y: 0 } });
+    s.getState().setSelection({ nodes: [endpointNodeId(e, "to")], edges: [] });
+    s.getState().removeEdges([e]);
+    s.getState().setSelection({ nodes: [endpointNodeId(e, "to")], edges: [] });
+    expect(s.getState().selection.nodes).toEqual([]);
+  });
+
+  it("is a no-op for an unchanged selection, object identity included", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 } });
+    s.getState().setSelection({ nodes: [a], edges: [] });
+    const first = s.getState().selection;
+    s.getState().setSelection({ nodes: [a], edges: [] });
+    // Same value must mean the same object: a fresh one re-runs `toFlow`, which hands React Flow
+    // new nodes, which makes it report its selection again — the cycle this guard exists to stop.
+    expect(s.getState().selection).toBe(first);
+  });
+
+  it("still publishes a genuine change", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 } });
+    s.getState().setSelection({ nodes: [a], edges: [] });
+    s.getState().setSelection({ nodes: [], edges: [] });
+    expect(s.getState().selection.nodes).toEqual([]);
   });
 });

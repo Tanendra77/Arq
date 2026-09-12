@@ -14,6 +14,7 @@ import {
   type NodeStyle,
   type Pinned,
 } from "@arq/schema";
+import { parseEndpointNodeId } from "../flow/endpoint-id";
 
 enablePatches();
 
@@ -140,13 +141,36 @@ function samePinned(a: Pinned | undefined, b: Pinned): boolean {
   return a !== undefined && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
+/**
+ * Drop selected ids that no longer exist.
+ *
+ * A loose edge endpoint is selectable on the canvas but is not a document node — it is the hidden
+ * stand-in `toFlow` creates, and it exists for exactly as long as its edge does. Filtering it out
+ * as "unknown" is what made selecting or dragging one loop: the canvas reported the selection, the
+ * store threw it away, the derived nodes came back unselected, React Flow re-asserted it, and round
+ * it went until React aborted with "Maximum update depth exceeded" and unmounted the editor.
+ */
 function pruneSelection(sel: Selection, doc: Document): Selection {
   const nodeIds = new Set(doc.nodes.map((n) => n.id));
   const edgeIds = new Set(doc.edges.map((e) => e.id));
+  const alive = (id: string): boolean => {
+    if (nodeIds.has(id)) return true;
+    const ep = parseEndpointNodeId(id);
+    return ep !== null && edgeIds.has(ep.edgeId);
+  };
   return {
-    nodes: sel.nodes.filter((id) => nodeIds.has(id)),
+    nodes: sel.nodes.filter(alive),
     edges: sel.edges.filter((id) => edgeIds.has(id)),
   };
+}
+
+function sameSelection(a: Selection, b: Selection): boolean {
+  return (
+    a.nodes.length === b.nodes.length &&
+    a.edges.length === b.edges.length &&
+    a.nodes.every((id, i) => b.nodes[i] === id) &&
+    a.edges.every((id, i) => b.edges[i] === id)
+  );
 }
 
 export function createEditorStore(initial: Document = emptyDocument()): EditorStore {
@@ -183,7 +207,13 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     },
 
     setSelection(selection) {
-      set({ selection: pruneSelection(selection, get().document) });
+      const next = pruneSelection(selection, get().document);
+      // Publishing an equal-but-new object would re-run `toFlow`, hand React Flow fresh node
+      // objects and have it report its selection back — a cycle that only ends when React stops it.
+      // Selection arrives from the canvas on every interaction, so this has to be a no-op when
+      // nothing actually changed.
+      if (sameSelection(next, get().selection)) return;
+      set({ selection: next });
     },
 
     mutate(name, recipe, opts = {}) {

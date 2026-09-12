@@ -2,6 +2,9 @@ import type { Edge, Node } from "@xyflow/react";
 import type { Document, Endpoint, NodeShape, NodeStyle, EdgeStyle, Pinned } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
 import type { Selection } from "../store/editor-store";
+import { endpointNodeId } from "./endpoint-id";
+
+export { endpointNodeId, parseEndpointNodeId } from "./endpoint-id";
 
 export type ArqNodeData = {
   label: string;
@@ -22,22 +25,6 @@ export type ArqFlowNode = Node<ArqNodeData, "arq"> | Node<ArqEndpointData, "arqE
 export type ArqFlowEdge = Edge<ArqEdgeData, "arq">;
 
 export type IconResolver = (id: string | undefined) => string | undefined;
-
-/** Deterministic id for the hidden node standing in for a loose endpoint. */
-export const endpointNodeId = (edgeId: string, which: "from" | "to") => `__ep:${edgeId}:${which}`;
-
-/**
- * The inverse of `endpointNodeId`, or null for an ordinary node id. Dragging one of these hidden
- * nodes has to move the *edge's* endpoint, not write a `layout.pinned` entry under a synthetic id
- * the document reserves and nothing ever reads back.
- */
-export function parseEndpointNodeId(id: string): { edgeId: string; which: "from" | "to" } | null {
-  if (!id.startsWith("__ep:")) return null;
-  const last = id.lastIndexOf(":");
-  const which = id.slice(last + 1);
-  if (which !== "from" && which !== "to") return null;
-  return { edgeId: id.slice("__ep:".length, last), which };
-}
 
 export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Selection): { nodes: ArqFlowNode[]; edges: ArqFlowEdge[] } {
   const selNodes = new Set(selection.nodes);
@@ -67,7 +54,17 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
   const anchor = (edgeId: string, which: "from" | "to", ep: Endpoint): string => {
     if (isNodeRef(ep)) return ep;
     const id = endpointNodeId(edgeId, which);
-    endpointNodes.push({ id, type: "arqEndpoint", position: { x: ep.x, y: ep.y }, draggable: true, data: {} });
+    // Carries its own selected flag like any other node. The store keeps a loose end's selection
+    // (see `pruneSelection`); if the derived node disagreed, React Flow would re-assert its own
+    // selection on every render and the two would ping-pong until React gave up.
+    endpointNodes.push({
+      id,
+      type: "arqEndpoint",
+      position: { x: ep.x, y: ep.y },
+      draggable: true,
+      selected: selNodes.has(id),
+      data: {},
+    });
     return id;
   };
 

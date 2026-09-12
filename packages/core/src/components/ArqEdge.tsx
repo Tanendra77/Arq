@@ -5,7 +5,7 @@ import {
   anchorPair,
   collectDefs,
   edgeLabelPoint,
-  edgeMarkup,
+  edgePaths,
   edgePath,
   edgeTangents,
   glowId,
@@ -64,18 +64,28 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
 
   return (
     <>
-      {/* The exporter's own painter. A hand-drawn edge is several paths rather than one, so this
-          is markup rather than a React <path>; the string is built by @arq/render from the
-          document's geometry and colours, never from raw user text. Deliberately unclassed: React
-          Flow's `.react-flow__edge-path` CSS would override the paint attributes rough sets. */}
       {selected === true ? <path className="arq-edge-halo" d={d} /> : null}
+      {/* The exporter's own geometry, as real elements. `edgePaths` hands back the same path data
+          `renderSvg` serializes, so canvas and file cannot diverge — but building <path> nodes here
+          rather than pushing an HTML string through `dangerouslySetInnerHTML` keeps every element in
+          the SVG namespace, which innerHTML on an SVG parent does not guarantee in every engine.
+          Deliberately unclassed: React Flow's `.react-flow__edge-path` CSS would override the paint
+          attributes rough sets. */}
       <g
         className={`arq-edge${selected === true ? " selected" : ""}`}
         style={glowFilter !== undefined ? { filter: glowFilter } : undefined}
-        dangerouslySetInnerHTML={{
-          __html: edgeMarkup(d, s, seedFromId(id), { start, end, ...edgeTangents(start, end, s.routing) }),
-        }}
-      />
+      >
+        {edgePaths(d, s, seedFromId(id), { start, end, ...edgeTangents(start, end, s.routing) }).map((p, i) => (
+          <path
+            key={i}
+            d={p.d}
+            stroke={p.stroke}
+            strokeWidth={p.strokeWidth}
+            fill={p.fill}
+            {...(p.dash !== undefined ? { strokeDasharray: p.dash } : {})}
+          />
+        ))}
+      </g>
       {/* A fat transparent copy of the path: an edge stroke is only a pixel or two wide, far too
           thin to double-click reliably. This is also what React Flow's own `interactionWidth`
           does, but it needs to carry the handler, so it is spelled out here. */}

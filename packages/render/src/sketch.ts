@@ -46,24 +46,41 @@ export function seedFromId(id: string): number {
 }
 
 /**
- * Serialize rough's output. Rough has already resolved stroke/fill per path; the dash is applied
+ * One drawn path: enough to build either an SVG string (the exporter) or a React `<path>` (the
+ * editor) from the same numbers. Handing back data rather than markup is what lets the canvas stop
+ * pushing generated HTML into an SVG element — `innerHTML` on SVG is resolved into the HTML
+ * namespace by some engines, which renders unpredictably.
+ */
+export interface PathSpec {
+  d: string;
+  stroke: string;
+  strokeWidth: number;
+  fill: string;
+  dash: string | undefined;
+}
+
+export function pathSpecToSvg(p: PathSpec): string {
+  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}/>`;
+}
+
+/**
+ * Rough's output as specs. Rough has already resolved stroke/fill per path; the dash is applied
  * here instead, because `toPaths` drops `strokeLineDash` (it only reaches rough's canvas renderer).
  * It goes on stroke paths only — a dashed fill would show the background through the gaps.
  */
+function toSpecs(drawable: ReturnType<typeof generator.rectangle>, dash: string | undefined): PathSpec[] {
+  return generator.toPaths(drawable).map((p) => ({
+    d: roundPath(p.d),
+    stroke: p.stroke,
+    strokeWidth: p.strokeWidth,
+    fill: p.fill === undefined || p.fill === "" ? "none" : p.fill,
+    dash: dash !== undefined && p.stroke !== "none" ? dash : undefined,
+  }));
+}
+
+/** The same, serialized — the shape renderers still build markup. */
 function toSvg(drawable: ReturnType<typeof generator.rectangle>, dash: string | undefined): string {
-  return generator
-    .toPaths(drawable)
-    .map((p) => {
-      const attrs = [
-        `d="${roundPath(p.d)}"`,
-        `stroke="${p.stroke}"`,
-        `stroke-width="${r2(p.strokeWidth)}"`,
-        `fill="${p.fill === undefined || p.fill === "" ? "none" : p.fill}"`,
-        dash !== undefined && p.stroke !== "none" ? `stroke-dasharray="${dash}"` : "",
-      ].filter((a) => a !== "");
-      return `<path ${attrs.join(" ")}/>`;
-    })
-    .join("");
+  return toSpecs(drawable, dash).map(pathSpecToSvg).join("");
 }
 
 /** A node outline drawn by hand. Returns "" for shapes that have no outline (`text`). */
@@ -112,8 +129,8 @@ export function sketchShape(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, see
  *
  * `tip` is the point of the head and `dir` the unit direction it faces (from `edgeTangents`).
  */
-function arrowhead(kind: string, tip: Point, dir: Point, s: ResolvedEdgeStyle, seed: number): string {
-  if (kind === "none") return "";
+function arrowhead(kind: string, tip: Point, dir: Point, s: ResolvedEdgeStyle, seed: number): PathSpec[] {
+  if (kind === "none") return [];
   // Scales a little with stroke weight so a heavy line does not outgrow its own head.
   const len = 11 + s.strokeWidth * 2;
   const opts = { seed, roughness: s.roughness, stroke: s.stroke, strokeWidth: s.strokeWidth } as const;
@@ -128,23 +145,23 @@ function arrowhead(kind: string, tip: Point, dir: Point, s: ResolvedEdgeStyle, s
 
   if (kind === "arrow") {
     // Two open strokes, not a closed triangle: the hand-drawn "V".
-    return toSvg(generator.linearPath([[back(BARB, len).x, back(BARB, len).y], [tip.x, tip.y], [back(-BARB, len).x, back(-BARB, len).y]], opts), undefined);
+    return toSpecs(generator.linearPath([[back(BARB, len).x, back(BARB, len).y], [tip.x, tip.y], [back(-BARB, len).x, back(-BARB, len).y]], opts), undefined);
   }
   if (kind === "triangle") {
     const a = back(BARB, len);
     const b = back(-BARB, len);
-    return toSvg(generator.polygon([[tip.x, tip.y], [a.x, a.y], [b.x, b.y]], filled), undefined);
+    return toSpecs(generator.polygon([[tip.x, tip.y], [a.x, a.y], [b.x, b.y]], filled), undefined);
   }
   if (kind === "diamond") {
     const a = back(BARB, len);
     const b = back(-BARB, len);
     const tail = back(0, len * 1.6);
-    return toSvg(generator.polygon([[tip.x, tip.y], [a.x, a.y], [tail.x, tail.y], [b.x, b.y]], filled), undefined);
+    return toSpecs(generator.polygon([[tip.x, tip.y], [a.x, a.y], [tail.x, tail.y], [b.x, b.y]], filled), undefined);
   }
   // circle
   const r = len * 0.35;
   const c = back(0, r);
-  return toSvg(generator.ellipse(c.x, c.y, r * 2, r * 2, filled), undefined);
+  return toSpecs(generator.ellipse(c.x, c.y, r * 2, r * 2, filled), undefined);
 }
 
 /**
@@ -154,8 +171,8 @@ function arrowhead(kind: string, tip: Point, dir: Point, s: ResolvedEdgeStyle, s
  * the shape it is bound to and the arrowhead marker still points the right way — only the middle
  * of the line wobbles.
  */
-export function sketchPath(d: string, s: ResolvedEdgeStyle, seed: number): string {
-  return toSvg(
+function sketchPathSpecs(d: string, s: ResolvedEdgeStyle, seed: number): PathSpec[] {
+  return toSpecs(
     generator.path(d, {
       seed,
       roughness: s.roughness,
@@ -195,21 +212,31 @@ export function shapeMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, see
  * longer emits any — one arrow is one set of paths, in the document's own coordinates, and the
  * heads share the line's hand-drawn character instead of being crisp stamps on the end of it.
  */
+export function edgePaths(
+  d: string,
+  s: ResolvedEdgeStyle,
+  seed: number,
+  ends: { start: Point; end: Point; startDir: Point; endDir: Point },
+): PathSpec[] {
+  const dash = DASH_ARRAY[s.strokeDash];
+  const line: PathSpec[] =
+    s.roughness > 0
+      ? sketchPathSpecs(d, s, seed)
+      : [{ d, stroke: s.stroke, strokeWidth: s.strokeWidth, fill: "none", dash }];
+  // Distinct seeds per head, or both ends of the same edge would wobble in lockstep.
+  return [
+    ...line,
+    ...arrowhead(s.startArrow, ends.start, ends.startDir, s, seed + 1),
+    ...arrowhead(s.endArrow, ends.end, ends.endDir, s, seed + 2),
+  ];
+}
+
+/** The same edge, serialized for the SVG exporter. */
 export function edgeMarkup(
   d: string,
   s: ResolvedEdgeStyle,
   seed: number,
   ends: { start: Point; end: Point; startDir: Point; endDir: Point },
 ): string {
-  const dash = DASH_ARRAY[s.strokeDash];
-  const line =
-    s.roughness > 0
-      ? sketchPath(d, s, seed)
-      : `<path d="${d}" fill="none" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
-  // Distinct seeds per head, or both ends of the same edge would wobble in lockstep.
-  return (
-    line +
-    arrowhead(s.startArrow, ends.start, ends.startDir, s, seed + 1) +
-    arrowhead(s.endArrow, ends.end, ends.endDir, s, seed + 2)
-  );
+  return edgePaths(d, s, seed, ends).map(pathSpecToSvg).join("");
 }

@@ -4,7 +4,7 @@ import type { ReactFlowProps } from "@xyflow/react";
 import { emptyDocument } from "@arq/schema";
 import { STYLE_DEFAULTS } from "@arq/render";
 import { Canvas, mergeMeasured, planDeletion } from "../../src/components/Canvas";
-import { DEFAULT_NODE_LABEL, setActiveTool } from "../../src/components/Palette";
+import { DEFAULT_NODE_LABEL, FREE_LINE_LENGTH, setActiveTool } from "../../src/components/Palette";
 import { endpointNodeId, type ArqFlowNode } from "../../src/flow/to-flow";
 import { EditorStoreProvider } from "../../src/store/context";
 import { createEditorStore } from "../../src/store/editor-store";
@@ -92,27 +92,52 @@ describe("Canvas", () => {
     setActiveTool(null);
   });
 
-  it("draws an arrow from two clicks, mounting an end on whatever shape is clicked", () => {
+  it("draws an arrow from one drag, binding each end to whatever shape it lands on", () => {
     const { store, canvas } = renderCanvasWithStore();
-    const a = store.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 } });
+    // One shape under the press; the release lands on empty canvas well clear of it.
+    const a = store.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 }, size: { w: 200, h: 200 } });
 
     act(() => setActiveTool("arrow"));
-    // First click: a bare point on empty canvas. No edge yet — the tool stays armed.
-    act(() => capturedProps?.onPaneClick?.({ clientX: 10, clientY: 10 } as never));
+    fireEvent.mouseDown(canvas, { clientX: 100, clientY: 100, button: 0 });
+    fireEvent.mouseMove(canvas, { clientX: 600, clientY: 500 });
+    // Nothing is committed until the gesture ends.
     expect(store.getState().document.edges).toHaveLength(0);
+    fireEvent.mouseUp(canvas, { clientX: 600, clientY: 500 });
 
-    // Second click lands on a shape, so that end mounts to the node rather than to a coordinate.
-    act(() => capturedProps?.onNodeClick?.({ clientX: 80, clientY: 40, stopPropagation() {} } as never, { id: a } as never));
     const e = store.getState().document.edges[0]!;
-    // The pane end stayed a bare coordinate (fitView has already panned the viewport, so the exact
-    // numbers are the viewport's business — what matters is that it is a point, not a node ref).
-    expect(typeof e.from).toBe("object");
-    expect(e.to).toBe(a);
+    expect(e.from).toBe(a); // pressed inside the shape, so that end is bound to it
+    expect(e.to).toEqual({ x: 600, y: 500 }); // released on empty canvas, so that end stays loose
     expect(e.label).toBeUndefined(); // an arrow gets no text until the user double-clicks it
-
-    // Disarmed by the completed placement.
-    act(() => capturedProps?.onPaneClick?.({ clientX: 200, clientY: 200 } as never));
+    // Disarmed by the completed gesture.
+    fireEvent.mouseDown(canvas, { clientX: 700, clientY: 400, button: 0 });
+    fireEvent.mouseUp(canvas, { clientX: 800, clientY: 500 });
     expect(store.getState().document.edges).toHaveLength(1);
+    setActiveTool(null);
+  });
+
+  it("leaves an arrow end loose where the gesture lands on empty canvas", () => {
+    const { store, canvas } = renderCanvasWithStore();
+    act(() => setActiveTool("line"));
+    fireEvent.mouseDown(canvas, { clientX: 40, clientY: 40, button: 0 });
+    fireEvent.mouseMove(canvas, { clientX: 200, clientY: 120 });
+    fireEvent.mouseUp(canvas, { clientX: 200, clientY: 120 });
+    const e = store.getState().document.edges[0]!;
+    expect(typeof e.from).toBe("object");
+    expect(typeof e.to).toBe("object");
+    expect(e.style?.endArrow).toBe("none");
+    setActiveTool(null);
+  });
+
+  it("a click with no drag still makes a default-length arrow", () => {
+    const { store, canvas } = renderCanvasWithStore();
+    act(() => setActiveTool("arrow"));
+    fireEvent.mouseDown(canvas, { clientX: 60, clientY: 60, button: 0 });
+    fireEvent.mouseUp(canvas, { clientX: 61, clientY: 61 });
+    const e = store.getState().document.edges[0]!;
+    const from = e.from as { x: number; y: number };
+    const to = e.to as { x: number; y: number };
+    expect(to.x - from.x).toBe(FREE_LINE_LENGTH);
+    expect(to.y).toBe(from.y);
     setActiveTool(null);
   });
 

@@ -7,6 +7,7 @@ import {
   ReactFlowProvider,
   useNodesInitialized,
   useReactFlow,
+  ViewportPortal,
   useNodesState,
   useEdgesState,
   type Connection,
@@ -15,7 +16,9 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { resolveNodeStyle, shapeMarkup } from "@arq/render";
+import {
+  edgePath, edgePaths, edgeTangents, resolveEdgeStyle, resolveNodeStyle, shapeMarkup, shapeRect,
+} from "@arq/render";
 import type { Document, Endpoint } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
 import { useEditor } from "../store/context";
@@ -25,19 +28,22 @@ import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqEndpointNode, ArqNode } from "./ArqNode";
 import { ArqEdge, EdgeDefs } from "./ArqEdge";
-import { PALETTE_ITEMS, edgeCreationStyle, nodeCreationStyle, placeItem, useActiveTool, type PaletteItem } from "./Palette";
+import {
+  FREE_LINE_LENGTH, PALETTE_ITEMS, edgeCreationStyle, nodeCreationStyle, placeItem, useActiveTool,
+  type PaletteItem,
+} from "./Palette";
 import { useSettings } from "./SettingsModal";
+import type { Settings } from "../settings";
 
 // `arqEndpoint` must be registered: React Flow renders its own default node — a visible empty
 // box — for any type it does not know, which is what made one dropped arrow look like two boxes.
 const nodeTypes = { arq: ArqNode, arqEndpoint: ArqEndpointNode };
 const edgeTypes = { arq: ArqEdge };
 
-/** Below this many pixels a press-and-release is a click, not a drag-to-size gesture. */
-const DRAG_SIZE_THRESHOLD = 6;
+/** Below this many pixels of movement a press-and-release is a click, not a drawing gesture. */
+const DRAG_THRESHOLD = 6;
 
-/** One fixed seed for the drag preview. The shape still redraws as the box changes size, but it
- *  does not also re-roll its wobble on every pointer move, which reads as flicker. */
+/** One fixed seed for whatever the in-flight gesture previews. */
 const PREVIEW_SEED = 1;
 
 /** A rect from two corners in any order. */
@@ -90,6 +96,60 @@ export function mergeMeasured(prev: ArqFlowNode[], next: ArqFlowNode[]): ArqFlow
   });
 }
 
+/**
+ * What the gesture in flight will produce, drawn with the very same painter as the finished
+ * element — the real shape at its real size, or the real arrow between its real ends. Rendered in
+ * flow coordinates inside `ViewportPortal`.
+ *
+ * The seed is fixed rather than derived from an id (there is no element yet): the preview still
+ * redraws as the geometry changes, but it does not re-roll its wobble on every pointer move, which
+ * reads as flicker.
+ */
+function DrawPreview({
+  item, from, to, settings,
+}: {
+  item: PaletteItem;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  settings: Settings;
+}) {
+  if (item.kind === "edge") {
+    const s = resolveEdgeStyle(edgeCreationStyle(item, settings));
+    const { d } = edgePath(from, to, s.routing);
+    const specs = edgePaths(d, s, PREVIEW_SEED, { start: from, end: to, ...edgeTangents(from, to, s.routing) });
+    // Anchored at the flow origin with overflow visible, so the absolute coordinates above land
+    // where they mean to without any per-frame offset maths.
+    return (
+      <svg className="arq-draw-preview" data-testid="draw-preview" width={1} height={1} style={{ overflow: "visible" }}>
+        {specs.map((p, i) => (
+          <path key={i} d={p.d} stroke={p.stroke} strokeWidth={p.strokeWidth} fill={p.fill} />
+        ))}
+      </svg>
+    );
+  }
+  const box = rectFrom(from, to);
+  return (
+    <svg
+      className="arq-draw-preview"
+      data-testid="draw-preview"
+      style={{ position: "absolute", left: box.x, top: box.y }}
+      width={box.w}
+      height={box.h}
+      viewBox={`0 0 ${box.w} ${box.h}`}
+      // Built by @arq/render from this component's own numbers and the creation colours — never
+      // from document or user text.
+      dangerouslySetInnerHTML={{
+        __html: shapeMarkup(
+          item.shape,
+          { x: 0, y: 0, w: box.w, h: box.h },
+          resolveNodeStyle(nodeCreationStyle(settings)),
+          PREVIEW_SEED,
+        ),
+      }}
+    />
+  );
+}
+
 function CanvasInner() {
   // Requires a ReactFlowProvider ancestor (for the zoom shortcuts' useReactFlow call), which is
   // why this lives here rather than in App: Canvas already wraps itself in one, App does not.
@@ -111,28 +171,23 @@ function CanvasInner() {
   const [tool, setTool] = useActiveTool();
   const armed: PaletteItem | undefined = PALETTE_ITEMS.find((i) => i.key === tool);
 
-  const wrapRef = useRef<HTMLDivElement>(null);
-  /** Where a drag-to-size gesture started, in screen coordinates; null when none is in flight. */
-  const sizingFrom = useRef<{ x: number; y: number } | null>(null);
-  /** The live preview of that gesture, in coordinates local to the canvas wrapper. */
-  const [sizingBox, setSizingBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  /** First click of a two-click edge placement: the end already fixed, waiting for the second. */
-  const [pendingFrom, setPendingFrom] = useState<Endpoint | null>(null);
+  /** Where the drawing gesture was pressed, in screen coordinates; null when none is in flight. */
+  const dragFrom = useRef<{ x: number; y: number } | null>(null);
+  /** The same gesture in flow coordinates, for the live preview. */
+  const [drag, setDrag] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
 
-  // Escape abandons whatever placement is in flight rather than leaving a half-placed arrow with
-  // no way out but committing it.
+  // Escape abandons a gesture in flight and disarms, rather than leaving the tool stuck on.
   useEffect(() => {
-    if (armed === undefined && pendingFrom === null) return;
+    if (armed === undefined) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
-      setPendingFrom(null);
       setTool(null);
-      sizingFrom.current = null;
-      setSizingBox(null);
+      dragFrom.current = null;
+      setDrag(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [armed, pendingFrom, setTool]);
+  }, [armed, setTool]);
 
   /**
    * Fit the view when a *document* arrives, and at no other time.
@@ -231,102 +286,93 @@ function CanvasInner() {
   );
 
   /**
-   * One end of an armed edge placement. The first call fixes the start; the second draws the edge
-   * and disarms. Either end is a bare point or a node id, so an arrow can run from empty canvas to
-   * empty canvas, or mount on a shape at one or both ends.
+   * The node under a flow-space point, if any.
+   *
+   * Hit-tested against the document's own rects (`shapeRect`, the exporter's function) rather than
+   * by asking the DOM what is under the cursor: an arrow end binds to a shape, and a shape is what
+   * the document says it is. Later nodes win, matching paint order — the one drawn on top.
    */
-  const takeEdgeEnd = useCallback(
-    (ep: Endpoint) => {
-      if (armed?.kind !== "edge") return;
-      if (pendingFrom === null) {
-        setPendingFrom(ep);
-        return;
+  const nodeAt = useCallback(
+    (p: { x: number; y: number }): string | undefined => {
+      let hit: string | undefined;
+      for (const n of doc.nodes) {
+        const pin = doc.layout.pinned[n.id];
+        if (!pin) continue;
+        const r = shapeRect(pin, n.shape);
+        if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) hit = n.id;
       }
-      // Both ends on the same shape anchor to the same point, drawing a zero-length line. Treat the
-      // second click as a misclick and keep waiting rather than creating an invisible edge.
-      if (isNodeRef(ep) && isNodeRef(pendingFrom) && ep === pendingFrom) return;
-      addEdge({ from: pendingFrom, to: ep, style: edgeCreationStyle(armed, settings) });
-      setPendingFrom(null);
-      setTool(null);
+      return hit;
     },
-    [armed, pendingFrom, addEdge, settings, setTool],
+    [doc],
   );
 
-  // Shapes are placed on mouse-up (so a press-and-drag can size them, below); only edges are
-  // placed from a click. With nothing armed neither runs, leaving React Flow's own
-  // click-to-deselect behaviour untouched.
-  const onPaneClick = useCallback(
-    (e: MouseEvent) => takeEdgeEnd(screenToFlowPosition({ x: e.clientX, y: e.clientY })),
-    [takeEdgeEnd, screenToFlowPosition],
+  /** An arrow end at this point: bound to whatever shape is under it, else the bare point. */
+  const endpointAt = useCallback(
+    (p: { x: number; y: number }): Endpoint => nodeAt(p) ?? p,
+    [nodeAt],
   );
 
-  // Clicking a shape while an edge tool is armed mounts that end on the shape rather than pinning
-  // it to a bare coordinate, so the arrow keeps following the shape when it later moves.
-  const onNodeClick = useCallback(
-    (e: MouseEvent, node: Node) => {
-      if (armed?.kind !== "edge") return;
-      e.stopPropagation();
-      // A hidden loose-endpoint node is not something an arrow can mount to; treat a click on one
-      // as a click on the canvas underneath it.
-      if (parseEndpointNodeId(node.id)) takeEdgeEnd(screenToFlowPosition({ x: e.clientX, y: e.clientY }));
-      else takeEdgeEnd(node.id);
-    },
-    [armed, takeEdgeEnd, screenToFlowPosition],
-  );
-
-  // Drag-to-size, for shape tools only: press, drag out the box you want, release. A release
-  // within DRAG_SIZE_THRESHOLD of the press is a plain click and places the default size instead.
+  /**
+   * One gesture draws everything: press where it starts, drag, release where it ends.
+   *
+   * A shape takes the dragged box as its size; an arrow runs from the press to the release, binding
+   * either end to whatever shape is under it. Releasing without moving is a plain click, which
+   * places a default-sized shape or a default-length arrow. Working in flow coordinates throughout
+   * means the gesture behaves the same at any zoom.
+   */
   const onMouseDown = useCallback(
     (e: MouseEvent) => {
-      if (armed?.kind !== "node" || e.button !== 0) return;
-      sizingFrom.current = { x: e.clientX, y: e.clientY };
+      if (armed === undefined || e.button !== 0) return;
+      dragFrom.current = { x: e.clientX, y: e.clientY };
+      setDrag({ from: screenToFlowPosition({ x: e.clientX, y: e.clientY }), to: screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
     },
-    [armed],
+    [armed, screenToFlowPosition],
   );
 
-  const onMouseMove = useCallback((e: MouseEvent) => {
-    const from = sizingFrom.current;
-    const wrap = wrapRef.current;
-    if (!from || !wrap) return;
-    const o = wrap.getBoundingClientRect();
-    setSizingBox(rectFrom({ x: from.x - o.left, y: from.y - o.top }, { x: e.clientX - o.left, y: e.clientY - o.top }));
-  }, []);
+  const onMouseMove = useCallback(
+    (e: MouseEvent) => {
+      if (dragFrom.current === null) return;
+      setDrag((d) => (d === null ? null : { ...d, to: screenToFlowPosition({ x: e.clientX, y: e.clientY }) }));
+    },
+    [screenToFlowPosition],
+  );
 
   const onMouseUp = useCallback(
     (e: MouseEvent) => {
-      const from = sizingFrom.current;
-      sizingFrom.current = null;
-      setSizingBox(null);
-      if (!from || armed?.kind !== "node") return;
-      const a = screenToFlowPosition(from);
+      const press = dragFrom.current;
+      dragFrom.current = null;
+      setDrag(null);
+      if (!press || armed === undefined) return;
+      const a = screenToFlowPosition(press);
       const b = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      const box = rectFrom(a, b);
-      const dragged = Math.abs(e.clientX - from.x) >= DRAG_SIZE_THRESHOLD || Math.abs(e.clientY - from.y) >= DRAG_SIZE_THRESHOLD;
-      placeItem(
-        armed,
-        dragged ? { x: box.x, y: box.y } : a,
-        settings,
-        { addNode, addEdge },
-        dragged ? { w: Math.round(box.w), h: Math.round(box.h) } : undefined,
-      );
+      const moved =
+        Math.abs(e.clientX - press.x) >= DRAG_THRESHOLD || Math.abs(e.clientY - press.y) >= DRAG_THRESHOLD;
+
+      if (armed.kind === "edge") {
+        const to = moved ? b : { x: a.x + FREE_LINE_LENGTH, y: a.y };
+        const from = endpointAt(a);
+        const target = endpointAt(to);
+        // Both ends on one shape would anchor to the same point and draw nothing visible.
+        if (!(isNodeRef(from) && isNodeRef(target) && from === target)) {
+          addEdge({ from, to: target, style: edgeCreationStyle(armed, settings) });
+        }
+      } else {
+        const box = rectFrom(a, b);
+        placeItem(
+          armed,
+          moved ? { x: box.x, y: box.y } : a,
+          settings,
+          { addNode, addEdge },
+          moved ? { w: Math.round(box.w), h: Math.round(box.h) } : undefined,
+        );
+      }
       setTool(null);
     },
-    [armed, screenToFlowPosition, settings, addNode, addEdge, setTool],
+    [armed, screenToFlowPosition, settings, addNode, addEdge, endpointAt, setTool],
   );
-
-  // The dot marking a two-click arrow's fixed first end. Only a loose point needs one: an end
-  // already mounted on a shape is visible as the shape.
-  const pendingEndScreen = (() => {
-    const wrap = wrapRef.current;
-    if (pendingFrom === null || isNodeRef(pendingFrom) || !wrap) return null;
-    const p = flowToScreenPosition(pendingFrom);
-    const o = wrap.getBoundingClientRect();
-    return { x: p.x - o.left, y: p.y - o.top };
-  })();
 
   return (
     <div
-      ref={wrapRef}
       className={`arq-canvas${tool !== null ? " armed" : ""}`}
       data-testid="canvas"
       onDragOver={onDragOver}
@@ -346,9 +392,12 @@ function CanvasInner() {
         onNodeDragStop={onNodeDragStop}
         onDelete={onDelete}
         onSelectionChange={onSelectionChange}
-        onPaneClick={onPaneClick}
-        onNodeClick={onNodeClick}
         deleteKeyCode={["Delete", "Backspace"]}
+        // With a tool armed the canvas only draws: pressing on a shape must start the gesture, not
+        // pick the shape up. Without this, dragging an arrow from one shape to another dragged the
+        // first shape on top of the second instead.
+        nodesDraggable={armed === undefined}
+        elementsSelectable={armed === undefined}
         panOnScroll
         zoomOnScroll={false}
         zoomOnPinch
@@ -363,33 +412,14 @@ function CanvasInner() {
           <Background variant={GRID_VARIANT[settings.grid]} gap={settings.gridSize} />
         ) : null}
         <Controls />
+        {/* Drawn inside the flow's own viewport, so the preview sits in document coordinates and
+            scales and pans with everything else instead of being re-projected by hand. */}
+        {drag !== null && armed !== undefined ? (
+          <ViewportPortal>
+            <DrawPreview item={armed} from={drag.from} to={drag.to} settings={settings} />
+          </ViewportPortal>
+        ) : null}
       </ReactFlow>
-      {/* Placement feedback, drawn over the flow rather than inside it: the dashed box a shape
-          will occupy on release, and the anchored first end of a two-click arrow. */}
-      {sizingBox !== null && armed?.kind === "node" ? (
-        <svg
-          className="arq-sizing-preview"
-          data-testid="sizing-preview"
-          style={{ left: sizingBox.x, top: sizingBox.y, width: sizingBox.w, height: sizingBox.h }}
-          width={sizingBox.w}
-          height={sizingBox.h}
-          viewBox={`0 0 ${sizingBox.w} ${sizingBox.h}`}
-          // The real hand-drawn shape at the real size, not a placeholder box, so what you drag out
-          // is what you get. Built by @arq/render from this component's own numbers and the
-          // creation colours — never from document or user text.
-          dangerouslySetInnerHTML={{
-            __html: shapeMarkup(
-              armed.shape,
-              { x: 0, y: 0, w: sizingBox.w, h: sizingBox.h },
-              resolveNodeStyle(nodeCreationStyle(settings)),
-              PREVIEW_SEED,
-            ),
-          }}
-        />
-      ) : null}
-      {pendingEndScreen !== null ? (
-        <div className="arq-pending-end" data-testid="pending-end" style={{ left: pendingEndScreen.x, top: pendingEndScreen.y }} />
-      ) : null}
     </div>
   );
 }

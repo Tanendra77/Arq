@@ -20,8 +20,8 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   await page.mouse.move(box.x + box.width / 2 + dragBy, box.y + box.height / 2, { steps: 10 });
   await page.mouse.up();
 
-  // Connect rectangle -> ellipse with the arrow tool: arm it, then click each shape. Shapes carry
-  // no visible connection points any more, and clicking anywhere on one mounts that end to it.
+  // Connect rectangle -> ellipse with the arrow tool: arm it, then drag from one shape to the
+  // other. Shapes carry no visible connection points; an end binds to whatever shape it lands on.
   await page.getByRole("button", { name: "Arrow" }).click();
   const centreOf = async (i: number) => {
     const r = await nodes.nth(i).boundingBox();
@@ -30,10 +30,12 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   };
   const from = await centreOf(0);
   const to = await centreOf(1);
-  await page.mouse.click(from.x, from.y);
-  await page.mouse.click(to.x, to.y);
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 10 });
+  await page.mouse.up();
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
-  // Both ends bound to real shapes, so the saved document names them rather than coordinates.
+  // Bound to the two shapes, so no hidden loose-endpoint nodes were added alongside them.
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
 
   // Save via Ctrl+S produces a download.

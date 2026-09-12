@@ -15,9 +15,21 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
    Inspector's "Canvas background" field sets it on the root element when the user picks one. */
 .arq-main { grid-area: main; min-width: 0; background: var(--arq-canvas-bg, transparent); }
 .arq-inspector { grid-area: inspector; border-left: 1px solid var(--arq-line); overflow: auto; }
-.arq-inspector-inner { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.arq-inspector-inner { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .arq-inspector-inner h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
-.arq-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+.arq-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+/* Colour and size controls sit on one line instead of a stack of full-width rows. */
+.arq-field-pair { display: flex; gap: 6px; align-items: flex-end; }
+.arq-field-pair .arq-field { flex: 1; min-width: 0; }
+/* An icon row's caption is a quiet heading, not a form label: the buttons name themselves. */
+.arq-field-caption { font-size: 11px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.04em; }
+.arq-field-caption:empty { display: none; }
+.arq-field-caption em { font-style: normal; opacity: 0.8; margin-left: 4px; text-transform: none; letter-spacing: 0; }
+.arq-icon-row { display: flex; gap: 3px; flex-wrap: wrap; }
+.arq-icon-row button { display: flex; align-items: center; justify-content: center; padding: 3px; min-width: 30px; height: 24px; border: 1px solid transparent; border-radius: 4px; background: color-mix(in srgb, var(--arq-fg) 6%, transparent); color: inherit; cursor: pointer; }
+.arq-icon-row button:hover { background: color-mix(in srgb, var(--arq-accent) 18%, transparent); }
+.arq-icon-row button.active { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); }
+.arq-icon-row button svg { display: block; }
 .arq-field input, .arq-field select { font: inherit; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 4px; padding: 4px 6px; }
 .arq-field input[type="color"] { padding: 2px; height: 28px; }
 .arq-field-checkbox { flex-direction: row; align-items: center; gap: 6px; }

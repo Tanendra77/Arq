@@ -57,10 +57,35 @@ export interface PathSpec {
   strokeWidth: number;
   fill: string;
   dash: string | undefined;
+  /** Length of one dash period, set only on a path that animates; see `FLOW_CLASS`. */
+  flowPeriod?: number;
 }
 
+/** Class an animated stroke carries. The keyframes live in the stylesheet — `styles.css` for the
+ *  editor and the `<style>` block `renderSvg` writes — so an exported file animates on its own. */
+export const FLOW_CLASS = "arq-flow";
+
+/** Custom property the keyframes read, so one rule animates any dash pattern seamlessly. */
+export const FLOW_PERIOD_VAR = "--arq-flow-period";
+
+/** The keyframes and rule that drive `FLOW_CLASS`, shared by the editor stylesheet and exports. */
+export const FLOW_CSS =
+  `@keyframes ${FLOW_CLASS}{to{stroke-dashoffset:calc(var(${FLOW_PERIOD_VAR}) * -2)}}` +
+  `.${FLOW_CLASS}{animation:${FLOW_CLASS} 0.9s linear infinite}` +
+  `@media (prefers-reduced-motion: reduce){.${FLOW_CLASS}{animation:none}}`;
+
 export function pathSpecToSvg(p: PathSpec): string {
-  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}/>`;
+  const flow =
+    p.flowPeriod === undefined ? "" : ` class="${FLOW_CLASS}" style="${FLOW_PERIOD_VAR}:${r2(p.flowPeriod)}"`;
+  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}${flow}/>`;
+}
+
+/** A still edge keeps whatever dash it was given; an animated one needs *some* pattern to march,
+ *  so a solid animated line borrows this one. */
+const FLOW_DASH = "8 6";
+
+function dashPeriod(dash: string): number {
+  return dash.split(" ").reduce((a, n) => a + Number(n), 0);
 }
 
 /**
@@ -218,11 +243,18 @@ export function edgePaths(
   seed: number,
   ends: { start: Point; end: Point; startDir: Point; endDir: Point },
 ): PathSpec[] {
-  const dash = DASH_ARRAY[s.strokeDash];
-  const line: PathSpec[] =
+  const flowing = s.animate === "flow";
+  const dash = flowing ? (DASH_ARRAY[s.strokeDash] ?? FLOW_DASH) : DASH_ARRAY[s.strokeDash];
+  const line: PathSpec[] = (
     s.roughness > 0
       ? sketchPathSpecs(d, s, seed)
-      : [{ d, stroke: s.stroke, strokeWidth: s.strokeWidth, fill: "none", dash }];
+      : [{ d, stroke: s.stroke, strokeWidth: s.strokeWidth, fill: "none", dash }]
+  ).map((p) =>
+    // Only the stroke marches; a fill has no dash to move, and the arrowheads stay put.
+    flowing && dash !== undefined && p.stroke !== "none"
+      ? { ...p, dash, flowPeriod: dashPeriod(dash) }
+      : p,
+  );
   // Distinct seeds per head, or both ends of the same edge would wobble in lockstep.
   return [
     ...line,

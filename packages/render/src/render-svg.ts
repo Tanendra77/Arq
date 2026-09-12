@@ -8,7 +8,7 @@ import {
   METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, wrapLabel,
   type Rect,
 } from "./metrics";
-import { edgeMarkup, seedFromId, shapeMarkup } from "./sketch";
+import { FLOW_CSS, edgeMarkup, seedFromId, shapeMarkup } from "./sketch";
 
 /**
  * A node's icon is whatever the document names, or nothing. There is no per-type fallback:
@@ -97,7 +97,9 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
   const font = opts.font ?? "embed";
   const layout = layoutDocument(doc);
   const b = layout.bounds;
-  const style = `<style>${fontFaceCss(font)}text{font-family:${FONT_STACK}}</style>`;
+  // FLOW_CSS travels with the file so an animated edge still animates when the SVG is opened on
+  // its own, with no viewer-side scripting.
+  const style = `<style>${fontFaceCss(font)}text{font-family:${FONT_STACK}}${FLOW_CSS}</style>`;
   const defs = collectDefs(doc);
   const groups = doc.groups.map((g) => { const r = layout.groups.get(g.id); return r ? renderGroup(g.id, g.label, r) : ""; }).join("");
   const edges = doc.edges.map((e) => renderEdge(doc, e.id, layout.nodes)).join("");

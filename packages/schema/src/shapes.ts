@@ -15,6 +15,13 @@ export type Routing = (typeof ROUTING_MODES)[number];
 export const GROUP_KINDS = ["region", "dc", "vpc", "cluster", "zone", "generic"] as const;
 export type GroupKind = (typeof GROUP_KINDS)[number];
 
+/**
+ * How an edge animates. "flow" marches its dashes from source to target, the usual way of showing
+ * data moving through a diagram; "none" is a still line.
+ */
+export const EDGE_ANIMATIONS = ["none", "flow"] as const;
+export type EdgeAnimation = (typeof EDGE_ANIMATIONS)[number];
+
 /** Where an edge's label sits along its own path: a fraction of the way from source to target. */
 export const LABEL_POSITIONS = ["start", "middle", "end"] as const;
 export type LabelPosition = (typeof LABEL_POSITIONS)[number];
@@ -53,6 +60,7 @@ export const EdgeStyleSchema = z.object({
   startArrow: z.enum(ARROW_STYLES).optional(),
   endArrow: z.enum(ARROW_STYLES).optional(),
   labelPos: z.enum(LABEL_POSITIONS).optional(),
+  animate: z.enum(EDGE_ANIMATIONS).optional(),
   roughness: RoughnessSchema.optional(),
   glow: GlowSchema.optional(),
 }).strict();

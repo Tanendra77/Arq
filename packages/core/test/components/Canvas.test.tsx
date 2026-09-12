@@ -202,6 +202,23 @@ describe("Canvas", () => {
     expect(screen.queryByTestId(`edge-label-${e}`)).toBeNull();
   });
 
+  it("marches an animated edge's dashes on the canvas, carrying the period the keyframes read", () => {
+    const store = createEditorStore(emptyDocument());
+    store.getState().addEdge({
+      from: { x: 0, y: 0 }, to: { x: 200, y: 0 },
+      style: { animate: "flow", roughness: 0, routing: "straight" },
+    });
+    const { container } = render(
+      <EditorStoreProvider store={store} platform={createFakePlatform()}>
+        <Canvas />
+      </EditorStoreProvider>,
+    );
+    const flowing = container.querySelector("g.arq-edge path.arq-flow");
+    expect(flowing).not.toBeNull();
+    expect(flowing).toHaveAttribute("stroke-dasharray", "8 6");
+    expect((flowing as SVGPathElement).style.getPropertyValue("--arq-flow-period")).toBe("14");
+  });
+
   it("draws nodes hand-drawn by default, and the exact primitive at roughness 0", () => {
     const store = createEditorStore(emptyDocument());
     store.getState().addNode({ shape: "ellipse", label: "A", position: { x: 0, y: 0 } });

@@ -1,4 +1,4 @@
-import { fontFaceCss } from "@arq/render";
+import { FLOW_CSS, fontFaceCss } from "@arq/render";
 
 const STYLE_ID = "arq-sketch-font";
 
@@ -13,10 +13,10 @@ const STYLE_ID = "arq-sketch-font";
  */
 export function installSketchFont(doc: Document = document): void {
   if (doc.getElementById(STYLE_ID)) return;
-  const css = fontFaceCss("embed");
-  if (css === "") return; // no font was embedded at build time; the CSS fallback stack applies
+  // FLOW_CSS comes from the same module the exporter uses, so an animated edge moves at the same
+  // rate on the canvas as it does in an exported file.
   const el = doc.createElement("style");
   el.id = STYLE_ID;
-  el.textContent = css;
+  el.textContent = fontFaceCss("embed") + FLOW_CSS;
   doc.head.appendChild(el);
 }

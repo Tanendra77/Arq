@@ -263,3 +263,41 @@ describe("arrowheads", () => {
     expect(p.some((q) => Math.abs(q.x) > 2)).toBe(true); // and open sideways
   });
 });
+
+describe("flow animation", () => {
+  const flowDoc = (style: Record<string, unknown>) =>
+    DocumentSchema.parse({
+      version: 2, title: "T", nodes: [],
+      edges: [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { routing: "straight", roughness: 0, ...style } }],
+    });
+
+  it("marches a solid line's dashes, borrowing a pattern it does not otherwise have", () => {
+    const svg = renderSvg(flowDoc({ animate: "flow" }), opts);
+    expect(svg).toContain("@keyframes arq-flow");
+    const line = /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
+    expect(line).toContain('class="arq-flow"');
+    expect(line).toMatch(/stroke-dasharray="8 6"/);
+    // The period drives the keyframe, so any pattern loops seamlessly.
+    expect(line).toContain("--arq-flow-period:14");
+  });
+
+  it("keeps the author's own dash pattern when one is set", () => {
+    const svg = renderSvg(flowDoc({ animate: "flow", strokeDash: "dotted" }), opts);
+    const line = /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
+    expect(line).toMatch(/stroke-dasharray="2 4"/);
+    expect(line).toContain("--arq-flow-period:6");
+  });
+
+  it("animates the stroke only, never the arrowhead", () => {
+    const svg = renderSvg(flowDoc({ animate: "flow", endArrow: "triangle" }), opts);
+    const line = /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
+    const paths = [...line.matchAll(/<path [^>]*\/>/g)].map((m) => m[0]);
+    expect(paths.length).toBeGreaterThan(1);
+    expect(paths.filter((p) => p.includes("arq-flow"))).toHaveLength(1);
+  });
+
+  it("leaves a still edge with no animation class at all", () => {
+    const svg = renderSvg(flowDoc({}), opts);
+    expect(/<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0]).not.toContain("arq-flow");
+  });
+});

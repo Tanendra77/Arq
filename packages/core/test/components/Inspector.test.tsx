@@ -57,19 +57,42 @@ describe("Inspector", () => {
     expect(screen.getByLabelText("Fill")).toBeInTheDocument();
     expect(screen.getByLabelText("Corner radius")).toBeInTheDocument();
     expect(screen.getByLabelText("Label")).toBeInTheDocument();
-    expect(screen.getByLabelText("Font size")).toBeInTheDocument();
-    expect(screen.getByLabelText("Text alignment")).toBeInTheDocument();
+    expect(screen.getByLabelText("Text size")).toBeInTheDocument();
+    // Enumerated properties are icon rows now: the group is named, each button names its option.
+    expect(screen.getByRole("group", { name: "Align" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Centre" })).toBeInTheDocument();
     expect(screen.getByLabelText("Glow")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Routing")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Shape" })).toBeNull();
   });
 
-  it("shows line controls for a selected edge", () => {
+  it("shows every line control for a selected edge", () => {
     renderInspector({ nodes: [], edges: ["e1"] });
-    expect(screen.getByLabelText("Routing")).toBeInTheDocument();
-    expect(screen.getByLabelText("Start arrow")).toBeInTheDocument();
-    expect(screen.getByLabelText("End arrow")).toBeInTheDocument();
-    expect(screen.getByLabelText("Stroke")).toBeInTheDocument();
+    for (const group of ["Shape", "Ends", "Stroke", "Style", "Flow", "Label at"]) {
+      expect(screen.getByRole("group", { name: group })).toBeInTheDocument();
+    }
+    // Both ends are offered independently, and the arrowhead kinds are the full set.
+    expect(screen.getByRole("button", { name: "Start: Diamond" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End: Diamond" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Colour")).toBeInTheDocument();
+    expect(screen.getByLabelText("Width")).toBeInTheDocument();
+    expect(screen.getByLabelText("Glow")).toBeInTheDocument();
     expect(screen.queryByLabelText("Fill")).toBeNull();
+  });
+
+  it("marks the active option in an icon row and writes the choice through the store", () => {
+    const store = renderInspector({ nodes: [], edges: ["e1"] });
+    // The default routing is orthogonal, so that button starts pressed.
+    expect(screen.getByRole("button", { name: "Right angles" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Curved" }));
+    expect(store.getState().document.edges.find((e) => e.id === "e1")?.style?.routing).toBe("curved");
+    expect(screen.getByRole("button", { name: "Curved" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("turns flow animation on for a line", () => {
+    const store = renderInspector({ nodes: [], edges: ["e1"] });
+    expect(screen.getByRole("button", { name: "Still" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Flowing" }));
+    expect(store.getState().document.edges.find((e) => e.id === "e1")?.style?.animate).toBe("flow");
   });
 
   it("writes an edit through the store", () => {
@@ -101,7 +124,7 @@ describe("Inspector", () => {
   it("collapses several drag-like edits on the same field into one undo entry", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
     const before = store.getState().past.length;
-    const width = screen.getByLabelText("Stroke width");
+    const width = screen.getByLabelText("Width");
     fireEvent.change(width, { target: { value: "2" } });
     fireEvent.change(width, { target: { value: "3" } });
     fireEvent.change(width, { target: { value: "4" } });
@@ -111,7 +134,7 @@ describe("Inspector", () => {
 
   it("rejects a stroke width of 0 so it never reaches the store (min is a validity hint, not a clamp)", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
-    const width = screen.getByLabelText("Stroke width");
+    const width = screen.getByLabelText("Width");
     fireEvent.change(width, { target: { value: "3" } });
     fireEvent.change(width, { target: { value: "0" } });
     expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.strokeWidth).toBe(3);
@@ -119,9 +142,9 @@ describe("Inspector", () => {
 
   it("a document edited through the inspector, including rejected 0 entries, still round-trips through serializeDocument/parseDocument", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
-    fireEvent.change(screen.getByLabelText("Stroke width"), { target: { value: "3" } });
-    fireEvent.change(screen.getByLabelText("Stroke width"), { target: { value: "0" } });
-    fireEvent.change(screen.getByLabelText("Font size"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Width"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Width"), { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Text size"), { target: { value: "0" } });
     const result = parseDocument(serializeDocument(store.getState().document));
     expect(result.ok).toBe(true);
   });
@@ -163,17 +186,17 @@ describe("Inspector", () => {
 
   it("shows only properties common to nodes and edges for a mixed selection", () => {
     renderInspector({ nodes: ["a"], edges: ["e1"] });
-    expect(screen.getByLabelText("Stroke")).toBeInTheDocument();
-    expect(screen.getByLabelText("Stroke width")).toBeInTheDocument();
+    expect(screen.getByLabelText("Line")).toBeInTheDocument();
+    expect(screen.getByLabelText("Width")).toBeInTheDocument();
     expect(screen.queryByLabelText("Fill")).toBeNull();
-    expect(screen.queryByLabelText("Routing")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Shape" })).toBeNull();
     expect(screen.queryByLabelText("Label")).toBeNull();
   });
 
   it("applies a mixed-selection edit to both the node and the edge as one undo entry", () => {
     const store = renderInspector({ nodes: ["a"], edges: ["e1"] });
     const before = store.getState().past.length;
-    fireEvent.change(screen.getByLabelText("Stroke"), { target: { value: "#abcdef" } });
+    fireEvent.change(screen.getByLabelText("Line"), { target: { value: "#abcdef" } });
     expect(store.getState().past.length).toBe(before + 1);
     expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.stroke).toBe("#abcdef");
     expect(store.getState().document.edges.find((e) => e.id === "e1")?.style?.stroke).toBe("#abcdef");
@@ -182,8 +205,8 @@ describe("Inspector", () => {
   it("a discrete edit (select) does not merge with a later discrete edit on the same field", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
     const before = store.getState().past.length;
-    fireEvent.change(screen.getByLabelText("Dash"), { target: { value: "dashed" } });
-    fireEvent.change(screen.getByLabelText("Dash"), { target: { value: "dotted" } });
+    fireEvent.click(screen.getByRole("button", { name: "Dashed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dotted" }));
     expect(store.getState().past.length).toBe(before + 2);
   });
 

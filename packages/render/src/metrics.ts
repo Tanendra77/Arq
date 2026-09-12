@@ -1,4 +1,4 @@
-import type { DashStyle, EdgeStyle, LabelPosition, NodeShape, NodeStyle, Pinned } from "@arq/schema";
+import type { DashStyle, EdgeAnimation, EdgeStyle, LabelPosition, NodeShape, NodeStyle, Pinned } from "@arq/schema";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -65,7 +65,7 @@ export const STYLE_DEFAULTS = {
   node: { fill: "#ffffff", stroke: "#d0d0d0", strokeWidth: 1.5, strokeDash: "solid",
           radius: 8, fontSize: 13, textAlign: "center", roughness: 1 },
   edge: { stroke: "#1a1a1a", strokeWidth: 1.5, strokeDash: "solid",
-          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", roughness: 1 },
+          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", animate: "none", roughness: 1 },
   canvasBackground: "#ffffff",
 } as const;
 
@@ -127,6 +127,7 @@ export type ResolvedEdgeStyle = {
   routing: "straight" | "curved" | "orthogonal";
   startArrow: string; endArrow: string;
   labelPos: LabelPosition;
+  animate: EdgeAnimation;
   roughness: number;
   glow: { color: string } | undefined;
 };
@@ -141,6 +142,7 @@ export function resolveEdgeStyle(s: EdgeStyle | undefined): ResolvedEdgeStyle {
     startArrow: s?.startArrow ?? d.startArrow,
     endArrow: s?.endArrow ?? d.endArrow,
     labelPos: s?.labelPos ?? d.labelPos,
+    animate: s?.animate ?? d.animate,
     roughness: s?.roughness ?? d.roughness,
     glow: s?.glow,
   };

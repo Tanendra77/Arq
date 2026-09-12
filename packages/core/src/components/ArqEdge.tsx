@@ -1,9 +1,11 @@
-import { memo, useState } from "react";
+import { memo, useState, type CSSProperties } from "react";
 import type { Document } from "@arq/schema";
 import { EdgeLabelRenderer, useInternalNode, type EdgeProps, type InternalNode } from "@xyflow/react";
 import {
   anchorPair,
   collectDefs,
+  FLOW_CLASS,
+  FLOW_PERIOD_VAR,
   edgeLabelPoint,
   edgePaths,
   edgePath,
@@ -83,6 +85,9 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
             strokeWidth={p.strokeWidth}
             fill={p.fill}
             {...(p.dash !== undefined ? { strokeDasharray: p.dash } : {})}
+            {...(p.flowPeriod !== undefined
+              ? { className: FLOW_CLASS, style: { [FLOW_PERIOD_VAR]: p.flowPeriod } as CSSProperties }
+              : {})}
           />
         ))}
       </g>

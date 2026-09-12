@@ -1,16 +1,9 @@
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ARROW_STYLES } from "@arq/schema";
 import { loadSettings, saveSettings, themeColorDefaults, type Settings } from "../settings";
-import { CheckboxField, ColorField, NumberField, SelectField } from "./inspector/Field";
-import { IconChoice, backgroundGlyph } from "./inspector/IconChoice";
+import { ColorField, SelectField } from "./inspector/Field";
 
 const THEMES = ["light", "dark", "system"] as const;
-const BACKGROUND_OPTIONS = [
-  { value: "off", title: "Plain", glyph: backgroundGlyph("off") },
-  { value: "dots", title: "Dots", glyph: backgroundGlyph("dots") },
-  { value: "lines", title: "Grid", glyph: backgroundGlyph("lines") },
-  { value: "cross", title: "Crosses", glyph: backgroundGlyph("cross") },
-] as const satisfies readonly { value: Settings["grid"]; title: string; glyph: string }[];
 
 /**
  * Settings are read live by Toolbar (the modal itself), Canvas (grid/snap) and Palette (creation
@@ -103,17 +96,12 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
           if (e.key === "Escape") onClose();
         }}
       >
+        {/* Canvas appearance — pattern, grid, rulers — lives in the inspector with nothing
+            selected, where its effect is visible. What is left here is app-wide: the theme, and
+            the styles new elements are created with. */}
         <h2 id="arq-settings-title">Settings</h2>
         <SelectField label="Theme" value={settings.theme} options={THEMES}
           onChange={(v) => setSettingsPatch({ theme: v, ...retheme(settings, v) })} />
-        <IconChoice label="Background" value={settings.grid} options={BACKGROUND_OPTIONS}
-          onChange={(v) => setSettingsPatch({ grid: v })} />
-        <CheckboxField label="Rulers" checked={settings.rulers}
-          onChange={(v) => setSettingsPatch({ rulers: v })} />
-        <NumberField label="Grid size" value={settings.gridSize} min={2} step={1}
-          onChange={(v) => setSettingsPatch({ gridSize: v })} />
-        <CheckboxField label="Snap to grid" checked={settings.snap}
-          onChange={(v) => setSettingsPatch({ snap: v })} />
         <ColorField label="Default shape fill" value={settings.nodeFill}
           onChange={(v) => setSettingsPatch({ nodeFill: v })} />
         <ColorField label="Default shape stroke" value={settings.nodeStroke}

@@ -39,9 +39,8 @@ test("rulers track the pointer in document coordinates", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByTestId("rulers")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Settings" }).click();
-  await page.getByLabel("Rulers").check();
-  await page.keyboard.press("Escape");
+  // Canvas appearance lives in the inspector, which shows it whenever nothing is selected.
+  await page.getByTestId("inspector").getByLabel("Rulers").check();
   await expect(page.getByTestId("rulers")).toBeVisible();
 
   // The readout follows the pointer, and two different places read differently.

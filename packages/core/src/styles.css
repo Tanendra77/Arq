@@ -17,6 +17,8 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-inspector { grid-area: inspector; border-left: 1px solid var(--arq-line); overflow: auto; }
 .arq-inspector-inner { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .arq-inspector-inner h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
+/* Separates the document's own properties from this machine's view of it. */
+.arq-panel-section { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--arq-line); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.45; }
 /* Style / Animation, one strip per selection panel. */
 .arq-panel-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--arq-line); margin-bottom: 2px; }
 .arq-panel-tabs button { flex: 1; padding: 4px 6px; font: inherit; font-size: 11px; background: none; border: 0; border-bottom: 2px solid transparent; color: inherit; opacity: 0.6; cursor: pointer; }

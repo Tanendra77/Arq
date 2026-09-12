@@ -10,9 +10,11 @@ import { useEditor, useEditorStore } from "../store/context";
 import type { StylePatch } from "../store/editor-store";
 import { CheckboxField, ColorField, NumberField, TextField } from "./inspector/Field";
 import {
-  IconChoice, alignGlyph, animateGlyph, arrowGlyph, dashGlyph, directionGlyph, labelPosGlyph,
-  rotateGlyph, routingGlyph, sketchGlyph, speedGlyph,
+  IconChoice, alignGlyph, animateGlyph, arrowGlyph, backgroundGlyph, dashGlyph, directionGlyph,
+  labelPosGlyph, rotateGlyph, routingGlyph, sketchGlyph, speedGlyph,
 } from "./inspector/IconChoice";
+import { useSettings } from "./SettingsModal";
+import type { Settings } from "../settings";
 
 const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
 /** rough.js roughness, named for what it looks like rather than by its number. 0 draws the exact
@@ -127,6 +129,13 @@ const LABEL_POS_OPTIONS = LABEL_POSITIONS.map((p) => ({
   value: p, title: LABEL_POS_TITLES[p], glyph: labelPosGlyph(p),
 }));
 
+const BACKGROUND_OPTIONS = [
+  { value: "off", title: "Plain", glyph: backgroundGlyph("off") },
+  { value: "dots", title: "Dots", glyph: backgroundGlyph("dots") },
+  { value: "lines", title: "Grid", glyph: backgroundGlyph("lines") },
+  { value: "cross", title: "Crosses", glyph: backgroundGlyph("cross") },
+] as const satisfies readonly { value: Settings["grid"]; title: string; glyph: string }[];
+
 const PANEL_TABS = ["Style", "Animation"] as const;
 type PanelTab = (typeof PANEL_TABS)[number];
 
@@ -159,21 +168,31 @@ function useSyncCanvasBackground(canvasBackground: string | undefined): void {
   }, [canvasBackground]);
 }
 
+/**
+ * What you get with nothing selected: the canvas itself.
+ *
+ * Two kinds of thing share the panel, which is why they are captioned apart. The title and the
+ * background colour belong to the *document* — they travel with the file and land in an export.
+ * The pattern, grid and rulers are *this machine's* view of it: they are preferences, they are
+ * never serialized, and turning on rulers must not mark the document dirty or push an undo entry.
+ * Keeping them here rather than behind the Settings button puts them where their effect is.
+ */
 function DocumentPanel() {
   const store = useEditorStore();
   const title = useEditor((s) => s.document.title);
   const canvasBackground = useEditor((s) => s.document.canvasBackground);
+  const [settings, setSettingsPatch] = useSettings();
 
   return (
     <div className="arq-inspector-inner">
-      <h3>Document</h3>
+      <h3>Canvas</h3>
       <TextField
         label="Title"
         value={title}
         onChange={(v) => store.getState().mutate("set title", (d) => { d.title = v; })}
       />
       <ColorField
-        label="Canvas background"
+        label="Background colour"
         value={canvasBackground ?? STYLE_DEFAULTS.canvasBackground}
         onChange={(v) => store.getState().mutate(
           "set canvas background",
@@ -181,6 +200,18 @@ function DocumentPanel() {
           { mergeKey: "canvasBackground" },
         )}
       />
+
+      <h4 className="arq-panel-section">View · this machine</h4>
+      <IconChoice label="Pattern" value={settings.grid} options={BACKGROUND_OPTIONS}
+        onChange={(v) => setSettingsPatch({ grid: v })} />
+      <div className="arq-field-pair">
+        <NumberField label="Grid size" value={settings.gridSize} min={2} step={1}
+          onChange={(v) => setSettingsPatch({ gridSize: v })} />
+      </div>
+      <CheckboxField label="Snap to grid" checked={settings.snap}
+        onChange={(v) => setSettingsPatch({ snap: v })} />
+      <CheckboxField label="Rulers" checked={settings.rulers}
+        onChange={(v) => setSettingsPatch({ rulers: v })} />
     </div>
   );
 }

@@ -32,22 +32,43 @@ function renderInspector(
 const openAnimationTab = () => fireEvent.click(screen.getByRole("tab", { name: "Animation" }));
 
 describe("Inspector", () => {
+  it("keeps the canvas view preferences out of the document and its history", () => {
+    const store = renderInspector({ nodes: [], edges: [] });
+    const before = { past: store.getState().past.length, dirty: store.getState().dirty };
+    fireEvent.click(screen.getByLabelText("Rulers"));
+    // A preference, not content: it must not dirty the file or cost an undo.
+    expect(store.getState().past.length).toBe(before.past);
+    expect(store.getState().dirty).toBe(before.dirty);
+    expect(JSON.stringify(store.getState().document)).not.toContain("rulers");
+  });
+
+  it("offers the canvas patterns and the ruler toggle beside the document's own properties", () => {
+    renderInspector({ nodes: [], edges: [] });
+    expect(screen.getByRole("group", { name: "Pattern" })).toBeInTheDocument();
+    for (const name of ["Plain", "Dots", "Grid", "Crosses"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    expect(screen.getByLabelText("Rulers")).toBeInTheDocument();
+    expect(screen.getByLabelText("Snap to grid")).toBeInTheDocument();
+    expect(screen.getByLabelText("Grid size")).toBeInTheDocument();
+  });
+
   it("shows document properties when nothing is selected", () => {
     renderInspector({ nodes: [], edges: [] });
     expect(screen.getByLabelText("Title")).toBeInTheDocument();
-    expect(screen.getByLabelText("Canvas background")).toBeInTheDocument();
+    expect(screen.getByLabelText("Background colour")).toBeInTheDocument();
   });
 
   it("writes canvas background into the document, not localStorage", () => {
     const store = renderInspector({ nodes: [], edges: [] });
-    fireEvent.change(screen.getByLabelText("Canvas background"), { target: { value: "#112233" } });
+    fireEvent.change(screen.getByLabelText("Background colour"), { target: { value: "#112233" } });
     expect(store.getState().document.canvasBackground).toBe("#112233");
   });
 
   it("collapses several canvas-background edits into one undo entry", () => {
     const store = renderInspector({ nodes: [], edges: [] });
     const before = store.getState().past.length;
-    const bg = screen.getByLabelText("Canvas background");
+    const bg = screen.getByLabelText("Background colour");
     fireEvent.change(bg, { target: { value: "#111111" } });
     fireEvent.change(bg, { target: { value: "#222222" } });
     fireEvent.change(bg, { target: { value: "#333333" } });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { emptyDocument } from "@arq/schema";
+import { emptyDocument, parseDocument, serializeDocument } from "@arq/schema";
 import { createEditorStore } from "../../src/store/editor-store";
 import { endpointNodeId } from "../../src/flow/endpoint-id";
 
@@ -307,5 +307,29 @@ describe("setPinned", () => {
     const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 }, size: { w: 300, h: 40 } });
     s.getState().setPinned(a, { x: 0, y: 0, w: 50, h: 60 });
     expect(s.getState().document.layout.pinned[a]).toEqual({ x: 0, y: 0, w: 50, h: 60 });
+  });
+});
+
+describe("anchored edge endpoints", () => {
+  it("accepts an anchored end and round-trips it through serialize/parse", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 } });
+    const e = s.getState().addEdge({ from: { node: a, ax: 0.25, ay: 1 }, to: { x: 400, y: 400 } });
+    const back = parseDocument(serializeDocument(s.getState().document));
+    expect(back.ok).toBe(true);
+    if (back.ok) expect(back.document.edges.find((x) => x.id === e)?.from).toEqual({ node: a, ax: 0.25, ay: 1 });
+  });
+
+  it("refuses an anchored end on a node that does not exist", () => {
+    const s = createEditorStore(emptyDocument());
+    expect(() => s.getState().addEdge({ from: { node: "ghost", ax: 0, ay: 0 }, to: { x: 1, y: 1 } })).toThrow();
+  });
+
+  it("removes an edge anchored to a deleted node, exactly as a plainly bound one", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "A", position: { x: 0, y: 0 } });
+    s.getState().addEdge({ from: { node: a, ax: 0.5, ay: 0.5 }, to: { x: 400, y: 400 } });
+    s.getState().removeNodes([a]);
+    expect(s.getState().document.edges).toHaveLength(0);
   });
 });

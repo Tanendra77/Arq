@@ -6,7 +6,7 @@ import {
   NodeSchema,
   NodeStyleSchema,
   emptyDocument,
-  isNodeRef,
+  endpointNode,
   type Document,
   type EdgeStyle,
   type Endpoint,
@@ -304,7 +304,7 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
           const e = d.edges[i];
           // Only string endpoints can name a node; an edge with point endpoints is a free-floating
           // line and survives the deletion of anything.
-          if (e !== undefined && ((isNodeRef(e.from) && gone.has(e.from)) || (isNodeRef(e.to) && gone.has(e.to))))
+          if (e !== undefined && [e.from, e.to].some((ep) => { const n = endpointNode(ep); return n !== undefined && gone.has(n); }))
             d.edges.splice(i, 1);
         }
         for (const id of gone) delete d.layout.pinned[id];
@@ -328,7 +328,8 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
       const nodeIds = new Set(doc.nodes.map((n) => n.id));
       // Only a string endpoint names a node; a point endpoint is a loose end and needs no target.
       for (const [side, ep] of [["from", input.from], ["to", input.to]] as const) {
-        if (isNodeRef(ep) && !nodeIds.has(ep)) throw new Error(`edge ${side} "${ep}" does not exist`);
+        const bound = endpointNode(ep);
+        if (bound !== undefined && !nodeIds.has(bound)) throw new Error(`edge ${side} "${bound}" does not exist`);
       }
       const id = input.id ?? newId("e", new Set(doc.edges.map((e) => e.id)));
       const edge = EdgeSchema.parse({
@@ -399,8 +400,9 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     },
 
     setEndpoint(edgeId, which, ep, opts) {
-      if (isNodeRef(ep) && !get().document.nodes.some((n) => n.id === ep)) {
-        throw new Error(`edge endpoint "${ep}" does not exist`);
+      const bound = endpointNode(ep);
+      if (bound !== undefined && !get().document.nodes.some((n) => n.id === bound)) {
+        throw new Error(`edge endpoint "${bound}" does not exist`);
       }
       get().mutate("set endpoint", (d) => {
         const e = d.edges.find((x) => x.id === edgeId);

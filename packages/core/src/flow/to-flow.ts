@@ -1,6 +1,6 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { Document, Endpoint, NodeShape, NodeStyle, EdgeStyle, Pinned } from "@arq/schema";
-import { isNodeRef } from "@arq/schema";
+import { endpointNode } from "@arq/schema";
 import type { Selection } from "../store/editor-store";
 import { endpointNodeId } from "./endpoint-id";
 
@@ -16,7 +16,12 @@ export type ArqNodeData = {
    * itself with `@arq/render`'s `shapeRect`, exactly as the SVG exporter does. */
   pinned: Pinned | undefined;
 };
-export type ArqEdgeData = { label: string | undefined; style: EdgeStyle | undefined };
+export type ArqEdgeData = {
+  label: string | undefined;
+  style: EdgeStyle | undefined;
+  from: Endpoint;
+  to: Endpoint;
+};
 
 /** Empty data for the hidden node standing in for a loose edge endpoint (see `endpointNodeId`). */
 export type ArqEndpointData = Record<string, never>;
@@ -52,7 +57,10 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
   // and rendering share one code path regardless of whether an end is attached.
   const endpointNodes: ArqFlowNode[] = [];
   const anchor = (edgeId: string, which: "from" | "to", ep: Endpoint): string => {
-    if (isNodeRef(ep)) return ep;
+    // Both bound forms hang off the real node; only a loose point needs a stand-in.
+    const bound = endpointNode(ep);
+    if (bound !== undefined) return bound;
+    const point = ep as { x: number; y: number }; // narrowed by the check above
     const id = endpointNodeId(edgeId, which);
     // Carries its own selected flag like any other node. The store keeps a loose end's selection
     // (see `pruneSelection`); if the derived node disagreed, React Flow would re-assert its own
@@ -60,7 +68,7 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
     endpointNodes.push({
       id,
       type: "arqEndpoint",
-      position: { x: ep.x, y: ep.y },
+      position: { x: point.x, y: point.y },
       // Geometry only: React Flow needs a node to hang an edge end on, but moving that end is
       // ArqEdge's job (one code path for bound and loose ends alike), so this is not draggable.
       draggable: false,
@@ -76,7 +84,9 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
     source: anchor(e.id, "from", e.from),
     target: anchor(e.id, "to", e.to),
     selected: selEdges.has(e.id),
-    data: { label: e.label, style: e.style },
+    // The endpoints travel with the edge so ArqEdge can honour an anchored end, which React Flow's
+    // own source/target ids cannot express.
+    data: { label: e.label, style: e.style, from: e.from, to: e.to },
   }));
 
   return { nodes: [...nodes, ...endpointNodes], edges };

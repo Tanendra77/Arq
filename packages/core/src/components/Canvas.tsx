@@ -24,7 +24,7 @@ import { isNodeRef } from "@arq/schema";
 import { useEditor } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
 import { parseEndpointNodeId, toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
-import { nodeAt } from "../flow/node-handles";
+import { endpointFor } from "../flow/endpoint-target";
 import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqEndpointNode, ArqNode } from "./ArqNode";
@@ -47,8 +47,7 @@ const DRAG_THRESHOLD = 6;
 /** One fixed seed for whatever the in-flight gesture previews. */
 const PREVIEW_SEED = 1;
 
-/** How far outside a shape an arrow end still snaps to it. */
-export const SNAP_MARGIN = 12;
+
 
 /** A rect from two corners in any order. */
 export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number }) {
@@ -286,9 +285,10 @@ function CanvasInner() {
     [addNode, addEdge, screenToFlowPosition, settings],
   );
 
-  /** An arrow end at this point: bound to whatever shape is under or near it, else the bare point. */
+  /** An arrow end at this point: bound to whatever shape is under or near it, else the bare point.
+   *  Placement never pins an exact spot — that is a deliberate act on an existing end. */
   const endpointAt = useCallback(
-    (p: { x: number; y: number }): Endpoint => nodeAt(doc.nodes, doc.layout.pinned, p, SNAP_MARGIN) ?? p,
+    (p: { x: number; y: number }): Endpoint => endpointFor(doc, p, false),
     [doc],
   );
 

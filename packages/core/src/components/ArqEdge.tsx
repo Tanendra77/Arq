@@ -3,6 +3,7 @@ import type { Document } from "@arq/schema";
 import { EdgeLabelRenderer, useInternalNode, useReactFlow, type EdgeProps, type InternalNode } from "@xyflow/react";
 import {
   anchorPair,
+  anchoredPoint,
   collectDefs,
   animAttrs,
   bendFromPoint,
@@ -19,8 +20,7 @@ import {
   type Rect,
 } from "@arq/render";
 import { useEditor } from "../store/context";
-import { nodeAt } from "../flow/node-handles";
-import { SNAP_MARGIN } from "./Canvas";
+import { endpointFor } from "../flow/endpoint-target";
 import type { ArqFlowNode, ArqFlowEdge } from "../flow/to-flow";
 
 /**
@@ -64,7 +64,11 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
 
   // The shared anchor + router from @arq/render, so the canvas and the SVG export draw the same
   // path — including which side of a shape each end mounts on.
-  const { start, end } = anchorPair(from, to);
+  // An end the author pinned overrides the automatic side, here exactly as in the exporter.
+  const { start, end } = anchorPair(from, to, {
+    from: data ? anchoredPoint(data.from, from) : undefined,
+    to: data ? anchoredPoint(data.to, to) : undefined,
+  });
   const { d, mid } = edgePath(start, end, s.routing, s.bend);
   const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(start, end, s.routing, s.labelPos, s.bend);
   const handle = selected === true ? bendHandlePoint(start, end, s.routing, s.bend) : undefined;
@@ -130,11 +134,13 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
               onPointerMove={(e) => {
                 if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
                 const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-                const snapped = nodeAt(doc.nodes, doc.layout.pinned, p, SNAP_MARGIN);
-                setEndpoint(id, which, snapped ?? { x: Math.round(p.x), y: Math.round(p.y) }, { mergeKey: "endpoint" });
+                setEndpoint(id, which, endpointFor(doc, p, e.altKey), { mergeKey: "endpoint" });
               }}
               onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
-            />
+            >
+              {/* An SVG <title> child, which is how a tooltip is spelled on a shape element. */}
+              <title>Drag onto a shape to attach — hold Alt to pin the exact spot</title>
+            </circle>
           ))
         : null}
       {/* Slides the middle leg of a right-angled route. Only shown while the edge is selected, and

@@ -4,12 +4,40 @@ import { ColorSchema, EdgeStyleSchema, GROUP_KINDS, NODE_SHAPES, NodeStyleSchema
 
 export const PointSchema = z.object({ x: z.number(), y: z.number() }).strict();
 
-/** A node id, or a loose point for a free-floating line end. */
-export const EndpointSchema = z.union([Id, PointSchema]);
+/**
+ * An edge end bound to a shape at a chosen spot on it, as fractions of the shape's own box:
+ * `{ ax: 0, ay: 0 }` is its top-left corner and `{ ax: 1, ay: 1 }` its bottom-right.
+ *
+ * Fractions rather than coordinates, so the attachment survives the shape being moved *and*
+ * resized — the point stays where the author put it relative to the shape.
+ */
+export const AnchoredSchema = z.object({
+  node: Id,
+  ax: z.number().min(0).max(1),
+  ay: z.number().min(0).max(1),
+}).strict();
+export type Anchored = z.infer<typeof AnchoredSchema>;
+
+/**
+ * One end of an edge, in three forms: a node id (bound, the renderer picks the facing side), an
+ * anchored binding (bound at a spot the author chose), or a loose point.
+ */
+export const EndpointSchema = z.union([Id, AnchoredSchema, PointSchema]);
 export type Endpoint = z.infer<typeof EndpointSchema>;
 
+/** True for the plain bound form, where the renderer chooses the side. */
 export function isNodeRef(e: Endpoint): e is string {
   return typeof e === "string";
+}
+
+export function isAnchored(e: Endpoint): e is Anchored {
+  return typeof e === "object" && "node" in e;
+}
+
+/** The node an end is attached to, whichever bound form it takes; undefined for a loose point. */
+export function endpointNode(e: Endpoint): string | undefined {
+  if (isNodeRef(e)) return e;
+  return isAnchored(e) ? e.node : undefined;
 }
 
 export const NodeSchema = z.object({
@@ -110,10 +138,11 @@ export const DocumentSchema = DocumentBase.superRefine((doc, ctx) => {
     if (edgeIds.has(e.id)) issue(["edges", i, "id"], `duplicate edge id "${e.id}"`);
     edgeIds.add(e.id);
     rejectReservedId(["edges", i, "id"], e.id);
-    if (isNodeRef(e.from) && !nodeIds.has(e.from))
-      issue(["edges", i, "from"], `edge "${e.id}" references missing node "${e.from}"`);
-    if (isNodeRef(e.to) && !nodeIds.has(e.to))
-      issue(["edges", i, "to"], `edge "${e.id}" references missing node "${e.to}"`);
+    for (const side of ["from", "to"] as const) {
+      const bound = endpointNode(e[side]);
+      if (bound !== undefined && !nodeIds.has(bound))
+        issue(["edges", i, side], `edge "${e.id}" references missing node "${bound}"`);
+    }
   });
   doc.nodes.forEach((n, i) => {
     if (n.group !== undefined && !groupIds.has(n.group))

@@ -1,5 +1,5 @@
 import type { Document } from "@arq/schema";
-import { isNodeRef } from "@arq/schema";
+import { endpointNode } from "@arq/schema";
 import { METRICS, shapeRect, type Point, type Rect } from "./metrics";
 
 export interface DocumentLayout {
@@ -21,7 +21,8 @@ export function layoutDocument(doc: Document): DocumentLayout {
   // box would be clipped out of the exported SVG.
   const points: Point[] = [];
   for (const e of doc.edges) {
-    for (const ep of [e.from, e.to]) if (!isNodeRef(ep)) points.push({ x: ep.x, y: ep.y });
+    // Only a loose point stretches the bounds on its own; a bound end is inside its shape already.
+    for (const ep of [e.from, e.to]) if (endpointNode(ep) === undefined) points.push(ep as { x: number; y: number });
   }
   const pad = METRICS.canvasPadding;
   if (all.length === 0 && points.length === 0) {

@@ -193,3 +193,41 @@ describe("orthogonal bend", () => {
     expect(edgeTangents(s, e, "orthogonal", 0.2).endDir).toEqual({ x: 1, y: 0 });
   });
 });
+
+describe("anchored endpoints", () => {
+  const boxes2 = new Map([["a", { x: 0, y: 0, w: 100, h: 50 }], ["b", { x: 300, y: 0, w: 100, h: 50 }]]);
+
+  it("meets the shape exactly where the author pinned it, not on the facing side", () => {
+    // Top-left corner of a, even though b lies to the right and the automatic choice would be the
+    // right edge.
+    const e = { id: "e", from: { node: "a", ax: 0, ay: 0 }, to: "b" } as const;
+    expect(edgeEnds(e, boxes2)?.start).toEqual({ x: 0, y: 0 });
+  });
+
+  it("tracks the shape through a move and a resize, because it stores fractions", () => {
+    const e = { id: "e", from: { node: "a", ax: 0.5, ay: 1 }, to: "b" } as const;
+    expect(edgeEnds(e, boxes2)?.start).toEqual({ x: 50, y: 50 });
+    const moved = new Map([["a", { x: 200, y: 100, w: 40, h: 20 }], ["b", { x: 600, y: 0, w: 100, h: 50 }]]);
+    expect(edgeEnds(e, moved)?.start).toEqual({ x: 220, y: 120 });
+  });
+
+  it("makes the other end aim at the pinned point rather than the shape's centre", () => {
+    // A wide, flat target below a wide source: which side of the target faces the line then
+    // depends on *where along* the source the line leaves, which is the whole point of aiming at
+    // the pinned spot instead of the source's centre.
+    const wide = new Map([
+      ["a", { x: 0, y: -200, w: 400, h: 100 }],
+      ["b", { x: 0, y: 0, w: 400, h: 20 }],
+    ]);
+    const fromLeft = edgeEnds({ id: "e", from: { node: "a", ax: 0, ay: 1 }, to: "b" }, wide)!;
+    const fromRight = edgeEnds({ id: "e", from: { node: "a", ax: 1, ay: 1 }, to: "b" }, wide)!;
+    expect(fromLeft.start).toEqual({ x: 0, y: -100 });
+    expect(fromRight.start).toEqual({ x: 400, y: -100 });
+    expect(fromLeft.end).toEqual({ x: 0, y: 10 }); // b's left edge
+    expect(fromRight.end).toEqual({ x: 400, y: 10 }); // b's right edge
+  });
+
+  it("still resolves nothing when the pinned shape is missing", () => {
+    expect(edgeEnds({ id: "e", from: { node: "ghost", ax: 0, ay: 0 }, to: "b" }, boxes2)).toBeUndefined();
+  });
+});

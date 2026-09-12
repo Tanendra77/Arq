@@ -1,5 +1,5 @@
 import type { ArqEdge, Endpoint, LabelPosition, Routing } from "@arq/schema";
-import { isNodeRef } from "@arq/schema";
+import { endpointNode, isAnchored } from "@arq/schema";
 import { METRICS, type Point, type Rect } from "./metrics";
 
 const fmt = (n: number) => String(Math.round(n * 100) / 100);
@@ -115,8 +115,20 @@ export function anchorOn(r: Rect, towards: Point): Point {
 
 /** The rect an endpoint occupies: a node's box, or the degenerate box at a loose point. */
 export function endpointRect(ep: Endpoint, nodes: Map<string, Rect>): Rect | undefined {
-  if (!isNodeRef(ep)) return { x: ep.x, y: ep.y, w: 0, h: 0 };
-  return nodes.get(ep);
+  const bound = endpointNode(ep);
+  if (bound !== undefined) return nodes.get(bound);
+  const p = ep as Point;
+  return { x: p.x, y: p.y, w: 0, h: 0 };
+}
+
+/**
+ * Where an anchored end sits, or undefined when the renderer is free to choose the side.
+ *
+ * The fractions are of the shape's own box, so the attachment follows the shape through moves and
+ * resizes rather than being a coordinate that drifts off it.
+ */
+export function anchoredPoint(ep: Endpoint, r: Rect): Point | undefined {
+  return isAnchored(ep) ? { x: r.x + ep.ax * r.w, y: r.y + ep.ay * r.h } : undefined;
 }
 
 /**
@@ -124,17 +136,26 @@ export function endpointRect(ep: Endpoint, nodes: Map<string, Rect>): Rect | und
  * first, then picks its own facing side — so the choice is symmetric and does not depend on which
  * end is resolved first.
  */
-export function anchorPair(from: Rect, to: Rect): { start: Point; end: Point } {
-  const fromCentre = { x: from.x + from.w / 2, y: from.y + from.h / 2 };
-  const toCentre = { x: to.x + to.w / 2, y: to.y + to.h / 2 };
-  return { start: anchorOn(from, toCentre), end: anchorOn(to, fromCentre) };
+export function anchorPair(
+  from: Rect,
+  to: Rect,
+  fixed: { from?: Point | undefined; to?: Point | undefined } = {},
+): { start: Point; end: Point } {
+  // An end the author pinned is also what the *other* end aims at — otherwise a line would point
+  // at a shape's centre while meeting it at a corner.
+  const fromAim = fixed.from ?? { x: from.x + from.w / 2, y: from.y + from.h / 2 };
+  const toAim = fixed.to ?? { x: to.x + to.w / 2, y: to.y + to.h / 2 };
+  return {
+    start: fixed.from ?? anchorOn(from, toAim),
+    end: fixed.to ?? anchorOn(to, fromAim),
+  };
 }
 
 export function edgeEnds(e: ArqEdge, nodes: Map<string, Rect>): { start: Point; end: Point } | undefined {
   const from = endpointRect(e.from, nodes);
   const to = endpointRect(e.to, nodes);
   if (!from || !to) return undefined;
-  return anchorPair(from, to);
+  return anchorPair(from, to, { from: anchoredPoint(e.from, from), to: anchoredPoint(e.to, to) });
 }
 
 function curveControls(start: Point, end: Point): { c1: Point; c2: Point } {

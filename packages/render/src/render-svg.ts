@@ -1,6 +1,6 @@
-import type { ArrowStyle, Document } from "@arq/schema";
-import { collectDefs, glowId, markerId } from "./defs";
-import { edgeEnds, edgeLabelPoint, edgePath } from "./edge-path";
+import type { Document } from "@arq/schema";
+import { collectDefs, glowId } from "./defs";
+import { edgeEnds, edgeLabelPoint, edgePath, edgeTangents } from "./edge-path";
 import { FONT_STACK, fontFaceCss } from "./font";
 import { escapeXml, inlineIcon, placeholderBox } from "./inline-icon";
 import { layoutDocument } from "./layout-document";
@@ -83,11 +83,7 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
   const s = resolveEdgeStyle(e.style);
   const { d, mid } = edgePath(ends.start, ends.end, s.routing);
   const filter = s.glow ? ` filter="url(#${glowId(s.glow.color)})"` : "";
-  // resolveEdgeStyle widens the arrow fields to string via STYLE_DEFAULTS; the schema has
-  // already constrained them to ArrowStyle, so this narrows rather than asserts.
-  const mk = (kind: "start" | "end", arrow: string) =>
-    arrow === "none" ? "" : ` marker-${kind}="url(#${markerId(arrow as ArrowStyle, s.stroke)})"`;
-  const path = edgeMarkup(d, s, seedFromId(id), `${mk("end", s.endArrow)}${mk("start", s.startArrow)}`);
+  const path = edgeMarkup(d, s, seedFromId(id), { ...ends, ...edgeTangents(ends.start, ends.end, s.routing) });
   // `mid` is the path's own midpoint; the label sits wherever the style says, which is only the
   // same point when labelPos is "middle".
   const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos);

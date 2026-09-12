@@ -164,6 +164,32 @@ export function edgeLabelPoint(start: Point, end: Point, routing: Routing, pos: 
   return pathPointAt(start, end, routing, LABEL_T[pos]);
 }
 
+/**
+ * Unit vectors pointing *out* of each end of the routed path — the direction an arrowhead at that
+ * end faces. Taken from the path's own first/last segment, so a head sits along the line it caps
+ * whichever way the edge was routed.
+ */
+export function edgeTangents(start: Point, end: Point, routing: Routing): { startDir: Point; endDir: Point } {
+  const unit = (from: Point, to: Point): Point => {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    // A zero-length segment has no direction; pointing right is as good an answer as any and
+    // keeps the arrowhead from collapsing to a dot.
+    return len === 0 ? { x: 1, y: 0 } : { x: dx / len, y: dy / len };
+  };
+  if (routing === "curved") {
+    const { c1, c2 } = curveControls(start, end);
+    return { startDir: unit(c1, start), endDir: unit(c2, end) };
+  }
+  if (routing === "straight") return { startDir: unit(end, start), endDir: unit(start, end) };
+  const pts = orthogonalPoints(start, end);
+  return {
+    startDir: unit(pts[1] ?? end, pts[0] ?? start),
+    endDir: unit(pts[pts.length - 2] ?? start, pts[pts.length - 1] ?? end),
+  };
+}
+
 export function edgePath(start: Point, end: Point, routing: Routing): { d: string; mid: Point } {
   if (routing === "straight") {
     return { d: `M${pt(start)} L${pt(end)}`, mid: pathPointAt(start, end, routing, 0.5) };

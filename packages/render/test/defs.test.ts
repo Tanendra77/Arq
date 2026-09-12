@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectDefs, colorKey, glowId, markerId } from "../src/defs";
+import { collectDefs, colorKey, glowId } from "../src/defs";
 import { DocumentSchema } from "@arq/schema";
 
 const doc = (edges: unknown[], nodes: unknown[] = []) =>
@@ -12,24 +12,18 @@ describe("ids", () => {
   });
 
   it("builds stable ids", () => {
-    expect(markerId("arrow", "#000000")).toBe("arq-mk-arrow-000000");
     expect(glowId("#00FFFF")).toBe("arq-glow-00ffff");
   });
 });
 
 describe("collectDefs", () => {
-  it("emits one marker per distinct arrow and colour pair", () => {
+  it("emits no markers at all: arrowheads are drawn geometry, not <marker> stamps", () => {
     const d = collectDefs(doc([
       { id: "e1", from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, style: { endArrow: "arrow", stroke: "#000000" } },
-      { id: "e2", from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, style: { endArrow: "arrow", stroke: "#000000" } },
-      { id: "e3", from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, style: { endArrow: "arrow", stroke: "#ff0000" } },
+      { id: "e2", from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, style: { startArrow: "diamond", stroke: "#ff0000" } },
     ]));
-    expect(d.match(/<marker /g)?.length).toBe(2);
-  });
-
-  it("never emits a marker for the none arrow", () => {
-    const d = collectDefs(doc([{ id: "e1", from: { x: 0, y: 0 }, to: { x: 1, y: 1 }, style: { startArrow: "none", endArrow: "none" } }]));
-    expect(d).not.toContain("<marker ");
+    expect(d).not.toContain("<marker");
+    expect(d).toBe("<defs></defs>");
   });
 
   it("emits one filter per distinct glow colour, from nodes and edges alike", () => {

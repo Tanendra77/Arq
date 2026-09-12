@@ -49,6 +49,11 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-node { position: relative; }
 .arq-node.selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--arq-accent) 40%, transparent); border-radius: 4px; }
 .arq-node-shape { pointer-events: none; }
+/* React Flow needs a handle on each node to resolve edge geometry at all, but Arq does not bind
+   arrows to a handle — `anchorOn` picks the side facing the other end, so an arrow meets a shape
+   wherever it should. The handles are therefore kept and hidden rather than removed: two visible
+   dots on every shape suggested connection points that do not exist. */
+.arq-node .react-flow__handle { opacity: 0; pointer-events: none; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; }
 .arq-node-icon svg { width: 100%; height: 100%; display: block; }
 .arq-node-icon-missing { box-sizing: border-box; border: 1px dashed var(--arq-line); font-size: 8px; overflow: hidden; word-break: break-all; display: flex; align-items: center; justify-content: center; text-align: center; }
 /* Font metrics mirror METRICS in @arq/render (labelFontSize/labelLineHeight); position (top/left/
@@ -62,6 +67,8 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
    this only has to stop the wrapper painting a second one of its own. */
 .react-flow__node-arqEndpoint { background: none; }
 .arq-edge { stroke-linecap: round; }
+/* Selection halo, drawn under the edge. Deliberately a path and not a CSS filter — see ArqEdge. */
+.arq-edge-halo { fill: none; stroke: var(--arq-accent); stroke-width: 6; stroke-linecap: round; opacity: 0.35; pointer-events: none; }
 /* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
 .arq-edge-hit { pointer-events: stroke; cursor: pointer; }
 .arq-edge-label { position: absolute; pointer-events: all; font-family: var(--arq-sketch-font); font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; cursor: text; }

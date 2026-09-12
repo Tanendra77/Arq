@@ -5,6 +5,7 @@ import {
   Controls,
   ReactFlow,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   useNodesState,
   useEdgesState,
@@ -15,7 +16,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { resolveNodeStyle, shapeMarkup } from "@arq/render";
-import type { Endpoint } from "@arq/schema";
+import type { Document, Endpoint } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
 import { useEditor } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
@@ -102,7 +103,10 @@ function CanvasInner() {
   const setPinned = useEditor((s) => s.setPinned);
   const setSelection = useEditor((s) => s.setSelection);
   const setEndpoint = useEditor((s) => s.setEndpoint);
-  const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
+  const past = useEditor((s) => s.past);
+  const future = useEditor((s) => s.future);
+  const { screenToFlowPosition, flowToScreenPosition, fitView } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
   const [settings] = useSettings();
   const [tool, setTool] = useActiveTool();
   const armed: PaletteItem | undefined = PALETTE_ITEMS.find((i) => i.key === tool);
@@ -130,6 +134,22 @@ function CanvasInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [armed, pendingFrom, setTool]);
 
+  /**
+   * Fit the view when a *document* arrives, and at no other time.
+   *
+   * React Flow's `fitView` prop fires the first time nodes are measured, which on an empty canvas
+   * is the moment the user places their first shape — so drawing something made the viewport jump
+   * and zoom. Loading is instead detected from the history: `loadDocument` clears both stacks, so
+   * an empty past *and* an empty future means "new document", while undoing back to the start
+   * leaves a non-empty future and correctly does not refit.
+   */
+  const fittedDoc = useRef<Document | null>(null);
+  useEffect(() => {
+    if (!nodesInitialized || past.length > 0 || future.length > 0 || fittedDoc.current === doc) return;
+    fittedDoc.current = doc;
+    fitView({ maxZoom: 1, duration: 200 });
+  }, [doc, past, future, nodesInitialized, fitView]);
+
   // Phase 1 has no user packs wired yet; a plan B task injects installed packs here.
   const resolveIcon = useMemo(() => createIconResolver([]), []);
   const derived = useMemo(() => toFlow(doc, resolveIcon, selection), [doc, resolveIcon, selection]);
@@ -139,6 +159,9 @@ function CanvasInner() {
   useEffect(() => setNodes((prev) => mergeMeasured(prev, derived.nodes)), [derived.nodes, setNodes]);
   useEffect(() => setEdges(derived.edges), [derived.edges, setEdges]);
 
+  // Currently unreachable: node handles are hidden and `pointer-events: none` (styles.css), so no
+  // drag can start a connection — arrows are drawn with the two-click arrow tool instead. Kept as
+  // the other half of that CSS switch, so re-enabling drag-to-connect stays a one-line change.
   const onConnect = useCallback(
     (c: Connection) => {
       const from = doc.nodes.find((n) => n.id === c.source);
@@ -326,7 +349,6 @@ function CanvasInner() {
         onPaneClick={onPaneClick}
         onNodeClick={onNodeClick}
         deleteKeyCode={["Delete", "Backspace"]}
-        fitView
         panOnScroll
         zoomOnScroll={false}
         zoomOnPinch

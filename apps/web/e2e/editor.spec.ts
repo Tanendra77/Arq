@@ -8,11 +8,9 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   await page.getByRole("button", { name: "Ellipse" }).dblclick();
   await expect(page.locator(".react-flow__node")).toHaveCount(2);
 
-  // Spread the nodes apart by dragging the second one to the right. The two palette items land
-  // only 40px apart (see Palette's `place()`), and `fitView` zooms in hard on such a tight pair
-  // (up to the 4x `maxZoom` in Canvas.tsx) — a fixed screen-pixel drag amount can then leave the
-  // on-screen boxes still touching, so the offset scales with the node's own on-screen width to
-  // guarantee a real gap at any zoom level.
+  // Spread the nodes apart by dragging the second one to the right: the two palette items land
+  // only 40px apart (see Palette's `place()`). The offset scales with the node's own on-screen
+  // width so it produces a real gap whatever the current zoom.
   const nodes = page.locator(".react-flow__node");
   const box = await nodes.nth(1).boundingBox();
   if (!box) throw new Error("node not laid out");
@@ -22,17 +20,21 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   await page.mouse.move(box.x + box.width / 2 + dragBy, box.y + box.height / 2, { steps: 10 });
   await page.mouse.up();
 
-  // Connect rectangle -> ellipse via handles.
-  const src = nodes.nth(0).locator(".react-flow__handle.source");
-  const dst = nodes.nth(1).locator(".react-flow__handle.target");
-  const s = await src.boundingBox();
-  const d = await dst.boundingBox();
-  if (!s || !d) throw new Error("handles not found");
-  await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(d.x + d.width / 2, d.y + d.height / 2, { steps: 10 });
-  await page.mouse.up();
+  // Connect rectangle -> ellipse with the arrow tool: arm it, then click each shape. Shapes carry
+  // no visible connection points any more, and clicking anywhere on one mounts that end to it.
+  await page.getByRole("button", { name: "Arrow" }).click();
+  const centreOf = async (i: number) => {
+    const r = await nodes.nth(i).boundingBox();
+    if (!r) throw new Error(`node ${i} not laid out`);
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  };
+  const from = await centreOf(0);
+  const to = await centreOf(1);
+  await page.mouse.click(from.x, from.y);
+  await page.mouse.click(to.x, to.y);
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  // Both ends bound to real shapes, so the saved document names them rather than coordinates.
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
 
   // Save via Ctrl+S produces a download.
   const [download] = await Promise.all([page.waitForEvent("download"), page.keyboard.press("Control+s")]);

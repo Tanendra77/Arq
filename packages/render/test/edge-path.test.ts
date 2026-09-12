@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchorOn, edgeEnds, edgeLabelPoint, edgePath, endpointRect } from "../src/edge-path";
+import { anchorOn, edgeEnds, edgeLabelPoint, edgePath, edgeTangents, endpointRect } from "../src/edge-path";
 
 const boxes = new Map([["a", { x: 0, y: 0, w: 100, h: 50 }], ["b", { x: 300, y: 0, w: 100, h: 50 }]]);
 const boxA = { x: 0, y: 0, w: 100, h: 50 };
@@ -139,5 +139,22 @@ describe("orthogonal routing parity with v1 (no drift)", () => {
       d: "M0 0 L100 0 L100 6 L200 6",
       mid: { x: 100, y: 3 },
     });
+  });
+});
+
+describe("edgeTangents", () => {
+  it("points out of each end along the path's own first and last segment", () => {
+    const s = { x: 0, y: 0 };
+    const e = { x: 100, y: 0 };
+    // Straight: the end faces along travel, the start faces back out of the line.
+    expect(edgeTangents(s, e, "straight")).toEqual({ startDir: { x: -1, y: 0 }, endDir: { x: 1, y: 0 } });
+  });
+
+  it("follows the last orthogonal leg, not the straight line between the ends", () => {
+    // This route ends with a horizontal leg into the target even though the ends differ in y,
+    // so a head at the end must lie flat, not tilt toward the start.
+    const t = edgeTangents({ x: 0, y: 0 }, { x: 200, y: 100 }, "orthogonal");
+    expect(t.endDir).toEqual({ x: 1, y: 0 });
+    expect(t.startDir).toEqual({ x: -1, y: 0 });
   });
 });

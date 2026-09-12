@@ -126,14 +126,14 @@ describe("renderSvg", () => {
     expect(nodeGroup(svg, "dia")).toContain('stroke-dasharray="8 4"');
   });
 
-  it("references a marker by its content-derived id", () => {
+  it("draws arrowheads as geometry in the edge group, referencing no markers", () => {
     const svg = renderSvg(doc, opts);
-    expect(svg).toContain('marker-end="url(#arq-mk-arrow-1a1a1a)"');
-    expect(svg).toContain('marker-start="url(#arq-mk-diamond-0284c7)"');
-    expect(svg).toContain('marker-end="url(#arq-mk-triangle-0284c7)"');
-    expect(defsOf(svg)).toContain('id="arq-mk-circle-1a1a1a"');
-    // endArrow: none must not emit a marker reference.
-    expect(svg).not.toMatch(/marker-(start|end)="url\(#arq-mk-none/);
+    expect(svg).not.toContain("<marker");
+    expect(svg).not.toMatch(/marker-(start|end)=/);
+    // e1 has the default single end arrow, so its group holds the line plus one head; e4 has
+    // neither arrow, so it is the line alone. Both are drawn from the document, not stamped.
+    const group = (id: string) => /<g class="arq-edge" data-id="[^"]*"[^>]*>[\s\S]*?<\/g>/.exec(svg.slice(svg.indexOf(`data-id="${id}"`) - 40))![0];
+    expect((group("e1").match(/<path /g) ?? []).length).toBeGreaterThan((group("e4").match(/<path /g) ?? []).length);
   });
 
   it("references a glow filter rather than using a CSS shadow", () => {
@@ -178,7 +178,8 @@ describe("renderSvg", () => {
       edges: [...fixture.edges].reverse(),
     });
     expect(defsOf(renderSvg(reversed, opts))).toBe(defsOf(renderSvg(doc, opts)));
-    expect(defsOf(renderSvg(doc, opts))).toContain("<marker");
+    // Glow filters are all that `<defs>` carries now; arrowheads are drawn inline.
+    expect(defsOf(renderSvg(doc, opts))).toContain("<filter");
   });
 
   it("embeds a font-face only when the font is available", async () => {
@@ -206,5 +207,59 @@ describe("renderSvg", () => {
     const labelPlate = /<g><rect[^>]*\bfill="([^"]+)"[^>]*\/><text/.exec(svg);
     expect(labelPlate?.[1]).toBe(STYLE_DEFAULTS.canvasBackground);
     expect(canvasFillOf(svg)).toBe("#123456");
+  });
+});
+
+describe("arrowheads", () => {
+  const arrowDoc = (style: Record<string, unknown>) =>
+    DocumentSchema.parse({
+      version: 2, title: "T", nodes: [],
+      edges: [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { routing: "straight", ...style } }],
+    });
+
+  /** Every coordinate pair inside the edge group's own path data — deliberately not the whole
+   *  SVG, whose viewBox and background rect also look like coordinate pairs. */
+  function headPoints(svg: string): { x: number; y: number }[] {
+    const group = /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
+    // The first path is the line itself; the heads are whatever follows it.
+    const ds = [...group.matchAll(/ d="([^"]+)"/g)].map((m) => m[1]!).slice(1);
+    return ds.flatMap((d) =>
+      [...d.matchAll(/(-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/g)].map((m) => ({ x: Number(m[1]), y: Number(m[2]) })),
+    );
+  }
+
+  it("puts the head at the target end, opening back along the line", () => {
+    const p = headPoints(renderSvg(arrowDoc({ endArrow: "arrow", startArrow: "none", roughness: 0 }), opts));
+    expect(p.length).toBeGreaterThan(0);
+    // The tip reaches the endpoint...
+    expect(p.some((q) => Math.abs(q.x - 100) < 0.5 && Math.abs(q.y) < 0.5)).toBe(true);
+    // ...and every part of the head trails behind it rather than overshooting into empty canvas.
+    expect(p.every((q) => q.x <= 100)).toBe(true);
+    // The barbs open away from the line, which is what makes it a head and not a dot.
+    expect(p.some((q) => Math.abs(q.y) > 2)).toBe(true);
+  });
+
+  it("puts a start arrow at the source end instead, facing the other way", () => {
+    const p = headPoints(renderSvg(arrowDoc({ startArrow: "arrow", endArrow: "none", roughness: 0 }), opts));
+    expect(p.length).toBeGreaterThan(0);
+    expect(p.some((q) => Math.abs(q.x) < 0.5 && Math.abs(q.y) < 0.5)).toBe(true);
+    // A head at the source trails forward from x=0, nowhere near the target.
+    expect(p.every((q) => q.x < 40)).toBe(true);
+  });
+
+  it("draws no head at all when both arrows are none", () => {
+    const svg = renderSvg(arrowDoc({ startArrow: "none", endArrow: "none", roughness: 0 }), opts);
+    expect(headPoints(svg)).toEqual([]);
+  });
+
+  it("turns the head with the line: a downward edge gets a downward head", () => {
+    const down = DocumentSchema.parse({
+      version: 2, title: "T", nodes: [],
+      edges: [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 0, y: 100 }, style: { routing: "straight", endArrow: "arrow", roughness: 0 } }],
+    });
+    const p = headPoints(renderSvg(down, opts));
+    expect(p.some((q) => Math.abs(q.x) < 0.5 && Math.abs(q.y - 100) < 0.5)).toBe(true); // tip
+    expect(p.every((q) => q.y <= 100)).toBe(true); // barbs trail back up the line
+    expect(p.some((q) => Math.abs(q.x) > 2)).toBe(true); // and open sideways
   });
 });

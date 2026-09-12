@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactFlowProps } from "@xyflow/react";
 import { emptyDocument } from "@arq/schema";
-import { markerId, STYLE_DEFAULTS } from "@arq/render";
+import { STYLE_DEFAULTS } from "@arq/render";
 import { Canvas, mergeMeasured, planDeletion } from "../../src/components/Canvas";
 import { DEFAULT_NODE_LABEL, setActiveTool } from "../../src/components/Palette";
 import { endpointNodeId, type ArqFlowNode } from "../../src/flow/to-flow";
@@ -161,16 +161,17 @@ describe("Canvas", () => {
         <Canvas />
       </EditorStoreProvider>,
     );
-    // A hand-drawn edge is a group of rough.js paths, not one <path>; the arrowhead marker goes on
-    // exactly one of them, or it would be printed twice over rough's two stroke passes.
+    // A hand-drawn edge is a group of rough.js paths — the line plus a drawn arrowhead. Nothing
+    // references a <marker>: heads are geometry now, so an arrow is one self-contained set of paths.
     const group = container.querySelector("g.arq-edge");
     expect(group).toHaveClass("arq-edge", "selected");
-    const marked = group!.querySelectorAll("path[marker-end]");
-    expect(marked).toHaveLength(1);
-    expect(marked[0]).toHaveAttribute(
-      "marker-end",
-      `url(#${markerId(STYLE_DEFAULTS.edge.endArrow, STYLE_DEFAULTS.edge.stroke)})`,
-    );
+    expect(group!.querySelectorAll("path[marker-end], path[marker-start]")).toHaveLength(0);
+    const paths = group!.querySelectorAll("path");
+    expect(paths.length).toBeGreaterThan(1); // line + head
+    expect(paths[0]).toHaveAttribute("stroke", STYLE_DEFAULTS.edge.stroke);
+    // Selection is a halo path under the edge, never a CSS filter on it.
+    expect(container.querySelector(".arq-edge-halo")).not.toBeNull();
+    expect(group!.getAttribute("style")).toBeNull();
     expect(container.querySelectorAll(".arq-node.selected")).toHaveLength(1);
     // No label was set on the edge, so no label element renders.
     expect(screen.queryByTestId(`edge-label-${e}`)).toBeNull();

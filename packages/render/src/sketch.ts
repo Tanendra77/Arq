@@ -1,6 +1,6 @@
 import rough from "roughjs";
 import type { NodeShape } from "@arq/schema";
-import { DASH_ARRAY, shapeOutline, type ResolvedEdgeStyle, type ResolvedNodeStyle, type Rect } from "./metrics";
+import { DASH_ARRAY, shapeOutline, type Point, type ResolvedEdgeStyle, type ResolvedNodeStyle, type Rect } from "./metrics";
 
 /**
  * Hand-drawn geometry, via rough.js — the same library Excalidraw draws with.
@@ -50,19 +50,16 @@ export function seedFromId(id: string): number {
  * here instead, because `toPaths` drops `strokeLineDash` (it only reaches rough's canvas renderer).
  * It goes on stroke paths only — a dashed fill would show the background through the gaps.
  */
-function toSvg(drawable: ReturnType<typeof generator.rectangle>, dash: string | undefined, extraOnFirst = ""): string {
+function toSvg(drawable: ReturnType<typeof generator.rectangle>, dash: string | undefined): string {
   return generator
     .toPaths(drawable)
-    .map((p, i) => {
+    .map((p) => {
       const attrs = [
         `d="${roundPath(p.d)}"`,
         `stroke="${p.stroke}"`,
         `stroke-width="${r2(p.strokeWidth)}"`,
         `fill="${p.fill === undefined || p.fill === "" ? "none" : p.fill}"`,
         dash !== undefined && p.stroke !== "none" ? `stroke-dasharray="${dash}"` : "",
-        // Markers belong on exactly one path: rough draws a stroke in two overlapping passes, and
-        // repeating the arrowhead on both would double-print it.
-        i === 0 ? extraOnFirst : "",
       ].filter((a) => a !== "");
       return `<path ${attrs.join(" ")}/>`;
     })
@@ -106,13 +103,58 @@ export function sketchShape(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, see
 }
 
 /**
+ * Arrowhead geometry, drawn rather than placed as an SVG `<marker>`.
+ *
+ * This is how Excalidraw draws them, and it is what makes a head look like part of the same
+ * stroke: the barbs pick up the line's own wobble instead of sitting on the end as a crisp
+ * machine-made triangle. At roughness 0 rough.js draws the exact geometry, so the clean look is
+ * the same code path with no jitter — there is no second arrowhead implementation to keep in step.
+ *
+ * `tip` is the point of the head and `dir` the unit direction it faces (from `edgeTangents`).
+ */
+function arrowhead(kind: string, tip: Point, dir: Point, s: ResolvedEdgeStyle, seed: number): string {
+  if (kind === "none") return "";
+  // Scales a little with stroke weight so a heavy line does not outgrow its own head.
+  const len = 11 + s.strokeWidth * 2;
+  const opts = { seed, roughness: s.roughness, stroke: s.stroke, strokeWidth: s.strokeWidth } as const;
+  const filled = { ...opts, fill: s.stroke, fillStyle: "solid" } as const;
+  // The two directions the barbs run, `BARB` radians either side of straight back.
+  const BARB = 0.45;
+  const back = (angle: number, dist: number): Point => {
+    const cos = Math.cos(angle);
+    const sin = Math.sin(angle);
+    return { x: tip.x - (dir.x * cos - dir.y * sin) * dist, y: tip.y - (dir.x * sin + dir.y * cos) * dist };
+  };
+
+  if (kind === "arrow") {
+    // Two open strokes, not a closed triangle: the hand-drawn "V".
+    return toSvg(generator.linearPath([[back(BARB, len).x, back(BARB, len).y], [tip.x, tip.y], [back(-BARB, len).x, back(-BARB, len).y]], opts), undefined);
+  }
+  if (kind === "triangle") {
+    const a = back(BARB, len);
+    const b = back(-BARB, len);
+    return toSvg(generator.polygon([[tip.x, tip.y], [a.x, a.y], [b.x, b.y]], filled), undefined);
+  }
+  if (kind === "diamond") {
+    const a = back(BARB, len);
+    const b = back(-BARB, len);
+    const tail = back(0, len * 1.6);
+    return toSvg(generator.polygon([[tip.x, tip.y], [a.x, a.y], [tail.x, tail.y], [b.x, b.y]], filled), undefined);
+  }
+  // circle
+  const r = len * 0.35;
+  const c = back(0, r);
+  return toSvg(generator.ellipse(c.x, c.y, r * 2, r * 2, filled), undefined);
+}
+
+/**
  * An edge drawn by hand, from the path `edgePath` already routed.
  *
  * `preserveVertices` keeps the two ends exactly where the router put them, so an arrow still meets
  * the shape it is bound to and the arrowhead marker still points the right way — only the middle
  * of the line wobbles.
  */
-export function sketchPath(d: string, s: ResolvedEdgeStyle, seed: number, markers = ""): string {
+export function sketchPath(d: string, s: ResolvedEdgeStyle, seed: number): string {
   return toSvg(
     generator.path(d, {
       seed,
@@ -123,7 +165,6 @@ export function sketchPath(d: string, s: ResolvedEdgeStyle, seed: number, marker
       preserveVertices: true,
     }),
     DASH_ARRAY[s.strokeDash],
-    markers,
   );
 }
 
@@ -147,10 +188,28 @@ export function shapeMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, see
   );
 }
 
-/** The painted markup for an edge, from the path `edgePath` routed. `markers` is the
- *  `marker-start`/`marker-end` attribute text, which lands on exactly one path either way. */
-export function edgeMarkup(d: string, s: ResolvedEdgeStyle, seed: number, markers = ""): string {
-  if (s.roughness > 0) return sketchPath(d, s, seed, markers);
+/**
+ * The painted markup for a whole edge: its line and both arrowheads.
+ *
+ * Heads are drawn here rather than referenced as `<marker>` defs, which is why `collectDefs` no
+ * longer emits any — one arrow is one set of paths, in the document's own coordinates, and the
+ * heads share the line's hand-drawn character instead of being crisp stamps on the end of it.
+ */
+export function edgeMarkup(
+  d: string,
+  s: ResolvedEdgeStyle,
+  seed: number,
+  ends: { start: Point; end: Point; startDir: Point; endDir: Point },
+): string {
   const dash = DASH_ARRAY[s.strokeDash];
-  return `<path d="${d}" fill="none" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}${markers}/>`;
+  const line =
+    s.roughness > 0
+      ? sketchPath(d, s, seed)
+      : `<path d="${d}" fill="none" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`;
+  // Distinct seeds per head, or both ends of the same edge would wobble in lockstep.
+  return (
+    line +
+    arrowhead(s.startArrow, ends.start, ends.startDir, s, seed + 1) +
+    arrowhead(s.endArrow, ends.end, ends.endDir, s, seed + 2)
+  );
 }

@@ -1,5 +1,5 @@
 import { memo, useState } from "react";
-import type { ArrowStyle, Document } from "@arq/schema";
+import type { Document } from "@arq/schema";
 import { EdgeLabelRenderer, useInternalNode, type EdgeProps, type InternalNode } from "@xyflow/react";
 import {
   anchorPair,
@@ -7,8 +7,8 @@ import {
   edgeLabelPoint,
   edgeMarkup,
   edgePath,
+  edgeTangents,
   glowId,
-  markerId,
   resolveEdgeStyle,
   seedFromId,
   shapeRect,
@@ -51,24 +51,16 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
   const { start, end } = anchorPair(from, to);
   const { d, mid } = edgePath(start, end, s.routing);
   const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(start, end, s.routing, s.labelPos);
-  // Selection is view state (never exported), so it is layered on as an extra CSS `filter` rather
-  // than changing `stroke`: an inline style always wins a specificity fight against a `.selected`
-  // class, so this is computed here instead of in CSS. It composes with a document-authored glow
-  // filter rather than replacing it.
-  const filters = [
-    s.glow ? `url(#${glowId(s.glow.color)})` : undefined,
-    selected === true ? "drop-shadow(0 0 2px var(--arq-accent)) drop-shadow(0 0 2px var(--arq-accent))" : undefined,
-  ].filter((f): f is string => f !== undefined);
+  // Selection is view state and never exported, so it is drawn as a wide translucent halo *under*
+  // the edge rather than as a CSS `filter` on it. A filter here forced the whole edge layer onto
+  // its own compositing layer, which some engines (WebView2 in the desktop build) painted black.
+  // A plain extra path cannot do that, and it survives whatever the document's own glow does.
+  const glowFilter = s.glow ? `url(#${glowId(s.glow.color)})` : undefined;
 
   const commit = () => {
     if (draft !== null && draft !== (data?.label ?? "")) setLabel(id, draft);
     setDraft(null);
   };
-
-  // resolveEdgeStyle widens the arrow fields to `string`; the schema already constrained them to
-  // ArrowStyle, so the casts below narrow rather than assert (same as render-svg.ts).
-  const mk = (kind: "start" | "end", arrow: string) =>
-    arrow === "none" ? "" : ` marker-${kind}="url(#${markerId(arrow as ArrowStyle, s.stroke)})"`;
 
   return (
     <>
@@ -76,10 +68,13 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
           is markup rather than a React <path>; the string is built by @arq/render from the
           document's geometry and colours, never from raw user text. Deliberately unclassed: React
           Flow's `.react-flow__edge-path` CSS would override the paint attributes rough sets. */}
+      {selected === true ? <path className="arq-edge-halo" d={d} /> : null}
       <g
         className={`arq-edge${selected === true ? " selected" : ""}`}
-        style={filters.length > 0 ? { filter: filters.join(" ") } : undefined}
-        dangerouslySetInnerHTML={{ __html: edgeMarkup(d, s, seedFromId(id), `${mk("end", s.endArrow)}${mk("start", s.startArrow)}`) }}
+        style={glowFilter !== undefined ? { filter: glowFilter } : undefined}
+        dangerouslySetInnerHTML={{
+          __html: edgeMarkup(d, s, seedFromId(id), { start, end, ...edgeTangents(start, end, s.routing) }),
+        }}
       />
       {/* A fat transparent copy of the path: an edge stroke is only a pixel or two wide, far too
           thin to double-click reliably. This is also what React Flow's own `interactionWidth`

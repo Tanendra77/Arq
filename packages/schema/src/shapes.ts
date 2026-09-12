@@ -16,11 +16,23 @@ export const GROUP_KINDS = ["region", "dc", "vpc", "cluster", "zone", "generic"]
 export type GroupKind = (typeof GROUP_KINDS)[number];
 
 /**
- * How an edge animates. "flow" marches its dashes from source to target, the usual way of showing
- * data moving through a diagram; "none" is a still line.
+ * How an element animates.
+ *
+ * One vocabulary for lines and shapes alike, sharing a single `animate` field: `StylePatch` is the
+ * intersection of both style types, so two enums under one name would collapse to their common
+ * member and make every other value unassignable.
+ *
+ * - `flow` marches a line's dashes from source to target.
+ * - `packets` sends dots travelling along a line, for showing discrete messages rather than a
+ *   continuous stream.
+ * - `pulse` breathes an element's opacity; the only one that means anything on a shape.
  */
-export const EDGE_ANIMATIONS = ["none", "flow"] as const;
-export type EdgeAnimation = (typeof EDGE_ANIMATIONS)[number];
+export const ANIMATIONS = ["none", "flow", "packets", "pulse"] as const;
+export type Animation = (typeof ANIMATIONS)[number];
+
+/** What a line can be set to, and what a shape can — both subsets of `ANIMATIONS`. */
+export const EDGE_ANIMATIONS = ["none", "flow", "packets", "pulse"] as const;
+export const NODE_ANIMATIONS = ["none", "pulse"] as const;
 
 /** Where an edge's label sits along its own path: a fraction of the way from source to target. */
 export const LABEL_POSITIONS = ["start", "middle", "end"] as const;
@@ -48,6 +60,9 @@ export const NodeStyleSchema = z.object({
   radius: z.number().nonnegative().optional(),
   fontSize: z.number().positive().optional(),
   textAlign: z.enum(["left", "center", "right"]).optional(),
+  /** Degrees clockwise about the shape's own centre. */
+  rotate: z.number().optional(),
+  animate: z.enum(ANIMATIONS).optional(),
   roughness: RoughnessSchema.optional(),
   glow: GlowSchema.optional(),
 }).strict();
@@ -60,7 +75,9 @@ export const EdgeStyleSchema = z.object({
   startArrow: z.enum(ARROW_STYLES).optional(),
   endArrow: z.enum(ARROW_STYLES).optional(),
   labelPos: z.enum(LABEL_POSITIONS).optional(),
-  animate: z.enum(EDGE_ANIMATIONS).optional(),
+  animate: z.enum(ANIMATIONS).optional(),
+  /** Where an orthogonal route puts its middle leg, as a fraction between the two ends. */
+  bend: z.number().min(0.05).max(0.95).optional(),
   roughness: RoughnessSchema.optional(),
   glow: GlowSchema.optional(),
 }).strict();

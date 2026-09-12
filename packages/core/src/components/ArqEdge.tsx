@@ -1,11 +1,14 @@
 import { memo, useState, type CSSProperties } from "react";
 import type { Document } from "@arq/schema";
-import { EdgeLabelRenderer, useInternalNode, type EdgeProps, type InternalNode } from "@xyflow/react";
+import { EdgeLabelRenderer, useInternalNode, useReactFlow, type EdgeProps, type InternalNode } from "@xyflow/react";
 import {
   anchorPair,
   collectDefs,
   FLOW_CLASS,
   FLOW_PERIOD_VAR,
+  PACKET_CLASS,
+  bendFromPoint,
+  bendHandlePoint,
   edgeLabelPoint,
   edgePaths,
   edgePath,
@@ -38,6 +41,8 @@ function endpointBox(n: InternalNode<ArqFlowNode> | undefined): Rect | undefined
 
 function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEdge>) {
   const setLabel = useEditor((s) => s.setLabel);
+  const setStyle = useEditor((s) => s.setStyle);
+  const { screenToFlowPosition } = useReactFlow();
   const sourceNode = useInternalNode<ArqFlowNode>(source);
   const targetNode = useInternalNode<ArqFlowNode>(target);
   // null while not editing; otherwise the in-progress draft, so Escape can discard it.
@@ -51,8 +56,9 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
   // The shared anchor + router from @arq/render, so the canvas and the SVG export draw the same
   // path — including which side of a shape each end mounts on.
   const { start, end } = anchorPair(from, to);
-  const { d, mid } = edgePath(start, end, s.routing);
-  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(start, end, s.routing, s.labelPos);
+  const { d, mid } = edgePath(start, end, s.routing, s.bend);
+  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(start, end, s.routing, s.labelPos, s.bend);
+  const handle = selected === true ? bendHandlePoint(start, end, s.routing, s.bend) : undefined;
   // Selection is view state and never exported, so it is drawn as a wide translucent halo *under*
   // the edge rather than as a CSS `filter` on it. A filter here forced the whole edge layer onto
   // its own compositing layer, which some engines (WebView2 in the desktop build) painted black.
@@ -77,7 +83,7 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
         className={`arq-edge${selected === true ? " selected" : ""}`}
         style={glowFilter !== undefined ? { filter: glowFilter } : undefined}
       >
-        {edgePaths(d, s, seedFromId(id), { start, end, ...edgeTangents(start, end, s.routing) }).map((p, i) => (
+        {edgePaths(d, s, seedFromId(id), { start, end, ...edgeTangents(start, end, s.routing, s.bend) }).map((p, i) => (
           <path
             key={i}
             d={p.d}
@@ -88,9 +94,36 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
             {...(p.flowPeriod !== undefined
               ? { className: FLOW_CLASS, style: { [FLOW_PERIOD_VAR]: p.flowPeriod } as CSSProperties }
               : {})}
+            {...(p.motion !== undefined
+              ? {
+                  className: PACKET_CLASS,
+                  style: { offsetPath: `path('${p.motion.path}')`, animationDelay: `${p.motion.delay}s` },
+                }
+              : {})}
           />
         ))}
       </g>
+      {/* Slides the middle leg of a right-angled route. Only shown while the edge is selected, and
+          only for a route that actually has such a leg. */}
+      {handle !== undefined ? (
+        <circle
+          className="arq-bend-handle nodrag nopan"
+          data-testid={`bend-${id}`}
+          cx={handle.x}
+          cy={handle.y}
+          r={5}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }}
+          onPointerMove={(e) => {
+            if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+            const p = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+            setStyle([id], { bend: bendFromPoint(start, end, p) }, { mergeKey: "bend" });
+          }}
+          onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+        />
+      ) : null}
       {/* A fat transparent copy of the path: an edge stroke is only a pixel or two wide, far too
           thin to double-click reliably. This is also what React Flow's own `interactionWidth`
           does, but it needs to carry the handler, so it is spelled out here. */}

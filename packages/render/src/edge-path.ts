@@ -52,15 +52,21 @@ function pointAt(points: Point[], t: number): Point {
 const BACKWARD_STUB = 20;
 const BACKWARD_CLEARANCE = 60;
 
-function orthogonalPoints(start: Point, end: Point): Point[] {
+/**
+ * `bend` slides the leg that joins the two ends, as a fraction of the span: 0.5 is the automatic
+ * halfway route, and dragging the handle on a selected edge moves it along. Which span it applies
+ * to depends on the case — the horizontal one for a forward route, the vertical detour for a
+ * backward one — because that is the leg the handle sits on either way.
+ */
+function orthogonalPoints(start: Point, end: Point, bend = 0.5): Point[] {
   let points: Point[];
   if (start.y === end.y && end.x >= start.x) {
     points = [start, end];
   } else if (end.x - start.x >= 2 * METRICS.cornerRadius) {
-    const midX = (start.x + end.x) / 2;
+    const midX = start.x + (end.x - start.x) * bend;
     points = [start, { x: midX, y: start.y }, { x: midX, y: end.y }, end];
   } else {
-    const midY = Math.max(start.y, end.y) + BACKWARD_CLEARANCE;
+    const midY = Math.max(start.y, end.y) + BACKWARD_CLEARANCE * (bend * 2);
     points = [
       start,
       { x: start.x + BACKWARD_STUB, y: start.y },
@@ -148,10 +154,10 @@ function curvePointAt(start: Point, end: Point, t: number): Point {
 }
 
 /** The point a fraction `t` along an edge, whichever way it is routed. */
-function pathPointAt(start: Point, end: Point, routing: Routing, t: number): Point {
+function pathPointAt(start: Point, end: Point, routing: Routing, t: number, bend?: number): Point {
   if (routing === "straight") return { x: start.x + (end.x - start.x) * t, y: start.y + (end.y - start.y) * t };
   if (routing === "curved") return curvePointAt(start, end, t);
-  return pointAt(orthogonalPoints(start, end), t);
+  return pointAt(orthogonalPoints(start, end, bend), t);
 }
 
 /** How far along the path each label position sits. Off the ends so a start/end label clears the
@@ -160,8 +166,28 @@ const LABEL_T: Record<LabelPosition, number> = { start: 0.2, middle: 0.5, end: 0
 
 /** Where an edge's label plate is centred. The canvas and the SVG exporter both call this, so a
  *  label never sits in one place on screen and another in the export. */
-export function edgeLabelPoint(start: Point, end: Point, routing: Routing, pos: LabelPosition): Point {
-  return pathPointAt(start, end, routing, LABEL_T[pos]);
+export function edgeLabelPoint(start: Point, end: Point, routing: Routing, pos: LabelPosition, bend?: number): Point {
+  return pathPointAt(start, end, routing, LABEL_T[pos], bend);
+}
+
+/**
+ * The point on an orthogonal route the bend handle sits on: the middle of the leg that `bend`
+ * moves. Undefined for any route without one — a straight run, or a non-orthogonal mode.
+ */
+export function bendHandlePoint(start: Point, end: Point, routing: Routing, bend: number): Point | undefined {
+  if (routing !== "orthogonal") return undefined;
+  const pts = orthogonalPoints(start, end, bend);
+  if (pts.length < 4) return undefined; // a single straight leg has nothing to slide
+  const a = pts[1]!;
+  const b = pts[2]!;
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+/** Turn a dragged handle position back into a `bend` fraction, clamped to the schema's range. */
+export function bendFromPoint(start: Point, end: Point, p: Point): number {
+  const span = end.x - start.x;
+  const raw = span === 0 ? 0.5 : (p.x - start.x) / span;
+  return Math.min(0.95, Math.max(0.05, Number(raw.toFixed(3))));
 }
 
 /**
@@ -169,7 +195,7 @@ export function edgeLabelPoint(start: Point, end: Point, routing: Routing, pos: 
  * end faces. Taken from the path's own first/last segment, so a head sits along the line it caps
  * whichever way the edge was routed.
  */
-export function edgeTangents(start: Point, end: Point, routing: Routing): { startDir: Point; endDir: Point } {
+export function edgeTangents(start: Point, end: Point, routing: Routing, bend?: number): { startDir: Point; endDir: Point } {
   const unit = (from: Point, to: Point): Point => {
     const dx = to.x - from.x;
     const dy = to.y - from.y;
@@ -183,14 +209,14 @@ export function edgeTangents(start: Point, end: Point, routing: Routing): { star
     return { startDir: unit(c1, start), endDir: unit(c2, end) };
   }
   if (routing === "straight") return { startDir: unit(end, start), endDir: unit(start, end) };
-  const pts = orthogonalPoints(start, end);
+  const pts = orthogonalPoints(start, end, bend);
   return {
     startDir: unit(pts[1] ?? end, pts[0] ?? start),
     endDir: unit(pts[pts.length - 2] ?? start, pts[pts.length - 1] ?? end),
   };
 }
 
-export function edgePath(start: Point, end: Point, routing: Routing): { d: string; mid: Point } {
+export function edgePath(start: Point, end: Point, routing: Routing, bend?: number): { d: string; mid: Point } {
   if (routing === "straight") {
     return { d: `M${pt(start)} L${pt(end)}`, mid: pathPointAt(start, end, routing, 0.5) };
   }
@@ -198,6 +224,6 @@ export function edgePath(start: Point, end: Point, routing: Routing): { d: strin
     const { c1, c2 } = curveControls(start, end);
     return { d: `M${pt(start)} C${pt(c1)} ${pt(c2)} ${pt(end)}`, mid: curvePointAt(start, end, 0.5) };
   }
-  const points = orthogonalPoints(start, end);
+  const points = orthogonalPoints(start, end, bend);
   return { d: roundedPolyline(points, METRICS.cornerRadius), mid: pointAt(points, 0.5) };
 }

@@ -59,6 +59,8 @@ export interface PathSpec {
   dash: string | undefined;
   /** Length of one dash period, set only on a path that animates; see `FLOW_CLASS`. */
   flowPeriod?: number;
+  /** A travelling packet: the route it follows and how far into the loop it starts. */
+  motion?: { path: string; delay: number };
 }
 
 /** Class an animated stroke carries. The keyframes live in the stylesheet — `styles.css` for the
@@ -68,16 +70,57 @@ export const FLOW_CLASS = "arq-flow";
 /** Custom property the keyframes read, so one rule animates any dash pattern seamlessly. */
 export const FLOW_PERIOD_VAR = "--arq-flow-period";
 
-/** The keyframes and rule that drive `FLOW_CLASS`, shared by the editor stylesheet and exports. */
+export const PACKET_CLASS = "arq-packet";
+export const PULSE_CLASS = "arq-pulse";
+
+/**
+ * The keyframes behind both line animations, shared by the editor stylesheet and every export.
+ *
+ * Packets ride `offset-path`, so a dot follows the routed line exactly — including an orthogonal
+ * route's corners — with no scripting and nothing for a viewer to run. Each packet is drawn at the
+ * origin and placed by the motion path, hence `offset-rotate:0deg`: a circle should not spin as it
+ * goes round a corner.
+ */
 export const FLOW_CSS =
   `@keyframes ${FLOW_CLASS}{to{stroke-dashoffset:calc(var(${FLOW_PERIOD_VAR}) * -2)}}` +
   `.${FLOW_CLASS}{animation:${FLOW_CLASS} 0.9s linear infinite}` +
-  `@media (prefers-reduced-motion: reduce){.${FLOW_CLASS}{animation:none}}`;
+  `@keyframes ${PACKET_CLASS}{from{offset-distance:0%}to{offset-distance:100%}}` +
+  `.${PACKET_CLASS}{offset-rotate:0deg;animation:${PACKET_CLASS} 2.4s linear infinite}` +
+  `@keyframes ${PULSE_CLASS}{50%{opacity:0.45}}` +
+  `.${PULSE_CLASS}{animation:${PULSE_CLASS} 1.8s ease-in-out infinite}` +
+  `@media (prefers-reduced-motion: reduce){.${FLOW_CLASS},.${PACKET_CLASS},.${PULSE_CLASS}{animation:none}}`;
+
+/** How many dots ride a packet line, and how far apart in the loop they sit. */
+const PACKET_COUNT = 3;
+const PACKET_RADIUS = 3;
+const PACKET_LOOP_SECONDS = 2.4;
+
+/** A dot centred on the origin; `offset-path` moves it along the route. */
+function packetDot(r: number): string {
+  return `M${-r} 0a${r} ${r} 0 1 0 ${r * 2} 0a${r} ${r} 0 1 0 ${-r * 2} 0`;
+}
+
+/** The travelling dots for an edge, evenly spaced around one loop by negative start delays. */
+function packets(d: string, s: ResolvedEdgeStyle): PathSpec[] {
+  const r = Math.max(PACKET_RADIUS, s.strokeWidth * 1.6);
+  return Array.from({ length: PACKET_COUNT }, (_, i) => ({
+    d: packetDot(r2(r)),
+    stroke: "none",
+    strokeWidth: 0,
+    fill: s.stroke,
+    dash: undefined,
+    motion: { path: d, delay: r2((-PACKET_LOOP_SECONDS / PACKET_COUNT) * i) },
+  }));
+}
 
 export function pathSpecToSvg(p: PathSpec): string {
-  const flow =
-    p.flowPeriod === undefined ? "" : ` class="${FLOW_CLASS}" style="${FLOW_PERIOD_VAR}:${r2(p.flowPeriod)}"`;
-  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}${flow}/>`;
+  let extra = "";
+  if (p.flowPeriod !== undefined) {
+    extra = ` class="${FLOW_CLASS}" style="${FLOW_PERIOD_VAR}:${r2(p.flowPeriod)}"`;
+  } else if (p.motion !== undefined) {
+    extra = ` class="${PACKET_CLASS}" style="offset-path:path('${p.motion.path}');animation-delay:${p.motion.delay}s"`;
+  }
+  return `<path d="${p.d}" stroke="${p.stroke}" stroke-width="${r2(p.strokeWidth)}" fill="${p.fill}"${p.dash !== undefined ? ` stroke-dasharray="${p.dash}"` : ""}${extra}/>`;
 }
 
 /** A still edge keeps whatever dash it was given; an animated one needs *some* pattern to march,
@@ -244,6 +287,7 @@ export function edgePaths(
   ends: { start: Point; end: Point; startDir: Point; endDir: Point },
 ): PathSpec[] {
   const flowing = s.animate === "flow";
+
   const dash = flowing ? (DASH_ARRAY[s.strokeDash] ?? FLOW_DASH) : DASH_ARRAY[s.strokeDash];
   const line: PathSpec[] = (
     s.roughness > 0
@@ -260,6 +304,9 @@ export function edgePaths(
     ...line,
     ...arrowhead(s.startArrow, ends.start, ends.startDir, s, seed + 1),
     ...arrowhead(s.endArrow, ends.end, ends.endDir, s, seed + 2),
+    // Packets ride the *routed* path, not the hand-drawn one: a dot should travel the line the
+    // diagram means, rather than wander with the sketch's wobble.
+    ...(s.animate === "packets" ? packets(d, s) : []),
   ];
 }
 

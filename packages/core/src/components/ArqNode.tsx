@@ -1,6 +1,8 @@
 import { memo, useState } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
-import { METRICS, glowId, resolveNodeStyle, seedFromId, shapeMarkup, shapeRect, wrapLabel } from "@arq/render";
+import {
+  METRICS, PULSE_CLASS, glowId, resolveNodeStyle, seedFromId, shapeMarkup, shapeRect, wrapLabel,
+} from "@arq/render";
 import { useEditor } from "../store/context";
 import type { ArqFlowNode } from "../flow/to-flow";
 // Same floor drag-to-size uses. `PinnedSchema` requires a positive w/h, so a node must never be
@@ -45,8 +47,16 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
 
   return (
     <div
-      className={`arq-node${selected === true ? " selected" : ""}`}
-      style={{ width: rect.w, height: rect.h, position: "relative" }}
+      className={`arq-node${selected === true ? " selected" : ""}${s.animate === "pulse" ? ` ${PULSE_CLASS}` : ""}`}
+      style={{
+        width: rect.w,
+        height: rect.h,
+        position: "relative",
+        // About the box's own centre, matching the `rotate(deg cx cy)` the exporter writes. The
+        // resize handles and the edge anchors both stay on the unrotated box, which is what keeps
+        // screen and file agreeing on where a line meets this shape.
+        ...(s.rotate === 0 ? {} : { transform: `rotate(${s.rotate}deg)` }),
+      }}
       data-shape={data.shape}
     >
       {/* Live-commits through the same `setPinned` a node drag uses, under its own merge key so a

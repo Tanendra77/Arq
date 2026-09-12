@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { anchorOn, edgeEnds, edgeLabelPoint, edgePath, edgeTangents, endpointRect } from "../src/edge-path";
+import { anchorOn, bendFromPoint, bendHandlePoint, edgeEnds, edgeLabelPoint, edgePath, edgeTangents, endpointRect } from "../src/edge-path";
 
 const boxes = new Map([["a", { x: 0, y: 0, w: 100, h: 50 }], ["b", { x: 300, y: 0, w: 100, h: 50 }]]);
 const boxA = { x: 0, y: 0, w: 100, h: 50 };
@@ -156,5 +156,40 @@ describe("edgeTangents", () => {
     const t = edgeTangents({ x: 0, y: 0 }, { x: 200, y: 100 }, "orthogonal");
     expect(t.endDir).toEqual({ x: 1, y: 0 });
     expect(t.startDir).toEqual({ x: -1, y: 0 });
+  });
+});
+
+describe("orthogonal bend", () => {
+  const s = { x: 0, y: 0 };
+  const e = { x: 200, y: 100 };
+
+  it("slides the middle leg along the span", () => {
+    // Default 0.5 keeps the captured v1 route; a smaller bend moves the vertical leg leftwards.
+    expect(edgePath(s, e, "orthogonal").d).toContain("L92 0");
+    expect(edgePath(s, e, "orthogonal", 0.25).d).toContain("L42 0");
+    expect(edgePath(s, e, "orthogonal", 0.75).d).toContain("L142 0");
+  });
+
+  it("puts the handle on the leg it moves, and reads a dragged position back", () => {
+    expect(bendHandlePoint(s, e, "orthogonal", 0.5)).toEqual({ x: 100, y: 50 });
+    expect(bendHandlePoint(s, e, "orthogonal", 0.25)).toEqual({ x: 50, y: 50 });
+    expect(bendFromPoint(s, e, { x: 50, y: 999 })).toBe(0.25);
+  });
+
+  it("clamps a drag past either end into the schema's range", () => {
+    expect(bendFromPoint(s, e, { x: -500, y: 0 })).toBe(0.05);
+    expect(bendFromPoint(s, e, { x: 5000, y: 0 })).toBe(0.95);
+  });
+
+  it("offers no handle where there is no middle leg to move", () => {
+    // A straight horizontal run, and the non-orthogonal modes.
+    expect(bendHandlePoint({ x: 0, y: 50 }, { x: 200, y: 50 }, "orthogonal", 0.5)).toBeUndefined();
+    expect(bendHandlePoint(s, e, "straight", 0.5)).toBeUndefined();
+    expect(bendHandlePoint(s, e, "curved", 0.5)).toBeUndefined();
+  });
+
+  it("turns the arrowhead with the moved leg", () => {
+    // The final leg stays horizontal however the bend slides, so the head stays flat.
+    expect(edgeTangents(s, e, "orthogonal", 0.2).endDir).toEqual({ x: 1, y: 0 });
   });
 });

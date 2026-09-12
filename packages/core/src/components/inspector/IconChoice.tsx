@@ -1,4 +1,4 @@
-import type { ArrowStyle, DashStyle } from "@arq/schema";
+import type { Animation, ArrowStyle, DashStyle } from "@arq/schema";
 import {
   ARROW_BODY, DASH_ARRAY, edgePath, edgePaths, edgeTangents, pathSpecToSvg, resolveEdgeStyle,
 } from "@arq/render";
@@ -101,13 +101,37 @@ export function labelPosGlyph(pos: "start" | "middle" | "end"): string {
   );
 }
 
-/** Animation: a still line, or one whose dashes are mid-march. */
-export function animateGlyph(animate: "none" | "flow"): string {
+/** Animation: a still line, marching dashes, travelling dots, or a fading element. */
+export function animateGlyph(animate: Animation): string {
   const d = `M${LEFT.x} ${LEFT.y} L${RIGHT.x} ${RIGHT.y}`;
-  if (animate === "none") return svg(stroke(d));
+  if (animate === "flow") {
+    return svg(
+      `${stroke(d, ' stroke-dasharray="5 4"')}` +
+        `<path d="M17 4 L22 9 L17 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`,
+    );
+  }
+  if (animate === "packets") {
+    // The dots the animation actually sends, drawn where they would be mid-flight.
+    return svg(
+      `${stroke(d, ' stroke-opacity="0.35"')}` +
+        [6, 13, 20].map((x) => `<circle cx="${x}" cy="9" r="2.4" fill="currentColor"/>`).join(""),
+    );
+  }
+  if (animate === "pulse") {
+    return svg(
+      `<circle cx="13" cy="9" r="7" fill="currentColor" fill-opacity="0.2"/>` +
+        `<circle cx="13" cy="9" r="4" fill="currentColor"/>`,
+    );
+  }
+  return svg(stroke(d));
+}
+
+/** Rotation, as a square tipped by the amount it names. */
+export function rotateGlyph(degrees: number): string {
+  const cx = BOX.w / 2;
+  const cy = BOX.h / 2;
   return svg(
-    `${stroke(d, ' stroke-dasharray="5 4" stroke-opacity="0.85"')}` +
-      `<path d="M17 4 L22 9 L17 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`,
+    `<rect x="${cx - 6}" y="${cy - 5}" width="12" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(${degrees} ${cx} ${cy})"/>`,
   );
 }
 

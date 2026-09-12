@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ARROW_STYLES, DASH_STYLES, LABEL_POSITIONS,
-  type ArqEdge, type ArqNode, type ArrowStyle, type DashStyle, type EdgeAnimation,
+  type ArqEdge, type ArqNode, type Animation, type ArrowStyle, type DashStyle,
   type LabelPosition, type Routing,
 } from "@arq/schema";
 import { resolveEdgeStyle, resolveNodeStyle, STYLE_DEFAULTS } from "@arq/render";
@@ -9,7 +9,8 @@ import { useEditor, useEditorStore } from "../store/context";
 import type { StylePatch } from "../store/editor-store";
 import { CheckboxField, ColorField, NumberField, TextField } from "./inspector/Field";
 import {
-  IconChoice, alignGlyph, animateGlyph, arrowGlyph, dashGlyph, labelPosGlyph, routingGlyph, sketchGlyph,
+  IconChoice, alignGlyph, animateGlyph, arrowGlyph, dashGlyph, labelPosGlyph, rotateGlyph,
+  routingGlyph, sketchGlyph,
 } from "./inspector/IconChoice";
 
 const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
@@ -53,15 +54,32 @@ const SKETCH_OPTIONS = SKETCH_LEVELS.map((l) => ({
   value: l, title: SKETCH_TITLES[l], glyph: sketchGlyph(SKETCH_ROUGHNESS[l]),
 }));
 
-const ANIMATE_OPTIONS = [
+const EDGE_ANIMATE_OPTIONS = [
   { value: "none", title: "Still", glyph: animateGlyph("none") },
-  { value: "flow", title: "Flowing", glyph: animateGlyph("flow") },
-] as const satisfies readonly { value: EdgeAnimation; title: string; glyph: string }[];
+  { value: "flow", title: "Flowing dashes", glyph: animateGlyph("flow") },
+  { value: "packets", title: "Moving packets", glyph: animateGlyph("packets") },
+  { value: "pulse", title: "Pulse", glyph: animateGlyph("pulse") },
+] as const satisfies readonly { value: Animation; title: string; glyph: string }[];
+
+const NODE_ANIMATE_OPTIONS = [
+  { value: "none", title: "Still", glyph: animateGlyph("none") },
+  { value: "pulse", title: "Pulse", glyph: animateGlyph("pulse") },
+] as const satisfies readonly { value: Animation; title: string; glyph: string }[];
+
+/** Quarter turns plus the upright default; anything else goes in the degrees field beside it. */
+const ROTATE_OPTIONS = [0, 45, 90, 180].map((d) => ({
+  value: String(d),
+  title: d === 0 ? "Upright" : `${d}°`,
+  glyph: rotateGlyph(d),
+}));
 
 const LABEL_POS_TITLES: Record<LabelPosition, string> = { start: "Near start", middle: "Middle", end: "Near end" };
 const LABEL_POS_OPTIONS = LABEL_POSITIONS.map((p) => ({
   value: p, title: LABEL_POS_TITLES[p], glyph: labelPosGlyph(p),
 }));
+
+const PANEL_TABS = ["Style", "Animation"] as const;
+type PanelTab = (typeof PANEL_TABS)[number];
 
 const ALIGN_TITLES = { left: "Left", center: "Centre", right: "Right" } as const;
 const ALIGN_OPTIONS = TEXT_ALIGNMENTS.map((a) => ({ value: a, title: ALIGN_TITLES[a], glyph: alignGlyph(a) }));
@@ -118,6 +136,32 @@ function DocumentPanel() {
   );
 }
 
+/**
+ * Style and Animation live on separate tabs.
+ *
+ * Both panels had grown past a screenful, and the two groups are used at different moments — you
+ * style a diagram while building it and animate it when explaining it — so paging between them
+ * costs nothing and keeps either list short enough to scan.
+ */
+function PanelTabs({ tab, onTab }: { tab: PanelTab; onTab: (t: PanelTab) => void }) {
+  return (
+    <div className="arq-panel-tabs" role="tablist">
+      {PANEL_TABS.map((t) => (
+        <button
+          key={t}
+          type="button"
+          role="tab"
+          aria-selected={tab === t}
+          className={tab === t ? "active" : undefined}
+          onClick={() => onTab(t)}
+        >
+          {t}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function GlowFields({
   on, color, onToggle, onColor,
 }: {
@@ -148,6 +192,8 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const radius = allRect ? commonValue(resolved.map((r) => r.radius)) : undefined;
   const fontSize = commonValue(resolved.map((r) => r.fontSize));
   const textAlign = commonValue(resolved.map((r) => r.textAlign));
+  const rotate = commonValue(resolved.map((r) => r.rotate));
+  const animate = commonValue(resolved.map((r) => r.animate));
   const roughness = commonValue(resolved.map((r) => r.roughness));
   const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
   const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
@@ -155,9 +201,25 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const patch = (p: StylePatch, mergeKey?: string) =>
     store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
 
+  const [tab, setTab] = useState<PanelTab>("Style");
+
   return (
     <div className="arq-inspector-inner">
       <h3>{nodes.length === 1 ? "Shape" : `${nodes.length} shapes`}</h3>
+      <PanelTabs tab={tab} onTab={setTab} />
+      {tab === "Animation" ? (
+        <>
+          <IconChoice label="Motion" value={animate} indeterminate={animate === undefined}
+            options={NODE_ANIMATE_OPTIONS} onChange={(v) => patch({ animate: v })} />
+          <GlowFields
+            on={glowOn}
+            color={glowColor}
+            onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
+            onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
+          />
+        </>
+      ) : (
+        <>
       <div className="arq-field-pair">
         <ColorField label="Fill" value={fill} indeterminate={fill === undefined}
           onChange={(v) => patch({ fill: v }, "style:fill")} />
@@ -184,12 +246,15 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
       </div>
       <IconChoice label="Align" value={textAlign} indeterminate={textAlign === undefined}
         options={ALIGN_OPTIONS} onChange={(v) => patch({ textAlign: v })} />
-      <GlowFields
-        on={glowOn}
-        color={glowColor}
-        onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
-        onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
-      />
+      <IconChoice label="Turn" value={rotate === undefined ? undefined : String(rotate)}
+        indeterminate={rotate === undefined || !ROTATE_OPTIONS.some((o) => o.value === String(rotate))}
+        options={ROTATE_OPTIONS} onChange={(v) => patch({ rotate: Number(v) })} />
+      <div className="arq-field-pair">
+        <NumberField label="Degrees" value={rotate} indeterminate={rotate === undefined} step={1}
+          onChange={(v) => patch({ rotate: v }, "style:rotate")} />
+      </div>
+        </>
+      )}
     </div>
   );
 }
@@ -216,11 +281,25 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
 
   const patch = (p: StylePatch, mergeKey?: string) =>
     store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
+  const [tab, setTab] = useState<PanelTab>("Style");
 
   return (
     <div className="arq-inspector-inner">
       <h3>{edges.length === 1 ? "Line" : `${edges.length} lines`}</h3>
-
+      <PanelTabs tab={tab} onTab={setTab} />
+      {tab === "Animation" ? (
+        <>
+          <IconChoice label="Motion" value={animate} indeterminate={animate === undefined}
+            options={EDGE_ANIMATE_OPTIONS} onChange={(v) => patch({ animate: v })} />
+          <GlowFields
+            on={glowOn}
+            color={glowColor}
+            onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
+            onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
+          />
+        </>
+      ) : (
+        <>
       <IconChoice label="Shape" value={routing} indeterminate={routing === undefined}
         options={ROUTING_OPTIONS} onChange={(v) => patch({ routing: v })} />
       <IconChoice label="Ends" value={startArrow} indeterminate={startArrow === undefined}
@@ -232,9 +311,6 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
       <IconChoice label="Style" value={roughness === undefined ? undefined : sketchLevelOf(roughness)}
         indeterminate={roughness === undefined} options={SKETCH_OPTIONS}
         onChange={(v) => patch({ roughness: SKETCH_ROUGHNESS[v] })} />
-      <IconChoice label="Flow" value={animate} indeterminate={animate === undefined}
-        options={ANIMATE_OPTIONS} onChange={(v) => patch({ animate: v })} />
-
       <div className="arq-field-pair">
         <ColorField label="Colour" value={stroke} indeterminate={stroke === undefined}
           onChange={(v) => patch({ stroke: v }, "style:stroke")} />
@@ -247,13 +323,8 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
       ) : null}
       <IconChoice label="Label at" value={labelPos} indeterminate={labelPos === undefined}
         options={LABEL_POS_OPTIONS} onChange={(v) => patch({ labelPos: v })} />
-
-      <GlowFields
-        on={glowOn}
-        color={glowColor}
-        onToggle={(checked) => patch({ glow: checked ? { color: glowColor ?? DEFAULT_GLOW_COLOR } : undefined })}
-        onColor={(v) => patch({ glow: { color: v } }, "style:glow")}
-      />
+        </>
+      )}
     </div>
   );
 }

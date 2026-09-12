@@ -301,3 +301,43 @@ describe("flow animation", () => {
     expect(/<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0]).not.toContain("arq-flow");
   });
 });
+
+describe("packets, pulse and rotation", () => {
+  const doc1 = (nodes: unknown[], edges: unknown[]) =>
+    DocumentSchema.parse({ version: 2, title: "T", nodes, edges });
+
+  it("sends several dots along the routed path, staggered around one loop", () => {
+    const svg = renderSvg(
+      doc1([], [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 100, y: 0 }, style: { routing: "straight", animate: "packets", roughness: 0 } }]),
+      opts,
+    );
+    const group = /<g class="arq-edge"[\s\S]*?<\/g>/.exec(svg)![0];
+    const dots = [...group.matchAll(/class="arq-packet"[^/]*/g)].map((m) => m[0]);
+    expect(dots).toHaveLength(3);
+    // Each rides the line itself, and they start at different points in the loop.
+    expect(dots.every((d) => d.includes("offset-path:path('M0 0 L100 0')"))).toBe(true);
+    expect(new Set(dots.map((d) => /animation-delay:([^;"]+)/.exec(d)![1])).size).toBe(3);
+    expect(svg).toContain("@keyframes arq-packet");
+  });
+
+  it("follows an orthogonal route's corners, not the straight line between the ends", () => {
+    const svg = renderSvg(
+      doc1([], [{ id: "e1", from: { x: 0, y: 0 }, to: { x: 200, y: 100 }, style: { animate: "packets", roughness: 0 } }]),
+      opts,
+    );
+    expect(svg).toMatch(/offset-path:path\('M0 0 L92 0 Q100 0/);
+  });
+
+  it("pulses a shape without touching its geometry", () => {
+    const svg = renderSvg(doc1([{ id: "n1", shape: "rect", label: "A", style: { animate: "pulse" } }], []), opts);
+    expect(svg).toMatch(/<g class="arq-node arq-pulse"/);
+    expect(svg).toContain("@keyframes arq-pulse");
+  });
+
+  it("rotates a shape about its own centre, and writes nothing when it is upright", () => {
+    const turned = renderSvg(doc1([{ id: "n1", shape: "rect", label: "A", style: { rotate: 45 } }], []), opts);
+    expect(turned).toMatch(/transform="rotate\(45 \d+(\.\d+)? \d+(\.\d+)?\)"/);
+    const upright = renderSvg(doc1([{ id: "n1", shape: "rect", label: "A" }], []), opts);
+    expect(upright).not.toContain("rotate(");
+  });
+});

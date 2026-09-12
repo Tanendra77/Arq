@@ -28,6 +28,9 @@ function renderInspector(
   return store;
 }
 
+/** Glow and motion live on the Animation tab; style controls on the other. */
+const openAnimationTab = () => fireEvent.click(screen.getByRole("tab", { name: "Animation" }));
+
 describe("Inspector", () => {
   it("shows document properties when nothing is selected", () => {
     renderInspector({ nodes: [], edges: [] });
@@ -61,13 +64,33 @@ describe("Inspector", () => {
     // Enumerated properties are icon rows now: the group is named, each button names its option.
     expect(screen.getByRole("group", { name: "Align" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Centre" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Glow")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Turn" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Shape" })).toBeNull();
+    // Animation lives on its own tab, so it is not competing for room with the style controls.
+    expect(screen.queryByLabelText("Glow")).toBeNull();
+    openAnimationTab();
+    expect(screen.getByLabelText("Glow")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Motion" })).toBeInTheDocument();
+  });
+
+  it("rotates a shape from the quarter-turn row and from the degrees field", () => {
+    const store = renderInspector({ nodes: ["a"], edges: [] });
+    fireEvent.click(screen.getByRole("button", { name: "90°" }));
+    expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.rotate).toBe(90);
+    fireEvent.change(screen.getByLabelText("Degrees"), { target: { value: "12" } });
+    expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.rotate).toBe(12);
+  });
+
+  it("pulses a shape", () => {
+    const store = renderInspector({ nodes: ["a"], edges: [] });
+    openAnimationTab();
+    fireEvent.click(screen.getByRole("button", { name: "Pulse" }));
+    expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.animate).toBe("pulse");
   });
 
   it("shows every line control for a selected edge", () => {
     renderInspector({ nodes: [], edges: ["e1"] });
-    for (const group of ["Shape", "Ends", "Stroke", "Style", "Flow", "Label at"]) {
+    for (const group of ["Shape", "Ends", "Stroke", "Style", "Label at"]) {
       expect(screen.getByRole("group", { name: group })).toBeInTheDocument();
     }
     // Both ends are offered independently, and the arrowhead kinds are the full set.
@@ -75,8 +98,9 @@ describe("Inspector", () => {
     expect(screen.getByRole("button", { name: "End: Diamond" })).toBeInTheDocument();
     expect(screen.getByLabelText("Colour")).toBeInTheDocument();
     expect(screen.getByLabelText("Width")).toBeInTheDocument();
-    expect(screen.getByLabelText("Glow")).toBeInTheDocument();
     expect(screen.queryByLabelText("Fill")).toBeNull();
+    openAnimationTab();
+    expect(screen.getByLabelText("Glow")).toBeInTheDocument();
   });
 
   it("marks the active option in an icon row and writes the choice through the store", () => {
@@ -88,11 +112,15 @@ describe("Inspector", () => {
     expect(screen.getByRole("button", { name: "Curved" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("turns flow animation on for a line", () => {
+  it("offers every line animation, including moving packets", () => {
     const store = renderInspector({ nodes: [], edges: ["e1"] });
+    openAnimationTab();
     expect(screen.getByRole("button", { name: "Still" })).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(screen.getByRole("button", { name: "Flowing" }));
-    expect(store.getState().document.edges.find((e) => e.id === "e1")?.style?.animate).toBe("flow");
+    for (const name of ["Flowing dashes", "Moving packets", "Pulse"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Moving packets" }));
+    expect(store.getState().document.edges.find((e) => e.id === "e1")?.style?.animate).toBe("packets");
   });
 
   it("writes an edit through the store", () => {
@@ -177,6 +205,7 @@ describe("Inspector", () => {
 
   it("toggling glow on a node writes a glow style with no merge key, and shows a color field once on", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
+    openAnimationTab();
     const before = store.getState().past.length;
     fireEvent.click(screen.getByLabelText("Glow"));
     expect(store.getState().document.nodes.find((n) => n.id === "a")?.style?.glow).toBeDefined();

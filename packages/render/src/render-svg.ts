@@ -8,7 +8,7 @@ import {
   METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, wrapLabel,
   type Rect,
 } from "./metrics";
-import { FLOW_CSS, edgeMarkup, seedFromId, shapeMarkup } from "./sketch";
+import { FLOW_CSS, PULSE_CLASS, edgeMarkup, seedFromId, shapeMarkup } from "./sketch";
 
 /**
  * A node's icon is whatever the document names, or nothing. There is no per-type fallback:
@@ -73,7 +73,13 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
     .map((line, i) => `<tspan x="${fmt(tx)}" y="${fmt(labelTop + i * m.labelLineHeight + m.labelLineHeight * 0.75)}">${escapeXml(line)}</tspan>`)
     .join("");
 
-  return `<g class="arq-node" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${filter}>${shaped}${icon}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${FG}">${text}</text></g>`;
+  // Rotation is applied to the whole node group about its own centre, so the outline, icon and
+  // label turn together — and the rect the edge router anchors to stays the unrotated one, which
+  // is what keeps the canvas and this export agreeing on where a line meets the shape.
+  const rotate =
+    s.rotate === 0 ? "" : ` transform="rotate(${fmt(s.rotate)} ${fmt(r.x + r.w / 2)} ${fmt(r.y + r.h / 2)})"`;
+  const pulse = s.animate === "pulse" ? ` ${PULSE_CLASS}` : "";
+  return `<g class="arq-node${pulse}" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${rotate}${filter}>${shaped}${icon}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${FG}">${text}</text></g>`;
 }
 
 function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string {
@@ -81,16 +87,20 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
   const ends = edgeEnds(e, nodes);
   if (!ends) return "";
   const s = resolveEdgeStyle(e.style);
-  const { d, mid } = edgePath(ends.start, ends.end, s.routing);
+  const { d, mid } = edgePath(ends.start, ends.end, s.routing, s.bend);
   const filter = s.glow ? ` filter="url(#${glowId(s.glow.color)})"` : "";
-  const path = edgeMarkup(d, s, seedFromId(id), { ...ends, ...edgeTangents(ends.start, ends.end, s.routing) });
+  const path = edgeMarkup(d, s, seedFromId(id), {
+    ...ends,
+    ...edgeTangents(ends.start, ends.end, s.routing, s.bend),
+  });
   // `mid` is the path's own midpoint; the label sits wherever the style says, which is only the
   // same point when labelPos is "middle".
-  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos);
+  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos, s.bend);
   const label = e.label
     ? `<g><rect x="${fmt(lp.x - e.label.length * 3.2 - 4)}" y="${fmt(lp.y - 8)}" width="${fmt(e.label.length * 6.4 + 8)}" height="16" rx="3" fill="${BG}" stroke="${LINE}"/><text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="${FG}">${escapeXml(e.label)}</text></g>`
     : "";
-  return `<g class="arq-edge" data-id="${escapeXml(id)}"${filter}>${path}${label}</g>`;
+  const pulse = s.animate === "pulse" ? ` ${PULSE_CLASS}` : "";
+  return `<g class="arq-edge${pulse}" data-id="${escapeXml(id)}"${filter}>${path}${label}</g>`;
 }
 
 export function renderSvg(doc: Document, opts: RenderOptions): string {

@@ -1,4 +1,7 @@
-:root { color-scheme: light dark; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; --arq-accent: #00c895; }
+:root { color-scheme: light dark; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; --arq-accent: #00c895;
+  /* Mirrors FONT_STACK in @arq/render/src/font.ts. The face itself is injected as an @font-face
+     by installSketchFont() from the same bytes the exporter embeds, so screen and file agree. */
+  --arq-sketch-font: Excalifont, 'Segoe Print', 'Bradley Hand', Chilanka, system-ui, sans-serif; }
 @media (prefers-color-scheme: dark) { :root { --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; } }
 /* Explicit `theme` setting (SettingsModal sets `data-theme` on the root) overrides whatever the
    OS reports; "system" leaves the attribute unset so the media query above wins. */
@@ -22,7 +25,8 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-canvas { width: 100%; height: 100%; position: relative; }
 /* A palette tool is armed: the next click on empty canvas places it. */
 .arq-canvas.armed, .arq-canvas.armed .react-flow__pane { cursor: crosshair; }
-.arq-sizing-preview { position: absolute; pointer-events: none; z-index: 5; border: 1px dashed var(--arq-accent); border-radius: 4px; background: color-mix(in srgb, var(--arq-accent) 12%, transparent); }
+/* Holds the real hand-drawn outline of the shape being dragged out, at its live size. */
+.arq-sizing-preview { position: absolute; pointer-events: none; z-index: 5; overflow: visible; opacity: 0.75; }
 /* Marks the fixed first end of a two-click arrow while its second end is still being chosen. */
 .arq-pending-end { position: absolute; pointer-events: none; z-index: 5; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--arq-accent); }
 .arq-palette-tabs { display: flex; border-bottom: 1px solid var(--arq-line); }
@@ -38,7 +42,7 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-palette-glyph { font-size: 16px; font-weight: 600; line-height: 1; }
 /*
  * A node's own fill/stroke/shape come from the inline <svg data-shape> ArqNode draws with
- * `shapeOutline` (the same function the SVG exporter calls) — this stylesheet never paints the
+ * `shapeMarkup` (the same function the SVG exporter calls) — this stylesheet never paints the
  * shape itself. `.arq-node` only lays out its children and, when selected, draws a halo around
  * the box that sits independent of whatever fill/stroke the document's style resolves to.
  */
@@ -52,17 +56,16 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
    text block. */
 /* Hit-testable (unlike the rest of the node's decoration) purely so double-click can open the
    inline editor; a single click still bubbles to the node, so select and drag are unaffected. */
-.arq-node-label { font-weight: 500; overflow-wrap: anywhere; line-height: 16px; cursor: text; }
-.arq-node-label-input { font: inherit; font-weight: 500; line-height: 16px; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; padding: 0 2px; box-sizing: border-box; }
-/* The hidden node standing in for a loose edge endpoint (`endpointNodeId` in flow/to-flow.ts).
-   Drawn as a small grabbable dot rather than invisible, so a free-floating line end can still be
-   found and dragged; it never appears in the exported SVG, which only draws documented content. */
-.react-flow__node-arqEndpoint { width: 8px; height: 8px; border-radius: 50%; background: var(--arq-line); cursor: grab; }
+.arq-node-label { font-family: var(--arq-sketch-font); font-weight: 500; overflow-wrap: anywhere; line-height: 16px; cursor: text; }
+.arq-node-label-input { font: inherit; font-family: var(--arq-sketch-font); font-weight: 500; line-height: 16px; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; padding: 0 2px; box-sizing: border-box; }
+/* The wrapper React Flow puts around a loose-endpoint node. `.arq-endpoint` below paints the dot;
+   this only has to stop the wrapper painting a second one of its own. */
+.react-flow__node-arqEndpoint { background: none; }
 .arq-edge { stroke-linecap: round; }
 /* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
 .arq-edge-hit { pointer-events: stroke; cursor: pointer; }
-.arq-edge-label { position: absolute; pointer-events: all; font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; cursor: text; }
-.arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-size: 11px; width: 100px; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; }
+.arq-edge-label { position: absolute; pointer-events: all; font-family: var(--arq-sketch-font); font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; cursor: text; }
+.arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-family: var(--arq-sketch-font); font-size: 11px; width: 100px; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-accent); border-radius: 3px; }
 /* The draggable dot standing in for an unattached edge end. Its handles exist only so React Flow
    will render the edge at all; the dot itself is what the user grabs, hence pointer-events: none
    on the handles (otherwise a press would start a new connection instead of moving the end). */

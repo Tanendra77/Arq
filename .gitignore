@@ -10,7 +10,10 @@ target/
 test-results/
 playwright-report/
 *.tsbuildinfo
-packages/render/fonts/
+# The drawing typeface is checked in so a clone can regenerate font.generated.ts; see
+# THIRD_PARTY_NOTICES.md for its licence. Anything else dropped in here stays untracked.
+packages/render/fonts/*
+!packages/render/fonts/Excalifont-Regular.woff2
 apps/desktop/src-tauri/gen/
 apps/desktop/src-tauri/target/
 solace-icons/

@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
-import { DASH_ARRAY, METRICS, glowId, resolveNodeStyle, shapeOutline, shapeRect, wrapLabel } from "@arq/render";
+import { METRICS, glowId, resolveNodeStyle, seedFromId, shapeMarkup, shapeRect, wrapLabel } from "@arq/render";
 import { useEditor } from "../store/context";
 import type { ArqFlowNode } from "../flow/to-flow";
 // Same floor drag-to-size uses. `PinnedSchema` requires a positive w/h, so a node must never be
@@ -23,16 +23,9 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   // rect.x/rect.y — passing the pinned x/y through here would draw the shape outside this node's
   // local `viewBox="0 0 w h"` instead of on top of it.
   const rect = shapeRect(data.pinned ? { ...data.pinned, x: 0, y: 0 } : undefined, data.shape);
-  const dash = DASH_ARRAY[s.strokeDash];
-  // shapeOutline emits one element with no paint attributes, ending in `/>`; splice the resolved
-  // style in exactly as the SVG exporter does, so the two never draw two different rects.
-  const outline = shapeOutline(data.shape, rect, s.radius);
-  const shaped = outline
-    ? outline.replace(
-        "/>",
-        ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.strokeWidth}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
-      )
-    : "";
+  // The exporter's own painter, seeded off the node id: the hand-drawn wobble on screen is the
+  // wobble in the exported file, down to the byte.
+  const shaped = shapeMarkup(data.shape, rect, s, seedFromId(id));
   // Referenced only, never defined here: `EdgeDefs` mounts `collectDefs(doc)` once per document,
   // which already emits `<filter id="arq-glow-<color>">` for every glowing node and edge. Defining
   // it again per-node would duplicate that id in the DOM.
@@ -80,8 +73,8 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
         height={rect.h}
         viewBox={`0 0 ${rect.w} ${rect.h}`}
         style={{ position: "absolute", inset: 0, filter: filterId ? `url(#${filterId})` : undefined }}
-        // The outline string comes only from `shapeOutline` in @arq/render plus attribute values
-        // this component computed itself — never from document/user content.
+        // The outline string comes only from `shapeMarkup` in @arq/render, built from the
+        // document's own geometry and colours — never from raw document/user text.
         dangerouslySetInnerHTML={{ __html: shaped }}
       />
       {hasIcon ? (

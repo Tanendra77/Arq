@@ -9,6 +9,12 @@ import type { StylePatch } from "../store/editor-store";
 import { CheckboxField, ColorField, NumberField, SelectField, TextField } from "./inspector/Field";
 
 const TEXT_ALIGNMENTS = ["left", "center", "right"] as const;
+/** rough.js roughness, named for what it looks like rather than by its number. 0 draws the exact
+ *  geometric shape; 1 is the default, and is what makes a fresh diagram read as hand-drawn. */
+const SKETCH_LEVELS = ["clean", "sketch", "rough"] as const;
+type SketchLevel = (typeof SKETCH_LEVELS)[number];
+const SKETCH_ROUGHNESS: Record<SketchLevel, number> = { clean: 0, sketch: 1, rough: 2 };
+const sketchLevelOf = (r: number): SketchLevel => (r === 0 ? "clean" : r <= 1 ? "sketch" : "rough");
 // The starting color the first time a selection's glow is switched on (no prior color to reuse).
 // Matches the editor's own accent color (--arq-accent in styles.css).
 const DEFAULT_GLOW_COLOR = "#00c895";
@@ -92,6 +98,7 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const radius = allRect ? commonValue(resolved.map((r) => r.radius)) : undefined;
   const fontSize = commonValue(resolved.map((r) => r.fontSize));
   const textAlign = commonValue(resolved.map((r) => r.textAlign));
+  const roughness = commonValue(resolved.map((r) => r.roughness));
   const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
   const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
 
@@ -109,6 +116,9 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
         onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
       <SelectField label="Dash" value={strokeDash} indeterminate={strokeDash === undefined} options={DASH_STYLES}
         onChange={(v) => patch({ strokeDash: v })} />
+      <SelectField label="Sketch" value={roughness === undefined ? undefined : sketchLevelOf(roughness)}
+        indeterminate={roughness === undefined} options={SKETCH_LEVELS}
+        onChange={(v) => patch({ roughness: SKETCH_ROUGHNESS[v] })} />
       {allRect ? (
         <NumberField label="Corner radius" value={radius} indeterminate={radius === undefined} min={0} step={1}
           onChange={(v) => patch({ radius: v }, "style:radius")} />
@@ -145,6 +155,7 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
   const startArrow = commonValue(resolved.map((r) => r.startArrow)) as ArrowStyle | undefined;
   const endArrow = commonValue(resolved.map((r) => r.endArrow)) as ArrowStyle | undefined;
   const labelPos = commonValue(resolved.map((r) => r.labelPos));
+  const roughness = commonValue(resolved.map((r) => r.roughness));
   const glowOn = commonValue(resolved.map((r) => r.glow !== undefined));
   const glowColor = glowOn === true ? commonValue(resolved.flatMap((r) => (r.glow ? [r.glow.color] : []))) : undefined;
 
@@ -171,6 +182,9 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
       ) : null}
       <SelectField label="Label position" value={labelPos} indeterminate={labelPos === undefined} options={LABEL_POSITIONS}
         onChange={(v) => patch({ labelPos: v })} />
+      <SelectField label="Sketch" value={roughness === undefined ? undefined : sketchLevelOf(roughness)}
+        indeterminate={roughness === undefined} options={SKETCH_LEVELS}
+        onChange={(v) => patch({ roughness: SKETCH_ROUGHNESS[v] })} />
       <GlowFields
         on={glowOn}
         color={glowColor}

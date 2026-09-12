@@ -5,8 +5,20 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "vitest run", "typecheck": "tsc -p tsconfig.json", "embed-font": "node scripts/embed-font.mjs" },
-  "dependencies": { "@arq/schema": "workspace:*" },
-  "devDependencies": { "typescript": "^5.6.3", "vitest": "^3.2.4" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json",
+    "embed-font": "node scripts/embed-font.mjs"
+  },
+  "dependencies": {
+    "@arq/schema": "workspace:*",
+    "roughjs": "4.6.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^3.2.4"
+  }
 }

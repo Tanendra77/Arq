@@ -5,9 +5,10 @@ import { FONT_STACK, fontFaceCss } from "./font";
 import { escapeXml, inlineIcon, placeholderBox } from "./inline-icon";
 import { layoutDocument } from "./layout-document";
 import {
-  DASH_ARRAY, METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, shapeOutline, wrapLabel,
+  METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, wrapLabel,
   type Rect,
 } from "./metrics";
+import { edgeMarkup, seedFromId, shapeMarkup } from "./sketch";
 
 /**
  * A node's icon is whatever the document names, or nothing. There is no per-type fallback:
@@ -44,17 +45,10 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
   const n = doc.nodes.find((x) => x.id === id)!;
   const s = resolveNodeStyle(n.style);
   const m = METRICS;
-  const dash = DASH_ARRAY[s.strokeDash];
   const filter = s.glow ? ` filter="url(#${glowId(s.glow.color)})"` : "";
-  // shapeOutline emits one element with no paint attributes, ending in `/>`; the resolved
-  // style is spliced in there so each shape needs no per-shape painting code.
-  const outline = shapeOutline(n.shape, r, s.radius);
-  const shaped = outline
-    ? outline.replace(
-        "/>",
-        ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${fmt(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
-      )
-    : "";
+  // One shared painter for the outline, hand-drawn or crisp, seeded off the node's own id so the
+  // export wobbles exactly the way the editor drew it.
+  const shaped = shapeMarkup(n.shape, r, s, seedFromId(id));
 
   const iconBox: Rect = {
     x: r2(r.x + (r.w - m.iconSize) / 2), y: r2(r.y + m.padding), w: m.iconSize, h: m.iconSize,
@@ -88,13 +82,12 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
   if (!ends) return "";
   const s = resolveEdgeStyle(e.style);
   const { d, mid } = edgePath(ends.start, ends.end, s.routing);
-  const dash = DASH_ARRAY[s.strokeDash];
   const filter = s.glow ? ` filter="url(#${glowId(s.glow.color)})"` : "";
   // resolveEdgeStyle widens the arrow fields to string via STYLE_DEFAULTS; the schema has
   // already constrained them to ArrowStyle, so this narrows rather than asserts.
   const mk = (kind: "start" | "end", arrow: string) =>
     arrow === "none" ? "" : ` marker-${kind}="url(#${markerId(arrow as ArrowStyle, s.stroke)})"`;
-  const path = `<path d="${d}" fill="none" stroke="${s.stroke}" stroke-width="${fmt(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}${mk("end", s.endArrow)}${mk("start", s.startArrow)}/>`;
+  const path = edgeMarkup(d, s, seedFromId(id), `${mk("end", s.endArrow)}${mk("start", s.startArrow)}`);
   // `mid` is the path's own midpoint; the label sits wherever the style says, which is only the
   // same point when labelPos is "middle".
   const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos);

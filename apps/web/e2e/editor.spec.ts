@@ -68,9 +68,12 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   const svg = readFileSync(svgPath, "utf8");
   expect(svg.startsWith("<svg")).toBe(true);
   // Both palette items now create the same editable placeholder label (DEFAULT_NODE_LABEL), so the
-  // two nodes are told apart by their outlines rather than by their text.
+  // two nodes are told apart by `data-shape` — the outlines are hand-drawn rough.js paths now, not
+  // <rect>/<ellipse> primitives.
   expect(svg.match(/>Text</g)).toHaveLength(2);
-  expect(svg).toContain("<ellipse");
+  expect(svg).toContain('data-shape="rect"');
+  expect(svg).toContain('data-shape="ellipse"');
+  expect(svg).toContain("@font-face"); // the sketch font travels with the file
 
   // Export PNG.
   const [pngDl] = await Promise.all([

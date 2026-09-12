@@ -26,6 +26,19 @@ function canvasFillOf(svg: string): string {
 
 const defsOf = (svg: string) => svg.slice(svg.indexOf("<defs>"), svg.indexOf("</defs>") + 7);
 
+/**
+ * The same document with every element pinned to roughness 0.
+ *
+ * Rendering is hand-drawn by default, which turns every outline into rough.js paths. Tests about
+ * *geometry* — which primitive a shape uses, which routing a given mode produces — assert against
+ * this crisp variant, so they keep testing the thing they are named for rather than the sketching.
+ */
+const crisp = DocumentSchema.parse({
+  ...fixture,
+  nodes: fixture.nodes.map((n) => ({ ...n, style: { ...(n.style ?? {}), roughness: 0 } })),
+  edges: fixture.edges.map((e) => ({ ...e, style: { ...(e.style ?? {}), roughness: 0 } })),
+});
+
 describe("layoutDocument", () => {
   it("computes node rects, group rects and padded bounds", () => {
     const l = layoutDocument(doc);
@@ -70,7 +83,7 @@ describe("renderSvg", () => {
   });
 
   it("renders every shape outline", () => {
-    const svg = renderSvg(doc, opts);
+    const svg = renderSvg(crisp, opts);
     expect(svg).toContain("<ellipse");
     expect(svg).toContain("<polygon");
     expect(svg).toContain("<rect");
@@ -78,6 +91,20 @@ describe("renderSvg", () => {
     expect(nodeGroup(svg, "tri")).toContain("<polygon");
     // A text node is its label; it has no outline element of its own.
     expect(nodeGroup(svg, "txt")).not.toMatch(/<(rect|ellipse|polygon)\b/);
+  });
+
+  it("draws hand-drawn by default, and the exact primitive only when roughness is 0", () => {
+    // Default: no geometric primitive survives — rough.js replaces each outline with paths.
+    expect(renderSvg(doc, opts)).not.toContain("<ellipse");
+    expect(renderSvg(crisp, opts)).toContain("<ellipse");
+  });
+
+  it("gives two same-shaped nodes different wobble, and the same node the same wobble twice", () => {
+    const svg = renderSvg(doc, opts);
+    // Seeded off the node id, so a re-render is identical...
+    expect(renderSvg(doc, opts)).toBe(svg);
+    // ...but two nodes never trace the same hand-drawn outline.
+    expect(nodeGroup(svg, "dia")).not.toBe(nodeGroup(svg, "tri"));
   });
 
   it("carries a color attribute on the node group for currentColor icons to inherit", () => {
@@ -120,7 +147,7 @@ describe("renderSvg", () => {
   });
 
   it("routes each edge with its own routing mode", () => {
-    const svg = renderSvg(doc, opts);
+    const svg = renderSvg(crisp, opts);
     const edge = (id: string) => / d="([^"]+)"/.exec(svg.slice(svg.indexOf(`data-id="${id}"`)))![1]!;
     expect(edge("e1")).toContain("Q"); // orthogonal: rounded corners
     expect(edge("e2")).toContain("C"); // curved: one cubic bezier
@@ -155,9 +182,11 @@ describe("renderSvg", () => {
   });
 
   it("embeds a font-face only when the font is available", async () => {
-    const { INTER_WOFF2_BASE64 } = await import("../src/font.generated");
+    const { SKETCH_WOFF2_BASE64 } = await import("../src/font.generated");
     const svg = renderSvg(doc, { resolveIcon, font: "embed" });
-    expect(svg.includes("@font-face")).toBe(INTER_WOFF2_BASE64 !== null);
+    expect(svg.includes("@font-face")).toBe(SKETCH_WOFF2_BASE64 !== null);
+    // The embedded face is the one the text actually asks for, or the export silently falls back.
+    if (SKETCH_WOFF2_BASE64 !== null) expect(svg).toContain("font-family:Excalifont");
   });
 
   it("uses STYLE_DEFAULTS.canvasBackground for the canvas rect when the document doesn't set one", () => {

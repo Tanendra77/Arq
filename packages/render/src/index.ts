@@ -1,4 +1,5 @@
 export * from "./metrics";
+export * from "./sketch";
 export * from "./defs";
 export * from "./edge-path";
 export * from "./inline-icon";

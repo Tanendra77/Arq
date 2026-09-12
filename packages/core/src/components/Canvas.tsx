@@ -14,6 +14,7 @@ import {
   type OnSelectionChangeParams,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { resolveNodeStyle, shapeMarkup } from "@arq/render";
 import type { Endpoint } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
 import { useEditor } from "../store/context";
@@ -23,7 +24,7 @@ import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqEndpointNode, ArqNode } from "./ArqNode";
 import { ArqEdge, EdgeDefs } from "./ArqEdge";
-import { PALETTE_ITEMS, edgeCreationStyle, placeItem, useActiveTool, type PaletteItem } from "./Palette";
+import { PALETTE_ITEMS, edgeCreationStyle, nodeCreationStyle, placeItem, useActiveTool, type PaletteItem } from "./Palette";
 import { useSettings } from "./SettingsModal";
 
 // `arqEndpoint` must be registered: React Flow renders its own default node — a visible empty
@@ -33,6 +34,10 @@ const edgeTypes = { arq: ArqEdge };
 
 /** Below this many pixels a press-and-release is a click, not a drag-to-size gesture. */
 const DRAG_SIZE_THRESHOLD = 6;
+
+/** One fixed seed for the drag preview. The shape still redraws as the box changes size, but it
+ *  does not also re-roll its wobble on every pointer move, which reads as flicker. */
+const PREVIEW_SEED = 1;
 
 /** A rect from two corners in any order. */
 export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number }) {
@@ -105,7 +110,7 @@ function CanvasInner() {
   const wrapRef = useRef<HTMLDivElement>(null);
   /** Where a drag-to-size gesture started, in screen coordinates; null when none is in flight. */
   const sizingFrom = useRef<{ x: number; y: number } | null>(null);
-  /** The dashed preview of that gesture, in coordinates local to the canvas wrapper. */
+  /** The live preview of that gesture, in coordinates local to the canvas wrapper. */
   const [sizingBox, setSizingBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   /** First click of a two-click edge placement: the end already fixed, waiting for the second. */
   const [pendingFrom, setPendingFrom] = useState<Endpoint | null>(null);
@@ -339,11 +344,25 @@ function CanvasInner() {
       </ReactFlow>
       {/* Placement feedback, drawn over the flow rather than inside it: the dashed box a shape
           will occupy on release, and the anchored first end of a two-click arrow. */}
-      {sizingBox !== null ? (
-        <div
+      {sizingBox !== null && armed?.kind === "node" ? (
+        <svg
           className="arq-sizing-preview"
           data-testid="sizing-preview"
           style={{ left: sizingBox.x, top: sizingBox.y, width: sizingBox.w, height: sizingBox.h }}
+          width={sizingBox.w}
+          height={sizingBox.h}
+          viewBox={`0 0 ${sizingBox.w} ${sizingBox.h}`}
+          // The real hand-drawn shape at the real size, not a placeholder box, so what you drag out
+          // is what you get. Built by @arq/render from this component's own numbers and the
+          // creation colours — never from document or user text.
+          dangerouslySetInnerHTML={{
+            __html: shapeMarkup(
+              armed.shape,
+              { x: 0, y: 0, w: sizingBox.w, h: sizingBox.h },
+              resolveNodeStyle(nodeCreationStyle(settings)),
+              PREVIEW_SEED,
+            ),
+          }}
         />
       ) : null}
       {pendingEndScreen !== null ? (

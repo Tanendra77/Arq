@@ -27,6 +27,12 @@ export const ColorSchema = z.string().regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
 
 const GlowSchema = z.object({ color: ColorSchema }).strict();
 
+/**
+ * How hand-drawn an element looks, in rough.js's own units: 0 draws the exact geometric shape,
+ * 1 is the sketched default, 2 is looser still. Unset means the renderer's default (1).
+ */
+const RoughnessSchema = z.number().min(0).max(3);
+
 export const NodeStyleSchema = z.object({
   fill: ColorSchema.optional(),
   stroke: ColorSchema.optional(),
@@ -35,6 +41,7 @@ export const NodeStyleSchema = z.object({
   radius: z.number().nonnegative().optional(),
   fontSize: z.number().positive().optional(),
   textAlign: z.enum(["left", "center", "right"]).optional(),
+  roughness: RoughnessSchema.optional(),
   glow: GlowSchema.optional(),
 }).strict();
 
@@ -46,6 +53,7 @@ export const EdgeStyleSchema = z.object({
   startArrow: z.enum(ARROW_STYLES).optional(),
   endArrow: z.enum(ARROW_STYLES).optional(),
   labelPos: z.enum(LABEL_POSITIONS).optional(),
+  roughness: RoughnessSchema.optional(),
   glow: GlowSchema.optional(),
 }).strict();
 

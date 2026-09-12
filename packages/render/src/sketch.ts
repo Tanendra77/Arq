@@ -1,0 +1,156 @@
+import rough from "roughjs";
+import type { NodeShape } from "@arq/schema";
+import { DASH_ARRAY, shapeOutline, type ResolvedEdgeStyle, type ResolvedNodeStyle, type Rect } from "./metrics";
+
+/**
+ * Hand-drawn geometry, via rough.js — the same library Excalidraw draws with.
+ *
+ * Everything here runs through `RoughGenerator`, which is pure geometry: it returns path data and
+ * never touches a canvas or the DOM. That is what lets the editor and the SVG exporter share it,
+ * exactly as they already share `shapeOutline` and `edgePath`. Rough's jitter comes from a seeded
+ * PRNG, so a given (seed, shape, size) always produces the same path — the export stays byte-stable
+ * and the on-screen shape is the shape you get in the file.
+ */
+const generator = rough.generator();
+
+/** Two decimals, the rounding every other coordinate in this package uses. */
+const r2 = (n: number): number => Math.round(n * 100) / 100;
+
+/**
+ * Round the floats inside generated path data.
+ *
+ * Rough emits full double precision (`-1.213032502681017`), which triples the size of an export for
+ * no visible difference. Rounding here also removes any chance that two JS engines disagree in the
+ * last digit of a `Number.toString`, which the byte-for-byte Node-vs-browser parity test would
+ * otherwise be at the mercy of.
+ */
+function roundPath(d: string): string {
+  return d.replace(/-?\d+\.\d+/g, (m) => String(r2(Number(m))));
+}
+
+/**
+ * A stable seed for one element, derived from its id (FNV-1a).
+ *
+ * Excalidraw stores a random `seed` on every element. Deriving it from the id instead keeps the
+ * document schema unchanged and is still stable for the life of the element: the same node wobbles
+ * the same way on every machine and in every export, and two nodes never wobble identically.
+ */
+export function seedFromId(id: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i += 1) {
+    h ^= id.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  // rough treats 0 as "no seed" and picks a random one, which would break determinism.
+  return (h >>> 0) % 2147483647 || 1;
+}
+
+/**
+ * Serialize rough's output. Rough has already resolved stroke/fill per path; the dash is applied
+ * here instead, because `toPaths` drops `strokeLineDash` (it only reaches rough's canvas renderer).
+ * It goes on stroke paths only — a dashed fill would show the background through the gaps.
+ */
+function toSvg(drawable: ReturnType<typeof generator.rectangle>, dash: string | undefined, extraOnFirst = ""): string {
+  return generator
+    .toPaths(drawable)
+    .map((p, i) => {
+      const attrs = [
+        `d="${roundPath(p.d)}"`,
+        `stroke="${p.stroke}"`,
+        `stroke-width="${r2(p.strokeWidth)}"`,
+        `fill="${p.fill === undefined || p.fill === "" ? "none" : p.fill}"`,
+        dash !== undefined && p.stroke !== "none" ? `stroke-dasharray="${dash}"` : "",
+        // Markers belong on exactly one path: rough draws a stroke in two overlapping passes, and
+        // repeating the arrowhead on both would double-print it.
+        i === 0 ? extraOnFirst : "",
+      ].filter((a) => a !== "");
+      return `<path ${attrs.join(" ")}/>`;
+    })
+    .join("");
+}
+
+/** A node outline drawn by hand. Returns "" for shapes that have no outline (`text`). */
+export function sketchShape(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, seed: number): string {
+  const dash = DASH_ARRAY[s.strokeDash];
+  const opts = {
+    seed,
+    roughness: s.roughness,
+    stroke: s.stroke,
+    strokeWidth: s.strokeWidth,
+    fill: s.fill,
+    // Solid, not rough's default hachure: a document's fill colour is a fill, and cross-hatching it
+    // would change what every existing diagram looks like rather than just how its edges wobble.
+    fillStyle: "solid",
+  } as const;
+
+  const cx = r.x + r.w / 2;
+  const cy = r.y + r.h / 2;
+  switch (shape) {
+    case "rect":
+      return toSvg(generator.rectangle(r.x, r.y, r.w, r.h, opts), dash);
+    case "ellipse":
+      return toSvg(generator.ellipse(cx, cy, r.w, r.h, opts), dash);
+    case "diamond":
+      return toSvg(
+        generator.polygon([[cx, r.y], [r.x + r.w, cy], [cx, r.y + r.h], [r.x, cy]], opts),
+        dash,
+      );
+    case "triangle":
+      return toSvg(
+        generator.polygon([[cx, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], opts),
+        dash,
+      );
+    case "text":
+      return "";
+  }
+}
+
+/**
+ * An edge drawn by hand, from the path `edgePath` already routed.
+ *
+ * `preserveVertices` keeps the two ends exactly where the router put them, so an arrow still meets
+ * the shape it is bound to and the arrowhead marker still points the right way — only the middle
+ * of the line wobbles.
+ */
+export function sketchPath(d: string, s: ResolvedEdgeStyle, seed: number, markers = ""): string {
+  return toSvg(
+    generator.path(d, {
+      seed,
+      roughness: s.roughness,
+      stroke: s.stroke,
+      strokeWidth: s.strokeWidth,
+      fill: "none",
+      preserveVertices: true,
+    }),
+    DASH_ARRAY[s.strokeDash],
+    markers,
+  );
+}
+
+/**
+ * The painted markup for a node's outline — the one function the editor and the exporter both
+ * call, so a shape can never be drawn two different ways.
+ *
+ * At roughness 0 it emits the exact geometric outline (`shapeOutline` with the resolved paint
+ * spliced in, which is what this package did everywhere before hand-drawn rendering existed);
+ * above 0 it emits rough.js's sketched version of the same shape.
+ */
+export function shapeMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, seed: number): string {
+  if (s.roughness > 0) return sketchShape(shape, r, s, seed);
+  const outline = shapeOutline(shape, r, s.radius);
+  if (!outline) return "";
+  const dash = DASH_ARRAY[s.strokeDash];
+  // shapeOutline emits one element with no paint attributes, ending in `/>`.
+  return outline.replace(
+    "/>",
+    ` fill="${s.fill}" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}/>`,
+  );
+}
+
+/** The painted markup for an edge, from the path `edgePath` routed. `markers` is the
+ *  `marker-start`/`marker-end` attribute text, which lands on exactly one path either way. */
+export function edgeMarkup(d: string, s: ResolvedEdgeStyle, seed: number, markers = ""): string {
+  if (s.roughness > 0) return sketchPath(d, s, seed, markers);
+  const dash = DASH_ARRAY[s.strokeDash];
+  return `<path d="${d}" fill="none" stroke="${s.stroke}" stroke-width="${r2(s.strokeWidth)}"${dash ? ` stroke-dasharray="${dash}"` : ""}${markers}/>`;
+}

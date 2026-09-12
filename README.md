@@ -367,6 +367,12 @@ say what the tool is for.
 Vendor icon sets stay with their owners; the icon-pack importer is designed so users bring
 their own artwork under whatever terms they received it.
 
+**Bundled third-party material** is listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md):
+the Excalifont typeface (© 2024 Excalidraw, SIL OFL 1.1), embedded into exported SVGs so a
+diagram renders the same on a machine that does not have it installed, and rough.js (MIT) for
+the hand-drawn geometry. "Excalifont" is a trademark of Excalidraw; Arq bundles the font
+unmodified and is neither affiliated with nor endorsed by Excalidraw.
+
 ---
 
 ## License

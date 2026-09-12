@@ -161,12 +161,40 @@ describe("Canvas", () => {
         <Canvas />
       </EditorStoreProvider>,
     );
-    const path = container.querySelector(`path#${e}`);
-    expect(path).toHaveClass("arq-edge", "selected");
-    expect(path).toHaveAttribute("marker-end", `url(#${markerId(STYLE_DEFAULTS.edge.endArrow, STYLE_DEFAULTS.edge.stroke)})`);
+    // A hand-drawn edge is a group of rough.js paths, not one <path>; the arrowhead marker goes on
+    // exactly one of them, or it would be printed twice over rough's two stroke passes.
+    const group = container.querySelector("g.arq-edge");
+    expect(group).toHaveClass("arq-edge", "selected");
+    const marked = group!.querySelectorAll("path[marker-end]");
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toHaveAttribute(
+      "marker-end",
+      `url(#${markerId(STYLE_DEFAULTS.edge.endArrow, STYLE_DEFAULTS.edge.stroke)})`,
+    );
     expect(container.querySelectorAll(".arq-node.selected")).toHaveLength(1);
     // No label was set on the edge, so no label element renders.
     expect(screen.queryByTestId(`edge-label-${e}`)).toBeNull();
+  });
+
+  it("draws nodes hand-drawn by default, and the exact primitive at roughness 0", () => {
+    const store = createEditorStore(emptyDocument());
+    store.getState().addNode({ shape: "ellipse", label: "A", position: { x: 0, y: 0 } });
+    const sketchy = render(
+      <EditorStoreProvider store={store} platform={createFakePlatform()}>
+        <Canvas />
+      </EditorStoreProvider>,
+    );
+    expect(sketchy.container.querySelector(".arq-node-shape ellipse")).toBeNull();
+    expect(sketchy.container.querySelectorAll(".arq-node-shape path").length).toBeGreaterThan(0);
+
+    const crisp = createEditorStore(emptyDocument());
+    crisp.getState().addNode({ shape: "ellipse", label: "A", position: { x: 0, y: 0 }, style: { roughness: 0 } });
+    const exact = render(
+      <EditorStoreProvider store={crisp} platform={createFakePlatform()}>
+        <Canvas />
+      </EditorStoreProvider>,
+    );
+    expect(exact.container.querySelector(".arq-node-shape ellipse")).not.toBeNull();
   });
 });
 

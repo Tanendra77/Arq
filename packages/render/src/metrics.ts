@@ -63,9 +63,9 @@ export const DEFAULT_TEXT_SIZE = { w: 120, h: 24 } as const;
  */
 export const STYLE_DEFAULTS = {
   node: { fill: "#ffffff", stroke: "#d0d0d0", strokeWidth: 1.5, strokeDash: "solid",
-          radius: 8, fontSize: 13, textAlign: "center" },
+          radius: 8, fontSize: 13, textAlign: "center", roughness: 1 },
   edge: { stroke: "#1a1a1a", strokeWidth: 1.5, strokeDash: "solid",
-          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle" },
+          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", roughness: 1 },
   canvasBackground: "#ffffff",
 } as const;
 
@@ -103,6 +103,7 @@ export function shapeOutline(shape: NodeShape, r: Rect, radius: number): string 
 export type ResolvedNodeStyle = {
   fill: string; stroke: string; strokeWidth: number; strokeDash: DashStyle;
   radius: number; fontSize: number; textAlign: "left" | "center" | "right";
+  roughness: number;
   glow: { color: string } | undefined;
 };
 
@@ -116,6 +117,7 @@ export function resolveNodeStyle(s: NodeStyle | undefined): ResolvedNodeStyle {
     radius: s?.radius ?? d.radius,
     fontSize: s?.fontSize ?? d.fontSize,
     textAlign: s?.textAlign ?? d.textAlign,
+    roughness: s?.roughness ?? d.roughness,
     glow: s?.glow,
   };
 }
@@ -125,6 +127,7 @@ export type ResolvedEdgeStyle = {
   routing: "straight" | "curved" | "orthogonal";
   startArrow: string; endArrow: string;
   labelPos: LabelPosition;
+  roughness: number;
   glow: { color: string } | undefined;
 };
 
@@ -138,6 +141,7 @@ export function resolveEdgeStyle(s: EdgeStyle | undefined): ResolvedEdgeStyle {
     startArrow: s?.startArrow ?? d.startArrow,
     endArrow: s?.endArrow ?? d.endArrow,
     labelPos: s?.labelPos ?? d.labelPos,
+    roughness: s?.roughness ?? d.roughness,
     glow: s?.glow,
   };
 }

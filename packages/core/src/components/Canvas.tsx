@@ -34,6 +34,7 @@ import {
   type PaletteItem,
 } from "./Palette";
 import { useSettings } from "./SettingsModal";
+import { Rulers } from "./Rulers";
 import type { Settings } from "../settings";
 
 // `arqEndpoint` must be registered: React Flow renders its own default node — a visible empty
@@ -59,9 +60,10 @@ export function rectFrom(a: { x: number; y: number }, b: { x: number; y: number 
   };
 }
 
-const GRID_VARIANT: Record<"dots" | "lines", BackgroundVariant> = {
+const GRID_VARIANT: Record<Exclude<Settings["grid"], "off">, BackgroundVariant> = {
   dots: BackgroundVariant.Dots,
   lines: BackgroundVariant.Lines,
+  cross: BackgroundVariant.Cross,
 };
 
 /**
@@ -177,6 +179,8 @@ function CanvasInner() {
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
   /** The same gesture in flow coordinates, for the live preview. */
   const [drag, setDrag] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
+  /** Pointer position in canvas-local pixels, tracked only while the rulers are shown. */
+  const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
 
   // Escape abandons a gesture in flight and disarms, rather than leaving the tool stuck on.
   useEffect(() => {
@@ -311,10 +315,16 @@ function CanvasInner() {
 
   const onMouseMove = useCallback(
     (e: MouseEvent) => {
+      // Only while the rulers are up: this fires on every pixel of pointer travel, and setting
+      // state that often for a readout nobody asked to see is not worth the renders.
+      if (settings.rulers) {
+        const o = e.currentTarget.getBoundingClientRect();
+        setPointer({ x: e.clientX - o.left, y: e.clientY - o.top });
+      }
       if (dragFrom.current === null) return;
       setDrag((d) => (d === null ? null : { ...d, to: screenToFlowPosition({ x: e.clientX, y: e.clientY }) }));
     },
-    [screenToFlowPosition],
+    [screenToFlowPosition, settings.rulers],
   );
 
   const onMouseUp = useCallback(
@@ -360,6 +370,7 @@ function CanvasInner() {
       onMouseDown={onMouseDown}
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
+      onMouseLeave={() => setPointer(null)}
     >
       <ReactFlow
         nodes={nodes}
@@ -391,6 +402,7 @@ function CanvasInner() {
         {settings.grid !== "off" ? (
           <Background variant={GRID_VARIANT[settings.grid]} gap={settings.gridSize} />
         ) : null}
+        {settings.rulers ? <Rulers pointer={pointer} /> : null}
         <Controls />
         {/* Drawn inside the flow's own viewport, so the preview sits in document coordinates and
             scales and pans with everything else instead of being re-projected by hand. */}

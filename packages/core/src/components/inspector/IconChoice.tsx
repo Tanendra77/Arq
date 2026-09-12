@@ -126,6 +126,32 @@ export function animateGlyph(animate: Animation): string {
   return svg(stroke(d));
 }
 
+/** The canvas backdrop, drawn as a scrap of the pattern it names. */
+export function backgroundGlyph(variant: "off" | "dots" | "lines" | "cross"): string {
+  const xs = [7, 13, 19];
+  const ys = [5, 11];
+  if (variant === "off") return svg(`<rect x="4" y="3" width="18" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.5"/>`);
+  if (variant === "dots") {
+    return svg(xs.flatMap((x) => ys.map((y) => `<circle cx="${x}" cy="${y + 2}" r="1.3" fill="currentColor"/>`)).join(""));
+  }
+  if (variant === "lines") {
+    return svg(
+      xs.map((x) => `<line x1="${x}" y1="3" x2="${x}" y2="15" stroke="currentColor" stroke-width="1"/>`).join("") +
+        ys.map((y) => `<line x1="4" y1="${y + 2}" x2="22" y2="${y + 2}" stroke="currentColor" stroke-width="1"/>`).join(""),
+    );
+  }
+  return svg(
+    xs
+      .flatMap((x) =>
+        ys.map(
+          (y) =>
+            `<path d="M${x - 2} ${y + 2} H${x + 2} M${x} ${y} V${y + 4}" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>`,
+        ),
+      )
+      .join(""),
+  );
+}
+
 /** Speed, as one, two or three chevrons. */
 export function speedGlyph(speed: "slow" | "normal" | "fast"): string {
   const count = { slow: 1, normal: 2, fast: 3 }[speed];

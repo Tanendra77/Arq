@@ -2,9 +2,15 @@ import { useEffect, useRef, useSyncExternalStore } from "react";
 import { ARROW_STYLES } from "@arq/schema";
 import { loadSettings, saveSettings, themeColorDefaults, type Settings } from "../settings";
 import { CheckboxField, ColorField, NumberField, SelectField } from "./inspector/Field";
+import { IconChoice, backgroundGlyph } from "./inspector/IconChoice";
 
 const THEMES = ["light", "dark", "system"] as const;
-const GRID_MODES = ["off", "dots", "lines"] as const;
+const BACKGROUND_OPTIONS = [
+  { value: "off", title: "Plain", glyph: backgroundGlyph("off") },
+  { value: "dots", title: "Dots", glyph: backgroundGlyph("dots") },
+  { value: "lines", title: "Grid", glyph: backgroundGlyph("lines") },
+  { value: "cross", title: "Crosses", glyph: backgroundGlyph("cross") },
+] as const satisfies readonly { value: Settings["grid"]; title: string; glyph: string }[];
 
 /**
  * Settings are read live by Toolbar (the modal itself), Canvas (grid/snap) and Palette (creation
@@ -100,8 +106,10 @@ export function SettingsModal({ open, onClose }: { open: boolean; onClose: () =>
         <h2 id="arq-settings-title">Settings</h2>
         <SelectField label="Theme" value={settings.theme} options={THEMES}
           onChange={(v) => setSettingsPatch({ theme: v, ...retheme(settings, v) })} />
-        <SelectField label="Grid" value={settings.grid} options={GRID_MODES}
+        <IconChoice label="Background" value={settings.grid} options={BACKGROUND_OPTIONS}
           onChange={(v) => setSettingsPatch({ grid: v })} />
+        <CheckboxField label="Rulers" checked={settings.rulers}
+          onChange={(v) => setSettingsPatch({ rulers: v })} />
         <NumberField label="Grid size" value={settings.gridSize} min={2} step={1}
           onChange={(v) => setSettingsPatch({ gridSize: v })} />
         <CheckboxField label="Snap to grid" checked={settings.snap}

@@ -84,3 +84,20 @@ describe("settings", () => {
     spy.mockRestore();
   });
 });
+
+describe("canvas settings", () => {
+  it("has no rulers until asked, and remembers the choice", () => {
+    expect(loadSettings().rulers).toBe(false);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, rulers: true }));
+    expect(loadSettings().rulers).toBe(true);
+  });
+
+  it("accepts every background pattern and rejects anything else", () => {
+    for (const grid of ["off", "dots", "lines", "cross"] as const) {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, grid }));
+      expect(loadSettings().grid).toBe(grid);
+    }
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, grid: "tartan" }));
+    expect(loadSettings().grid).toBe(DEFAULT_SETTINGS.grid);
+  });
+});

@@ -34,3 +34,22 @@ test("a free-floating line survives a save and open round trip", async ({ page }
   const saved = JSON.parse(readFileSync(p, "utf8")) as { edges: { from: unknown }[] };
   expect(typeof saved.edges[0]?.from).toBe("object");
 });
+
+test("rulers track the pointer in document coordinates", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByTestId("rulers")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByLabel("Rulers").check();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("rulers")).toBeVisible();
+
+  // The readout follows the pointer, and two different places read differently.
+  const b = (await page.getByTestId("canvas").boundingBox())!;
+  await page.mouse.move(b.x + 200, b.y + 160);
+  const first = await page.getByTestId("ruler-readout").textContent();
+  await page.mouse.move(b.x + 420, b.y + 300);
+  const second = await page.getByTestId("ruler-readout").textContent();
+  expect(first).toMatch(/^-?\d+, -?\d+$/);
+  expect(second).not.toBe(first);
+});

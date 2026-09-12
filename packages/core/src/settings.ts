@@ -6,7 +6,8 @@ export const SETTINGS_KEY = "arq.settings";
 export interface Settings {
   version: 1;
   theme: "light" | "dark" | "system";
-  grid: "off" | "dots" | "lines";
+  grid: "off" | "dots" | "lines" | "cross";
+  rulers: boolean;
   snap: boolean;
   gridSize: number;
   nodeFill: string;
@@ -16,13 +17,13 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1, theme: "system", grid: "dots", snap: true, gridSize: 10,
+  version: 1, theme: "system", grid: "dots", rulers: false, snap: true, gridSize: 10,
   nodeFill: STYLE_DEFAULTS.node.fill, nodeStroke: STYLE_DEFAULTS.node.stroke,
   edgeStroke: STYLE_DEFAULTS.edge.stroke, edgeArrow: "arrow",
 };
 
 const THEMES = ["light", "dark", "system"] as const;
-const GRIDS = ["off", "dots", "lines"] as const;
+const GRIDS = ["off", "dots", "lines", "cross"] as const;
 
 /**
  * Shape colours that read on a dark canvas: a near-black fill with a white outline, the inverse of
@@ -61,6 +62,7 @@ function sanitize(parsed: Partial<Settings>): Settings {
   if (THEMES.includes(parsed.theme as (typeof THEMES)[number])) s.theme = parsed.theme as Settings["theme"];
   if (GRIDS.includes(parsed.grid as (typeof GRIDS)[number])) s.grid = parsed.grid as Settings["grid"];
   if (typeof parsed.snap === "boolean") s.snap = parsed.snap;
+  if (typeof parsed.rulers === "boolean") s.rulers = parsed.rulers;
   if (typeof parsed.gridSize === "number" && parsed.gridSize > 0) s.gridSize = parsed.gridSize;
   if (ColorSchema.safeParse(parsed.nodeFill).success) s.nodeFill = parsed.nodeFill as string;
   if (ColorSchema.safeParse(parsed.nodeStroke).success) s.nodeStroke = parsed.nodeStroke as string;

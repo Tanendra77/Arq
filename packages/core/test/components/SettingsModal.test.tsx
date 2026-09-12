@@ -99,11 +99,33 @@ describe("SettingsModal", () => {
     expect(capturedProps?.snapGrid).toEqual([25, 25]);
   });
 
-  it("hides the grid background when grid is set to off", async () => {
+  it("hides the canvas pattern when the background is set to plain", async () => {
     renderApp();
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    fireEvent.change(screen.getByLabelText("Grid"), { target: { value: "off" } });
+    expect(document.querySelector(".react-flow__background")).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Plain" }));
     expect(document.querySelector(".react-flow__background")).toBeNull();
+  });
+
+  it("offers each canvas pattern, and switches to the one picked", async () => {
+    renderApp();
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    for (const name of ["Plain", "Dots", "Grid", "Crosses"]) {
+      expect(screen.getByRole("button", { name })).toBeInTheDocument();
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Crosses" }));
+    expect(screen.getByRole("button", { name: "Crosses" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("keeps the rulers off until switched on, then shows them over the canvas", async () => {
+    renderApp();
+    expect(screen.queryByTestId("rulers")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByLabelText("Rulers"));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.getByTestId("rulers")).toBeInTheDocument();
+    // Nothing under the pointer yet, so the readout is empty rather than showing a stale position.
+    expect(screen.getByTestId("ruler-readout")).toHaveTextContent("");
   });
 
   it("applies the default fill to a newly created shape", async () => {

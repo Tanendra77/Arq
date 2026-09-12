@@ -41,6 +41,17 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-canvas { width: 100%; height: 100%; position: relative; }
 /* A palette tool is armed: the next click on empty canvas places it. */
 .arq-canvas.armed, .arq-canvas.armed .react-flow__pane { cursor: crosshair; }
+/* Optional rulers, laid over the canvas edges. `pointer-events: none` throughout: they are a
+   readout, and must never intercept a click meant for the diagram underneath. */
+.arq-rulers { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.arq-ruler { position: absolute; background: color-mix(in srgb, var(--arq-bg) 88%, transparent); }
+.arq-ruler-x { left: 0; top: 0; border-bottom: 1px solid var(--arq-line); }
+.arq-ruler-y { left: 0; top: 0; border-right: 1px solid var(--arq-line); }
+.arq-ruler line { stroke: var(--arq-line); }
+.arq-ruler text { fill: var(--arq-fg); opacity: 0.55; font-size: 9px; font-family: system-ui, sans-serif; }
+.arq-ruler line.arq-ruler-cursor { stroke: var(--arq-accent); stroke-width: 1; }
+.arq-ruler-corner { position: absolute; left: 0; top: 0; min-width: 22px; height: 22px; padding: 0 4px; display: flex; align-items: center; justify-content: center; background: var(--arq-bg); border-right: 1px solid var(--arq-line); border-bottom: 1px solid var(--arq-line); font-size: 9px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+
 /* The real shape or arrow the in-flight gesture will produce, drawn in the flow's own viewport. */
 .arq-draw-preview { position: absolute; pointer-events: none; overflow: visible; opacity: 0.7; }
 .arq-palette-tabs { display: flex; border-bottom: 1px solid var(--arq-line); }

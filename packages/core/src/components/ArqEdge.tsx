@@ -307,6 +307,8 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
             data-testid={`edge-label-input-${id}`}
             style={{
               transform: `translate(-50%, -50%) translate(${lp.x}px, ${lp.y}px)`,
+              // The label rises and falls with its line — lifted with it while selected, as the line is.
+              zIndex: (data?.layer ?? 0) + (selected === true ? 1000 : 0),
               ...labelStyle(s),
               ...(s.textBackground !== undefined ? { background: s.textBackground } : {}),
             }}
@@ -328,6 +330,8 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
             data-testid={`edge-label-${id}`}
             style={{
               transform: `translate(-50%, -50%) translate(${lp.x}px, ${lp.y}px)`,
+              // The label rises and falls with its line — lifted with it while selected, as the line is.
+              zIndex: (data?.layer ?? 0) + (selected === true ? 1000 : 0),
               ...labelStyle(s),
               // Bare text unless a plate was asked for — the same as the export.
               ...(s.textBackground !== undefined ? { background: s.textBackground } : {}),

@@ -1,10 +1,18 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
+/** Every shape and line bottom to top, the way `stackingOrder` draws them. */
 const nodeOrder = (page: Page) =>
-  page.evaluate(() =>
-    (window as unknown as { __arq: { store: { getState(): { document: { nodes: { id: string }[] } } } } }).__arq.store
-      .getState().document.nodes.map((n) => n.id));
+  page.evaluate(() => {
+    type El = { id: string; z?: number };
+    const d = (window as unknown as { __arq: { store: { getState(): { document: { nodes: El[]; edges: El[] } } } } }).__arq.store.getState().document;
+    const items = [
+      ...d.edges.map((e, i) => ({ key: `edge:${e.id}`, z: e.z ?? 0, rank: 0, i })),
+      ...d.nodes.map((n, i) => ({ key: n.id, z: n.z ?? 0, rank: 1, i })),
+    ];
+    items.sort((a, b) => a.z - b.z || a.rank - b.rank || a.i - b.i);
+    return items.map((x) => x.key);
+  });
 
 async function exportSvg(page: Page, pick?: (dialog: ReturnType<Page["getByRole"]>) => Promise<void>) {
   await page.getByRole("button", { name: "Export", exact: true }).click();
@@ -40,8 +48,9 @@ test("overlapping shapes can be brought to the front and sent to the back", asyn
   await page.locator(".react-flow__node").first().click({ position: { x: 8, y: 8 } });
   await page.getByTestId("inspector").getByRole("button", { name: /Bring to front/ }).click();
   expect(await nodeOrder(page)).toEqual(["ellipse-1", "rect-1"]);
-  // The canvas draws in the same order: the rectangle's element now comes last.
-  await expect.poll(() => page.locator(".react-flow__node").evaluateAll((els) => els.map((e) => e.getAttribute("data-id")))).toEqual(["ellipse-1", "rect-1"]);
+  // The canvas stacks the same way: the rectangle now has the higher z-index.
+  await expect.poll(() => page.locator(".react-flow__node").evaluateAll((els) =>
+    els.map((e) => [e.getAttribute("data-id"), Number(getComputedStyle(e).zIndex)] as const).sort((a, b) => a[1] - b[1]).map((x) => x[0]))).toEqual(["ellipse-1", "rect-1"]);
 
   await page.keyboard.press("Control+Shift+BracketLeft"); // send to back
   expect(await nodeOrder(page)).toEqual(["rect-1", "ellipse-1"]);
@@ -95,4 +104,34 @@ test("the JSON can be copied, downloaded and browsed as a tree, and its errors c
   await expect(page.getByTestId("json-status")).toHaveText(/problem/);
   await panel.getByRole("button", { name: "Copy errors" }).click();
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain("nodes[0].shape");
+});
+
+test("a line can be brought above a shape, on the canvas and in the export", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Rectangle" }).dblclick();
+  const shape = (await page.locator(".react-flow__node").first().boundingBox())!;
+  const y = shape.y + shape.height / 2;
+
+  // A free line straight across the middle of the shape.
+  await page.getByRole("button", { name: "Line" }).click();
+  await page.mouse.move(shape.x - 60, y);
+  await page.mouse.down();
+  await page.mouse.move(shape.x + shape.width + 60, y, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.locator(".react-flow__edge")).toHaveCount(1);
+  const topAt = () =>
+    page.evaluate(({ x, y }) => (document.elementFromPoint(x, y)?.closest(".react-flow__edge, .react-flow__node")?.getAttribute("class") ?? ""),
+      { x: shape.x + shape.width / 2, y });
+  expect(await topAt()).toContain("react-flow__node"); // under the shape to start with
+
+  await page.mouse.click(shape.x - 30, y); // on the line, clear of the shape
+  await expect(page.locator(".react-flow__edge.selected")).toHaveCount(1);
+  await page.keyboard.press("Control+Shift+BracketRight"); // bring to front
+  await page.keyboard.press("Escape");
+  await page.mouse.click(shape.x + shape.width + 200, y + 200); // deselect, so nothing is lifted for editing
+  await expect(page.locator(".react-flow__edge.selected")).toHaveCount(0);
+  await expect.poll(topAt).toContain("react-flow__edge");
+
+  const svg = await exportSvg(page);
+  expect(svg.indexOf('class="arq-edge')).toBeGreaterThan(svg.indexOf('class="arq-node'));
 });

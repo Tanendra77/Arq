@@ -57,13 +57,14 @@ DOCUMENT
 { "version": 2, "title": string, "layout": { "direction": "RIGHT" | "DOWN" | "LEFT" | "UP" }, "nodes": Node[], "edges": Edge[] }
 
 NODE
-{ "id": string, "shape": string, "label": string, "style"?: NodeStyle }
+{ "id": string, "shape": string, "label": string, "z"?: integer, "style"?: NodeStyle }
 - "id": unique; letters, digits, _ . : - only.
 - "shape": ${NODE_SHAPES.filter((s) => s !== "freehand").map((s) => JSON.stringify(s)).join(" | ")}
 - "label": the text shown in the shape; "" for none. Use \\n for a line break.
+- "z": stacking, for shapes and lines alike — higher draws on top. Unset is 0; at equal z, lines sit under shapes.
 
 EDGE (a line or arrow)
-{ "id": string, "from": node id, "to": node id, "label"?: string, "style"?: EdgeStyle }
+{ "id": string, "from": node id, "to": node id, "label"?: string, "z"?: integer, "style"?: EdgeStyle }
 - An end can also be pinned to a spot on a shape: { "node": id, "ax": 0–1, "ay": 0–1 } (fractions of the shape's box),
   or float free at a point: { "x": number, "y": number }.
 

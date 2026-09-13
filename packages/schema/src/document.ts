@@ -48,6 +48,12 @@ export const NodeSchema = z.object({
   group: Id.optional(),
   style: NodeStyleSchema.optional(),
   /**
+   * Stacking order among every shape and line: higher draws on top. Unset is 0; at equal values
+   * lines sit under shapes, each in document order — which is exactly how a file with no `z`
+   * anywhere has always drawn.
+   */
+  z: z.number().int().optional(),
+  /**
    * A freehand stroke's path, as [x, y] pairs normalised to 0..1 within the node's own box.
    * Normalised rather than absolute so resizing a drawing scales the drawing, the same way it
    * scales any other shape.
@@ -66,6 +72,12 @@ export const EdgeSchema = z.object({
   // now would mean a third document version within two features.
   kind: z.string().optional(),
   style: EdgeStyleSchema.optional(),
+  /**
+   * Stacking order among every shape and line: higher draws on top. Unset is 0; at equal values
+   * lines sit under shapes, each in document order — which is exactly how a file with no `z`
+   * anywhere has always drawn.
+   */
+  z: z.number().int().optional(),
   /**
    * A right-angled route the author shaped by hand: where each leg between the ends runs, in
    * document coordinates, alternating x (a vertical leg) and y (a horizontal leg), first leg

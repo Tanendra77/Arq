@@ -79,7 +79,8 @@ a node to attach it. Edges carry no semantic type — they're styled, not typed:
 circle), stroke colour, width, dash and an optional glow, all editable in the Inspector.
 
 **Stacking.** Where elements overlap, the **Layer** buttons in the Inspector (or `Ctrl+]` /
-`Ctrl+[`) bring the selection forward or send it back. Lines always sit beneath shapes. A shape's
+`Ctrl+[`) bring the selection forward or send it back. Shapes and lines share one stack, so a line
+can be brought over a shape it crosses; the order is saved as a `z` number on each. A shape's
 **Stroke** row also has **No border**.
 
 **Shaping a line.** Select a line to get dots on it:

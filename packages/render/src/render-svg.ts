@@ -3,7 +3,7 @@ import { collectDefs, glowId } from "./defs";
 import { edgeEnds, edgeLabelPoint, edgePath, edgeRoute, edgeTangents } from "./edge-path";
 import { FONT_STACK, fontFaceCss } from "./font";
 import { escapeXml, inlineIcon, placeholderBox } from "./inline-icon";
-import { layoutDocument } from "./layout-document";
+import { layoutDocument, stackingOrder } from "./layout-document";
 import {
   METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, textCss, wrapLabel,
   type Rect, type ResolvedTextStyle,
@@ -171,8 +171,14 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
   const defs = collectDefs(doc);
   const groups = doc.groups.map((g) => { const r = layout.groups.get(g.id); return r ? renderGroup(g.id, g.label, r) : ""; }).join("");
   const theme = THEME_COLORS[opts.theme ?? "light"];
-  const edges = doc.edges.map((e) => renderEdge(doc, e.id, layout.nodes, theme.ink)).join("");
-  const nodes = doc.nodes.map((n) => renderNode(doc, n.id, layout.nodes.get(n.id)!, opts.resolveIcon, theme.ink)).join("");
+  // Shapes and lines in one stack, so a line brought forward draws over the shapes beneath it.
+  const elements = stackingOrder(doc)
+    .map((item) =>
+      item.kind === "edge"
+        ? renderEdge(doc, item.id, layout.nodes, theme.ink)
+        : renderNode(doc, item.id, layout.nodes.get(item.id)!, opts.resolveIcon, theme.ink),
+    )
+    .join("");
   // The full-canvas background rect is the one place the document's own color (when set) wins
   // over the default — this is what makes screen and export agree on canvas color.
   const canvasFill = doc.canvasBackground ?? theme.canvas;
@@ -182,5 +188,5 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
     background === "transparent" ? ""
     : background === "grid" && opts.grid ? `<defs>${gridPattern(opts.grid, gridColor(canvasFill))}</defs>${rect(canvasFill)}${rect("url(#arq-grid)")}`
     : rect(canvasFill);
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title>${backdrop}${groups}${edges}${nodes}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title>${backdrop}${groups}${elements}</svg>`;
 }

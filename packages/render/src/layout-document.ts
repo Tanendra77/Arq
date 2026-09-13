@@ -9,6 +9,23 @@ export interface DocumentLayout {
 }
 
 /** `padding` is the margin kept around the content in `bounds` — what an export crops to. */
+/** One shape or line in drawing order. */
+export type Stacked = { kind: "node"; index: number; id: string } | { kind: "edge"; index: number; id: string };
+
+/**
+ * Every shape and line in the order they are drawn, bottom first: by `z`, then lines before shapes,
+ * then document order. The canvas and the exporter both stack by this, so a line brought above a
+ * shape is above it in both.
+ */
+export function stackingOrder(doc: Pick<Document, "nodes" | "edges">): Stacked[] {
+  const items = [
+    ...doc.edges.map((e, index) => ({ kind: "edge" as const, index, id: e.id, z: e.z ?? 0, rank: 0 })),
+    ...doc.nodes.map((n, index) => ({ kind: "node" as const, index, id: n.id, z: n.z ?? 0, rank: 1 })),
+  ];
+  items.sort((a, b) => a.z - b.z || a.rank - b.rank || a.index - b.index);
+  return items.map(({ kind, index, id }) => ({ kind, index, id }));
+}
+
 export function layoutDocument(doc: Document, padding: number = METRICS.canvasPadding): DocumentLayout {
   const nodes = new Map<string, Rect>();
   for (const n of doc.nodes) nodes.set(n.id, shapeRect(doc.layout.pinned[n.id], n.shape));

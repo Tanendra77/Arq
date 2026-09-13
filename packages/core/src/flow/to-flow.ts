@@ -1,6 +1,7 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { Document, Endpoint, NodeShape, NodeStyle, EdgeStyle, Pinned } from "@arq/schema";
 import { endpointNode } from "@arq/schema";
+import { stackingOrder } from "@arq/render";
 import type { Selection } from "../store/editor-store";
 import { endpointNodeId } from "./endpoint-id";
 
@@ -26,6 +27,8 @@ export type ArqEdgeData = {
   /** A hand-shaped route, when the author has shaped one (see `EdgeSchema.legs` / `via`). */
   legs: number[] | undefined;
   via: { x: number; y: number }[] | undefined;
+  /** Place in the shared stack, for the label: it sits in its own layer and has to be told. */
+  layer: number;
 };
 
 /** Empty data for the hidden node standing in for a loose edge endpoint (see `endpointNodeId`). */
@@ -37,6 +40,10 @@ export type ArqFlowEdge = Edge<ArqEdgeData, "arq">;
 export type IconResolver = (id: string | undefined) => string | undefined;
 
 export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Selection): { nodes: ArqFlowNode[]; edges: ArqFlowEdge[] } {
+  // Each element's place in the one stack shapes and lines share. React Flow gives every edge its own
+  // layer and every node a z-index in the same stacking context, so this is all a line needs to be
+  // drawn above a shape.
+  const rank = new Map(stackingOrder(doc).map((item, i) => [`${item.kind}:${item.id}`, i]));
   const selNodes = new Set(selection.nodes);
   const selEdges = new Set(selection.edges);
   const nodes: ArqFlowNode[] = doc.nodes.map((n) => {
@@ -45,6 +52,7 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
       id: n.id,
       type: "arq",
       position: { x: p?.x ?? 0, y: p?.y ?? 0 },
+      zIndex: rank.get(`node:${n.id}`) ?? 0,
       selected: selNodes.has(n.id),
       data: {
         label: n.label,
@@ -90,9 +98,10 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
     source: anchor(e.id, "from", e.from),
     target: anchor(e.id, "to", e.to),
     selected: selEdges.has(e.id),
+    zIndex: rank.get(`edge:${e.id}`) ?? 0,
     // The endpoints travel with the edge so ArqEdge can honour an anchored end, which React Flow's
     // own source/target ids cannot express.
-    data: { label: e.label, style: e.style, from: e.from, to: e.to, legs: e.legs, via: e.via },
+    data: { label: e.label, style: e.style, from: e.from, to: e.to, legs: e.legs, via: e.via, layer: rank.get(`edge:${e.id}`) ?? 0 },
   }));
 
   return { nodes: [...nodes, ...endpointNodes], edges };

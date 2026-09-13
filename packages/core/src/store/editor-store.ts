@@ -17,6 +17,7 @@ import {
   type Pinned,
 } from "@arq/schema";
 import type { Clip } from "./clipboard";
+import { stackingOrder } from "@arq/render";
 import { parseEndpointNodeId } from "../flow/endpoint-id";
 
 enablePatches();
@@ -200,6 +201,21 @@ function shiftRoute(e: { legs?: number[] | undefined; via?: { x: number; y: numb
   };
 }
 
+function withoutZ<T extends { z?: number | undefined }>(el: T): T {
+  const { z: _, ...rest } = el;
+  return rest as T;
+}
+
+/**
+ * The `z` that puts something new on top, or undefined while nothing in the document has a `z` —
+ * then document order already does, and a new element needs no `z` of its own.
+ */
+function zOnTop(doc: Document, offset = 0): number | undefined {
+  const zs = [...doc.nodes, ...doc.edges].flatMap((el) => (el.z !== undefined ? [el.z] : []));
+  if (zs.length === 0) return undefined;
+  return Math.max(0, ...zs) + 1 + offset;
+}
+
 function samePinned(a: Pinned | undefined, b: Pinned): boolean {
   return a !== undefined && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
@@ -346,6 +362,8 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         ...(input.style !== undefined ? { style: input.style } : {}),
         ...(input.points !== undefined ? { points: input.points } : {}),
       });
+      const top = zOnTop(doc);
+      if (top !== undefined) node.z = top;
       get().mutate("add node", (d) => {
         d.nodes.push(node);
         d.layout.pinned[id] = { x: input.position.x, y: input.position.y, ...(input.size ?? {}) };
@@ -428,6 +446,8 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         ...(input.label !== undefined ? { label: input.label } : {}),
         ...(input.style !== undefined ? { style: input.style } : {}),
       });
+      const top = zOnTop(doc);
+      if (top !== undefined) edge.z = top;
       get().mutate("add edge", (d) => {
         d.edges.push(edge);
       });
@@ -532,6 +552,13 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         return [{ ...e, ...route, id, from, to }];
       });
       if (nodes.length === 0 && edges.length === 0) return { nodes: [], edges: [] };
+      // A paste lands on top of everything, keeping the stacking the copies had among themselves.
+      stackingOrder({ nodes, edges }).forEach((item, i) => {
+        const el = item.kind === "node" ? nodes[item.index]! : edges[item.index]!;
+        const top = zOnTop(doc, i);
+        if (top === undefined) delete el.z;
+        else el.z = top;
+      });
       get().mutate("paste", (d) => {
         for (const n of nodes) d.nodes.push(n);
         for (const e of edges) d.edges.push(e);
@@ -544,15 +571,22 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     },
 
     reorder(ids, direction) {
-      const selected = new Set(ids);
-      const { nodes, edges } = get().document;
-      const nextNodes = reorderIds(nodes, selected, direction);
-      const nextEdges = reorderIds(edges, selected, direction);
-      const same = <T,>(a: readonly T[], b: readonly T[]) => a.every((x, i) => x === b[i]);
-      if (same(nodes, nextNodes) && same(edges, nextEdges)) return; // already there: not an undo step
+      const doc = get().document;
+      const picked = new Set(ids);
+      // Shapes and lines move through one stack; a key per kind, since a shape and a line may share an id.
+      const stack = stackingOrder(doc).map((item) => ({ ...item, id: `${item.kind}:${item.id}`, elementId: item.id }));
+      const selected = new Set(stack.filter((item) => picked.has(item.elementId)).map((item) => item.id));
+      const next = reorderIds(stack, selected, direction);
+      if (next.every((item, i) => item === stack[i])) return; // already there: not an undo step
+      // Back to the order a document with no `z` draws in anyway? Then leave no `z` behind.
+      const natural = stackingOrder({ nodes: doc.nodes.map(withoutZ), edges: doc.edges.map(withoutZ) });
+      const isNatural = next.every((item, i) => item.kind === natural[i]!.kind && item.index === natural[i]!.index);
       get().mutate("reorder", (d) => {
-        if (!same(nodes, nextNodes)) d.nodes = nextNodes;
-        if (!same(edges, nextEdges)) d.edges = nextEdges;
+        next.forEach((item, rank) => {
+          const el = item.kind === "node" ? d.nodes[item.index]! : d.edges[item.index]!;
+          if (isNatural) delete el.z;
+          else el.z = rank;
+        });
       });
     },
 

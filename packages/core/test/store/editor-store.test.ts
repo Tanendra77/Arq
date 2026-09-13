@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyDocument, parseDocument, serializeDocument } from "@arq/schema";
+import { stackingOrder } from "@arq/render";
 import { createEditorStore, reorderIds, type LayerMove } from "../../src/store/editor-store";
 import { endpointNodeId } from "../../src/flow/endpoint-id";
 
@@ -350,17 +351,38 @@ describe("layer order", () => {
     expect(order(["a", "b"], "backward")).toBe("abcd");
   });
 
-  it("reorders the document as one undo step, and not at all when nothing would move", () => {
+  const stack = (store: ReturnType<typeof createEditorStore>) =>
+    stackingOrder(store.getState().document).map((x) => `${x.kind}:${x.id}`);
+
+  it("moves shapes and lines through one stack, as one undo step, and not at all when nothing would move", () => {
     const s = createEditorStore(emptyDocument());
     const a = s.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
-    const b = s.getState().addNode({ shape: "rect", label: "b", position: { x: 0, y: 0 } });
+    const b = s.getState().addNode({ shape: "rect", label: "b", position: { x: 50, y: 0 } });
+    const e = s.getState().addEdge({ from: { x: -10, y: 20 }, to: { x: 200, y: 20 } });
+    expect(stack(s)).toEqual([`edge:${e}`, `node:${a}`, `node:${b}`]); // lines under shapes by default
+
     const before = s.getState().past.length;
-    s.getState().reorder([a], "front");
-    expect(s.getState().document.nodes.map((n) => n.id)).toEqual([b, a]);
+    s.getState().reorder([e], "front");
+    expect(stack(s)).toEqual([`node:${a}`, `node:${b}`, `edge:${e}`]); // the line above both shapes
     expect(s.getState().past.length).toBe(before + 1);
-    s.getState().reorder([a], "front");
+    s.getState().reorder([e], "front");
     expect(s.getState().past.length).toBe(before + 1);
-    s.getState().undo();
-    expect(s.getState().document.nodes.map((n) => n.id)).toEqual([a, b]);
+
+    s.getState().reorder([e], "backward");
+    expect(stack(s)).toEqual([`node:${a}`, `edge:${e}`, `node:${b}`]); // between them
+
+    // A new shape still lands on top.
+    const c = s.getState().addNode({ shape: "rect", label: "c", position: { x: 0, y: 0 } });
+    expect(stack(s).at(-1)).toBe(`node:${c}`);
+  });
+
+  it("leaves no z behind once the order is back to the natural one", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
+    s.getState().addNode({ shape: "rect", label: "b", position: { x: 0, y: 0 } });
+    s.getState().reorder([a], "front");
+    expect(s.getState().document.nodes.some((n) => n.z !== undefined)).toBe(true);
+    s.getState().reorder([a], "back");
+    expect(s.getState().document.nodes.some((n) => n.z !== undefined)).toBe(false);
   });
 });

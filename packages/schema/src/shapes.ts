@@ -53,6 +53,10 @@ export type AnimationDirection = (typeof ANIMATION_DIRECTIONS)[number];
 
 /** Where an edge's label sits along its own path: a fraction of the way from source to target. */
 export const LABEL_POSITIONS = ["start", "middle", "end"] as const;
+
+/** Typefaces a label can be set in: the hand-drawn sketch face, or a plain sans, serif or monospace. */
+export const FONT_FAMILIES = ["sketch", "sans", "serif", "mono"] as const;
+export type FontFamily = (typeof FONT_FAMILIES)[number];
 export type LabelPosition = (typeof LABEL_POSITIONS)[number];
 
 /**
@@ -69,13 +73,27 @@ const GlowSchema = z.object({ color: ColorSchema }).strict();
  */
 const RoughnessSchema = z.number().min(0).max(3);
 
+/** How a label's text is set — shared by shapes and lines, so one selection styles both alike. */
+const TEXT_STYLE = {
+  fontSize: z.number().positive().optional(),
+  fontFamily: z.enum(FONT_FAMILIES).optional(),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
+  strike: z.boolean().optional(),
+  /** The text's own colour; unset follows the theme on screen and the default ink in an export. */
+  textColor: ColorSchema.optional(),
+  /** A plate behind the text; unset means none. */
+  textBackground: ColorSchema.optional(),
+};
+
 export const NodeStyleSchema = z.object({
   fill: ColorSchema.optional(),
   stroke: ColorSchema.optional(),
   strokeWidth: z.number().positive().optional(),
   strokeDash: z.enum(DASH_STYLES).optional(),
   radius: z.number().nonnegative().optional(),
-  fontSize: z.number().positive().optional(),
+  ...TEXT_STYLE,
   textAlign: z.enum(["left", "center", "right"]).optional(),
   /** Degrees clockwise about the shape's own centre. */
   rotate: z.number().optional(),
@@ -96,6 +114,7 @@ export const EdgeStyleSchema = z.object({
   startArrow: z.enum(ARROW_STYLES).optional(),
   endArrow: z.enum(ARROW_STYLES).optional(),
   labelPos: z.enum(LABEL_POSITIONS).optional(),
+  ...TEXT_STYLE,
   animate: z.enum(ANIMATIONS).optional(),
   animateSpeed: z.enum(ANIMATION_SPEEDS).optional(),
   animateDirection: z.enum(ANIMATION_DIRECTIONS).optional(),

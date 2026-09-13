@@ -25,6 +25,7 @@ import {
   type Rect,
 } from "@arq/render";
 import { useEditor, useEditorStore } from "../store/context";
+import { labelStyle, useReportTextEditing } from "../flow/text-editing";
 import { endpointFor } from "../flow/endpoint-target";
 import type { ArqFlowNode, ArqFlowEdge } from "../flow/to-flow";
 
@@ -109,6 +110,12 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
   const targetNode = useInternalNode<ArqFlowNode>(target);
   // null while not editing; otherwise the in-progress draft, so Escape can discard it.
   const [draft, setDraft] = useState<string | null>(null);
+  useReportTextEditing(id, draft !== null);
+  /** Start editing the label — which also selects the line, so its text settings are in the panel. */
+  const startEditing = () => {
+    store.getState().setSelection({ nodes: [], edges: [id] });
+    setDraft(data?.label ?? "");
+  };
   // The latest geometry, for drags that outlive the render they started in.
   const geo = useRef({ start: { x: 0, y: 0 }, end: { x: 0, y: 0 } });
   /** Which entry of the legs, or of the via points, the drag in progress moves. */
@@ -186,7 +193,7 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
         strokeWidth={20}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          setDraft(data?.label ?? "");
+          startEditing();
         }}
       />
       {/* One grab dot per end, whether that end is bound to a shape or floating. Dragging either
@@ -298,7 +305,11 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
           <input
             className="arq-edge-label-input nodrag nopan"
             data-testid={`edge-label-input-${id}`}
-            style={{ transform: `translate(-50%, -50%) translate(${lp.x}px, ${lp.y}px)` }}
+            style={{
+              transform: `translate(-50%, -50%) translate(${lp.x}px, ${lp.y}px)`,
+              ...labelStyle(s),
+              ...(s.textBackground !== undefined ? { background: s.textBackground } : {}),
+            }}
             value={draft}
             autoFocus
             onChange={(e) => setDraft(e.target.value)}
@@ -315,11 +326,17 @@ function ArqEdgeImpl({ id, source, target, data, selected }: EdgeProps<ArqFlowEd
           <div
             className="arq-edge-label"
             data-testid={`edge-label-${id}`}
-            style={{ transform: `translate(-50%, -50%) translate(${lp.x}px, ${lp.y}px)` }}
+            style={{
+              transform: `translate(-50%, -50%) translate(${lp.x}px, ${lp.y}px)`,
+              ...labelStyle(s),
+              // Bare text unless a plate was asked for — the same as the export.
+              ...(s.textBackground !== undefined ? { background: s.textBackground } : {}),
+            }}
             title="Double-click to edit"
+            onClick={() => store.getState().setSelection({ nodes: [], edges: [id] })}
             onDoubleClick={(e) => {
               e.stopPropagation();
-              setDraft(data.label ?? "");
+              startEditing();
             }}
           >
             {data.label}

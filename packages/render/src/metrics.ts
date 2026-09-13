@@ -1,8 +1,9 @@
 import { shapePathD } from "./shape-paths";
 import type {
-  Animation, AnimationDirection, AnimationSpeed, DashStyle, EdgeStyle, LabelPosition, NodeShape,
+  Animation, AnimationDirection, AnimationSpeed, DashStyle, EdgeStyle, FontFamily, LabelPosition, NodeShape,
   NodeStyle, Pinned,
 } from "@arq/schema";
+import { FONT_STACKS } from "./font";
 
 export type Point = { x: number; y: number };
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -67,9 +68,9 @@ export const DEFAULT_TEXT_SIZE = { w: 120, h: 24 } as const;
  */
 export const STYLE_DEFAULTS = {
   node: { fill: "#ffffff", stroke: "#d0d0d0", strokeWidth: 1.5, strokeDash: "solid",
-          radius: 8, fontSize: 13, textAlign: "center", rotate: 0, animate: "none", animateSpeed: "normal", animateDirection: "forward", roughness: 1 },
+          radius: 8, fontSize: 13, fontFamily: "sketch", textAlign: "center", rotate: 0, animate: "none", animateSpeed: "normal", animateDirection: "forward", roughness: 1 },
   edge: { stroke: "#1a1a1a", strokeWidth: 1.5, strokeDash: "solid",
-          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", animate: "none", animateSpeed: "normal", animateDirection: "forward", bend: 0.5, roughness: 1 },
+          routing: "orthogonal", startArrow: "none", endArrow: "arrow", labelPos: "middle", fontSize: 11, fontFamily: "sketch", animate: "none", animateSpeed: "normal", animateDirection: "forward", bend: 0.5, roughness: 1 },
   canvasBackground: "#ffffff",
 } as const;
 
@@ -107,9 +108,50 @@ export function shapeOutline(shape: NodeShape, r: Rect, radius: number, sides?: 
   }
 }
 
-export type ResolvedNodeStyle = {
+/** How a label is set, fully resolved. Colour and background stay undefined when unset: on screen
+ *  they follow the theme, in an export they fall back to the default ink and no plate. */
+export type ResolvedTextStyle = {
+  fontSize: number;
+  fontFamily: FontFamily;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  strike: boolean;
+  textColor: string | undefined;
+  textBackground: string | undefined;
+};
+
+function resolveText(s: NodeStyle | EdgeStyle | undefined, d: { fontSize: number; fontFamily: FontFamily }): ResolvedTextStyle {
+  return {
+    fontSize: s?.fontSize ?? d.fontSize,
+    fontFamily: s?.fontFamily ?? d.fontFamily,
+    bold: s?.bold ?? false,
+    italic: s?.italic ?? false,
+    underline: s?.underline ?? false,
+    strike: s?.strike ?? false,
+    textColor: s?.textColor,
+    textBackground: s?.textBackground,
+  };
+}
+
+/**
+ * The CSS declarations for whatever a label sets away from the default, and nothing for what it
+ * does not — so an unstyled label's export is exactly what it always was. Shared by the exporter
+ * (as a `style` attribute) and the canvas.
+ */
+export function textCss(t: ResolvedTextStyle): Record<string, string> {
+  const css: Record<string, string> = {};
+  if (t.fontFamily !== "sketch") css["font-family"] = FONT_STACKS[t.fontFamily];
+  if (t.bold) css["font-weight"] = "700";
+  if (t.italic) css["font-style"] = "italic";
+  const decoration = [t.underline ? "underline" : "", t.strike ? "line-through" : ""].filter(Boolean).join(" ");
+  if (decoration) css["text-decoration"] = decoration;
+  return css;
+}
+
+export type ResolvedNodeStyle = ResolvedTextStyle & {
   fill: string; stroke: string; strokeWidth: number; strokeDash: DashStyle;
-  radius: number; fontSize: number; textAlign: "left" | "center" | "right";
+  radius: number; textAlign: "left" | "center" | "right";
   rotate: number;
   /** Undefined means "the shape's own default": six for a polygon, five for a star. */
   sides: number | undefined;
@@ -128,7 +170,7 @@ export function resolveNodeStyle(s: NodeStyle | undefined): ResolvedNodeStyle {
     strokeWidth: s?.strokeWidth ?? d.strokeWidth,
     strokeDash: s?.strokeDash ?? d.strokeDash,
     radius: s?.radius ?? d.radius,
-    fontSize: s?.fontSize ?? d.fontSize,
+    ...resolveText(s, d),
     textAlign: s?.textAlign ?? d.textAlign,
     rotate: s?.rotate ?? d.rotate,
     sides: s?.sides,
@@ -140,7 +182,7 @@ export function resolveNodeStyle(s: NodeStyle | undefined): ResolvedNodeStyle {
   };
 }
 
-export type ResolvedEdgeStyle = {
+export type ResolvedEdgeStyle = ResolvedTextStyle & {
   stroke: string; strokeWidth: number; strokeDash: DashStyle;
   routing: "straight" | "curved" | "orthogonal";
   startArrow: string; endArrow: string;
@@ -163,6 +205,7 @@ export function resolveEdgeStyle(s: EdgeStyle | undefined): ResolvedEdgeStyle {
     startArrow: s?.startArrow ?? d.startArrow,
     endArrow: s?.endArrow ?? d.endArrow,
     labelPos: s?.labelPos ?? d.labelPos,
+    ...resolveText(s, d),
     animate: s?.animate ?? d.animate,
     animateSpeed: s?.animateSpeed ?? d.animateSpeed,
     animateDirection: s?.animateDirection ?? d.animateDirection,

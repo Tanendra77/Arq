@@ -30,6 +30,7 @@ function renderInspector(
 
 /** Glow and motion live on the Animation tab; style controls on the other. */
 const openAnimationTab = () => fireEvent.click(screen.getByRole("tab", { name: "Animation" }));
+const openTextTab = () => fireEvent.click(screen.getByRole("tab", { name: "Text" }));
 
 describe("Inspector", () => {
   it("keeps the canvas view preferences out of the document and its history", () => {
@@ -80,13 +81,16 @@ describe("Inspector", () => {
     renderInspector({ nodes: ["a"], edges: [] });
     expect(screen.getByLabelText("Fill")).toBeInTheDocument();
     expect(screen.getByLabelText("Corner radius")).toBeInTheDocument();
-    expect(screen.getByLabelText("Label")).toBeInTheDocument();
-    expect(screen.getByLabelText("Text size")).toBeInTheDocument();
     // Enumerated properties are icon rows now: the group is named, each button names its option.
-    expect(screen.getByRole("group", { name: "Align" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Centre" })).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Turn" })).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Shape" })).toBeNull();
+    // The words and how they are set have their own tab.
+    expect(screen.queryByLabelText("Label")).toBeNull();
+    openTextTab();
+    expect(screen.getByLabelText("Label")).toBeInTheDocument();
+    expect(screen.getByLabelText("Size")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Align" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Centre" })).toBeInTheDocument();
     // Animation lives on its own tab, so it is not competing for room with the style controls.
     expect(screen.queryByLabelText("Glow")).toBeNull();
     openAnimationTab();
@@ -111,7 +115,7 @@ describe("Inspector", () => {
 
   it("shows every line control for a selected edge", () => {
     renderInspector({ nodes: [], edges: ["e1"] });
-    for (const group of ["Shape", "Ends", "Stroke", "Style", "Label at"]) {
+    for (const group of ["Shape", "Ends", "Stroke", "Style"]) {
       expect(screen.getByRole("group", { name: group })).toBeInTheDocument();
     }
     // Both ends are offered independently, and the arrowhead kinds are the full set.
@@ -120,6 +124,8 @@ describe("Inspector", () => {
     expect(screen.getByLabelText("Colour")).toBeInTheDocument();
     expect(screen.getByLabelText("Width")).toBeInTheDocument();
     expect(screen.queryByLabelText("Fill")).toBeNull();
+    openTextTab();
+    expect(screen.getByRole("group", { name: "Label at" })).toBeInTheDocument();
     openAnimationTab();
     expect(screen.getByLabelText("Glow")).toBeInTheDocument();
   });
@@ -193,7 +199,8 @@ describe("Inspector", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
     fireEvent.change(screen.getByLabelText("Width"), { target: { value: "3" } });
     fireEvent.change(screen.getByLabelText("Width"), { target: { value: "0" } });
-    fireEvent.change(screen.getByLabelText("Text size"), { target: { value: "0" } });
+    openTextTab();
+    fireEvent.change(screen.getByLabelText("Size"), { target: { value: "0" } });
     const result = parseDocument(serializeDocument(store.getState().document));
     expect(result.ok).toBe(true);
   });
@@ -210,16 +217,19 @@ describe("Inspector", () => {
 
   it("shows the label field only for a single selected node, not a multi-selection", () => {
     renderInspector({ nodes: ["a"], edges: [] });
+    openTextTab();
     expect(screen.getByLabelText("Label")).toBeInTheDocument();
   });
 
   it("hides the label field for a multi-node selection", () => {
     renderInspector({ nodes: ["a", "b"], edges: [] });
+    openTextTab();
     expect(screen.queryByLabelText("Label")).toBeNull();
   });
 
   it("edits a node's label through setLabel", () => {
     const store = renderInspector({ nodes: ["a"], edges: [] });
+    openTextTab();
     fireEvent.change(screen.getByLabelText("Label"), { target: { value: "Renamed" } });
     expect(store.getState().document.nodes.find((n) => n.id === "a")?.label).toBe("Renamed");
   });
@@ -264,5 +274,23 @@ describe("Inspector", () => {
     const store = renderInspector({ nodes: [], edges: [] });
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "My Diagram" } });
     expect(store.getState().document.title).toBe("My Diagram");
+  });
+});
+
+describe("Inspector text tab", () => {
+  it("sets the font, the formats, the colour and a background, and clears a format back to no key", () => {
+    const store = renderInspector({ nodes: [], edges: ["e1"] });
+    openTextTab();
+    const style = () => store.getState().document.edges.find((e) => e.id === "e1")?.style ?? {};
+    fireEvent.click(screen.getByRole("button", { name: "Monospace" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+    fireEvent.click(screen.getByRole("button", { name: "Underline" }));
+    expect(style()).toMatchObject({ fontFamily: "mono", bold: true, underline: true });
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+    expect(style()).not.toHaveProperty("bold");
+    fireEvent.click(screen.getByLabelText("Text background"));
+    expect(style().textBackground).toBeDefined();
+    fireEvent.change(screen.getByLabelText("Text colour"), { target: { value: "#ff0000" } });
+    expect(style().textColor).toBe("#ff0000");
   });
 });

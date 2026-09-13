@@ -39,6 +39,42 @@ function Choice<T extends string | number>({
   );
 }
 
+/**
+ * The export at full size over the whole window: fitted to the screen, or at its real pixel size to
+ * check the detail. Escape or a click outside the image closes it and returns to the dialog.
+ */
+function FullPreview({ url, width, height, onClose }: { url: string; width: number; height: number; onClose: () => void }) {
+  const [actual, setActual] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => ref.current?.focus(), []);
+  return (
+    <div
+      ref={ref}
+      className="arq-export-full"
+      role="dialog"
+      aria-label="Export preview, full size"
+      tabIndex={-1}
+      onClick={onClose}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return;
+        e.stopPropagation(); // close the preview, not the export dialog behind it
+        onClose();
+      }}
+    >
+      <div className="arq-export-full-bar" onClick={(e) => e.stopPropagation()}>
+        <span>{width} × {height}</span>
+        <button type="button" aria-pressed={!actual} onClick={() => setActual(false)}>Fit</button>
+        <button type="button" aria-pressed={actual} onClick={() => setActual(true)}>100%</button>
+        <button type="button" onClick={onClose}>Close</button>
+      </div>
+      <div className={`arq-export-full-stage${actual ? " actual" : ""}`}>
+        <img src={url} alt="Export preview, full size" onClick={(e) => e.stopPropagation()}
+          style={actual ? { width, height } : undefined} />
+      </div>
+    </div>
+  );
+}
+
 function ExportBody({ onClose }: { onClose: () => void }) {
   const store = useEditorStore();
   const platform = usePlatform();
@@ -56,6 +92,7 @@ function ExportBody({ onClose }: { onClose: () => void }) {
   }));
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
   const [busy, setBusy] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   // The preview is the export itself, font embedded, so what is shown is what is written.
   const out = useMemo(() => renderExport(doc, selection, o, resolveIcon), [doc, selection, o, resolveIcon]);
@@ -78,7 +115,18 @@ function ExportBody({ onClose }: { onClose: () => void }) {
       <h2 id="arq-export-title">Export</h2>
       <div className="arq-export-preview" data-testid="export-preview">
         <img src={previewUrl} alt="Export preview" />
+        <button type="button" className="arq-export-expand" onClick={() => setPreviewing(true)} title="See it full size">
+          ⤢ Preview
+        </button>
       </div>
+      {previewing ? (
+        <FullPreview
+          url={previewUrl}
+          width={px(out.width)}
+          height={px(out.height)}
+          onClose={() => setPreviewing(false)}
+        />
+      ) : null}
       <TextField label="File name" value={o.name} onChange={(v) => set({ name: v })} />
       <Choice label="Format" value={o.format} onChange={(v) => set({ format: v })} options={[
         { value: "png", label: "PNG", title: "An image — for documents, slides and chat" },

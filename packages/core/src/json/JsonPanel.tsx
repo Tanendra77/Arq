@@ -3,8 +3,8 @@ import { basicSetup } from "codemirror";
 import { json, jsonParseLinter } from "@codemirror/lang-json";
 import { setDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { HighlightStyle, ensureSyntaxTree, syntaxHighlighting, syntaxTree } from "@codemirror/language";
-import { Annotation, EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { Annotation, EditorState, RangeSetBuilder, StateEffect, StateField } from "@codemirror/state";
+import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { SyntaxNode } from "@lezer/common";
 import { serializeDocument, type Document, type ParseIssue } from "@arq/schema";
@@ -75,6 +75,92 @@ function formatPath(path: readonly (string | number)[]): string {
   return out || "document";
 }
 
+/** A property's value node, or its name when it has no value yet. */
+function propertyValue(p: SyntaxNode): SyntaxNode | null {
+  const name = p.getChild("PropertyName");
+  return p.lastChild && p.lastChild !== name && p.lastChild.name !== ":" ? p.lastChild : name;
+}
+
+function propertyKey(state: EditorState, p: SyntaxNode): unknown {
+  const name = p.name === "Property" ? p.getChild("PropertyName") : null;
+  if (!name) return undefined;
+  try {
+    return JSON.parse(state.sliceDoc(name.from, name.to));
+  } catch {
+    return undefined;
+  }
+}
+
+/** The `"id"` an element object in the text declares, if it declares a readable one. */
+function objectId(state: EditorState, obj: SyntaxNode): string | undefined {
+  for (let p = obj.firstChild; p; p = p.nextSibling) {
+    if (propertyKey(state, p) !== "id") continue;
+    const v = propertyValue(p);
+    if (!v || v.name !== "String") return undefined;
+    try {
+      return JSON.parse(state.sliceDoc(v.from, v.to)) as string;
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+type ElementKind = "nodes" | "edges";
+
+/** Every shape and line object written in the text, with the id it declares and where it sits. */
+export function elementObjects(state: EditorState): { kind: ElementKind; id: string; from: number; to: number }[] {
+  const tree = ensureSyntaxTree(state, state.doc.length, 500) ?? syntaxTree(state);
+  const root = tree.topNode.firstChild;
+  if (!root || root.name !== "Object") return [];
+  const out: { kind: ElementKind; id: string; from: number; to: number }[] = [];
+  for (let p = root.firstChild; p; p = p.nextSibling) {
+    const key = propertyKey(state, p);
+    if (key !== "nodes" && key !== "edges") continue;
+    const arr = propertyValue(p);
+    if (!arr || arr.name !== "Array") continue;
+    for (let o = arr.firstChild; o; o = o.nextSibling) {
+      if (o.name !== "Object") continue;
+      const id = objectId(state, o);
+      if (id !== undefined) out.push({ kind: key, id, from: o.from, to: o.to });
+    }
+  }
+  return out;
+}
+
+/** The shape or line whose object the position is inside, if any. */
+export function elementAt(state: EditorState, pos: number): { kind: ElementKind; id: string } | null {
+  const hit = elementObjects(state).find((e) => pos > e.from && pos < e.to);
+  return hit ? { kind: hit.kind, id: hit.id } : null;
+}
+
+/** Marks the lines of whatever is selected on the canvas. */
+const setSelected = StateEffect.define<{ from: number; to: number }[]>();
+const selectedLines = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    let next = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (!e.is(setSelected)) continue;
+      const builder = new RangeSetBuilder<Decoration>();
+      const mark = Decoration.line({ class: "cm-arq-selected" });
+      const lines = new Set<number>();
+      for (const r of e.value) {
+        const first = tr.state.doc.lineAt(r.from).number;
+        const last = tr.state.doc.lineAt(r.to).number;
+        for (let n = first; n <= last; n += 1) lines.add(n);
+      }
+      for (const n of [...lines].sort((a, b) => a - b)) {
+        const line = tr.state.doc.line(n);
+        builder.add(line.from, line.from, mark);
+      }
+      next = builder.finish();
+    }
+    return next;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
 /** Colours come from CSS variables, so the highlighting follows the light and dark themes. */
 const highlight = HighlightStyle.define([
   { tag: tags.propertyName, color: "var(--arq-json-key)" },
@@ -91,6 +177,7 @@ const theme = EditorView.theme({
   ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "color-mix(in srgb, var(--arq-fg) 5%, transparent)" },
   ".cm-cursor": { borderLeftColor: "var(--arq-fg)" },
   "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection": { backgroundColor: "color-mix(in srgb, var(--arq-accent) 30%, transparent) !important" },
+  ".cm-arq-selected": { backgroundColor: "color-mix(in srgb, var(--arq-accent) 14%, transparent)" },
   ".cm-tooltip": { backgroundColor: "var(--arq-bg)", border: "1px solid var(--arq-line)", color: "var(--arq-fg)" },
 });
 
@@ -104,6 +191,9 @@ type Status = { kind: "ok" } | { kind: "pending" } | { kind: "error"; problems: 
 export default function JsonPanel() {
   const store = useEditorStore();
   const doc = useEditor((s) => s.document);
+  const selection = useEditor((s) => s.selection);
+  /** Set while the editor's own cursor is what changed the selection, so the text is not scrolled under it. */
+  const selectedFromText = useRef(false);
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   /** The document this panel's own last apply produced; any other document came from elsewhere. */
@@ -181,6 +271,21 @@ export default function JsonPanel() {
           syntaxHighlighting(highlight),
           theme,
           EditorView.contentAttributes.of({ "aria-label": "Diagram JSON" }),
+          selectedLines,
+          // Putting the cursor inside a shape's or a line's object selects that element on the canvas.
+          EditorView.updateListener.of((u) => {
+            // A click or arrow key moving the cursor, or typing — not the text being rewritten from the diagram.
+            // (Focus is not a reliable signal: a click moves the cursor before the editor reports focus.)
+            const byUser = u.transactions.some((t) => t.isUserEvent("select") || t.isUserEvent("input"));
+            if (!u.selectionSet || !byUser) return;
+            const hit = elementAt(u.state, u.state.selection.main.head);
+            if (!hit) return;
+            const s = store.getState();
+            const exists = hit.kind === "nodes" ? s.document.nodes.some((n) => n.id === hit.id) : s.document.edges.some((e) => e.id === hit.id);
+            if (!exists) return;
+            selectedFromText.current = true;
+            s.setSelection(hit.kind === "nodes" ? { nodes: [hit.id], edges: [] } : { nodes: [], edges: [hit.id] });
+          }),
           EditorView.updateListener.of((u) => {
             if (!u.docChanged || u.transactions.some((t) => t.annotation(fromDocument))) return;
             inSync.current = false;
@@ -214,6 +319,25 @@ export default function JsonPanel() {
     // The editor is built once; the document is kept in step by the effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Whatever is selected on the canvas is marked in the text — and scrolled to, unless the cursor put it there.
+  useEffect(() => {
+    const v = view.current;
+    if (!v) return;
+    const nodes = new Set(selection.nodes);
+    const edges = new Set(selection.edges);
+    const ranges = elementObjects(v.state)
+      .filter((e) => (e.kind === "nodes" ? nodes : edges).has(e.id))
+      .map(({ from, to }) => ({ from, to }));
+    const first = ranges[0];
+    v.dispatch({
+      effects: [
+        setSelected.of(ranges),
+        ...(first && !selectedFromText.current ? [EditorView.scrollIntoView(first.from, { y: "center" })] : []),
+      ],
+    });
+    selectedFromText.current = false;
+  }, [selection, doc]);
 
   // A change from anywhere else rewrites the text.
   useEffect(() => {

@@ -1,4 +1,5 @@
 import { memo, useState } from "react";
+import { labelStyle, useReportTextEditing } from "../flow/text-editing";
 import { Handle, Position, useReactFlow, type NodeProps } from "@xyflow/react";
 import {
   METRICS, PULSE_CLASS, glowId, resolveNodeStyle, seedFromId, shapeMarkup, shapeRect, wrapLabel,
@@ -15,10 +16,12 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   // hook order must not change with it.
   const setPinned = useEditor((s) => s.setPinned);
   const setLabel = useEditor((s) => s.setLabel);
+  const setSelection = useEditor((s) => s.setSelection);
   const setStyle = useEditor((s) => s.setStyle);
   const { screenToFlowPosition } = useReactFlow();
   // null while not editing; otherwise the in-progress draft, so Escape can discard it.
   const [draft, setDraft] = useState<string | null>(null);
+  useReportTextEditing(id, draft !== null);
 
   if (!("shape" in data)) return null; // the hidden node standing in for a loose edge endpoint: no visual
   const s = resolveNodeStyle(data.style);
@@ -44,6 +47,8 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   // With an icon the label sits under it; without one it is centred in the box, matching
   // `renderNode` in @arq/render so a `text` shape (no outline, no icon) reads the same both places.
   const labelTop = hasIcon ? iconBox.y + iconBox.h + METRICS.gap : (rect.h - lines.length * METRICS.labelLineHeight) / 2;
+
+  const text = labelStyle(s);
 
   const commit = () => {
     if (draft !== null && draft !== data.label) setLabel(id, draft);
@@ -144,7 +149,7 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
         // starts a node drag and the caret never lands.
         <input
           className="arq-node-label-input nodrag nopan"
-          style={{ position: "absolute", left: 0, top: labelTop, width: rect.w, textAlign: s.textAlign, fontSize: s.fontSize }}
+          style={{ position: "absolute", left: 0, top: labelTop, width: rect.w, textAlign: s.textAlign, ...text }}
           value={draft}
           autoFocus
           onChange={(e) => setDraft(e.target.value)}
@@ -164,18 +169,26 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
             top: labelTop,
             width: rect.w,
             textAlign: s.textAlign,
-            fontSize: s.fontSize,
+            ...text,
           }}
           title="Double-click to edit"
           // stopPropagation so the canvas does not also take this as a zoom-to-fit double-click.
           onDoubleClick={(e) => {
             e.stopPropagation();
+            // Editing a label is editing this element: select it, so its text settings are in the panel.
+            setSelection({ nodes: [id], edges: [] });
             setDraft(data.label);
           }}
         >
-          {lines.map((line, i) => (
-            <div key={i}>{line}</div>
-          ))}
+          {s.textBackground !== undefined && lines.length > 0 ? (
+            <span className="arq-label-plate" style={{ background: s.textBackground }}>
+              {lines.map((line, i) => (
+                <div key={i}>{line}</div>
+              ))}
+            </span>
+          ) : (
+            lines.map((line, i) => <div key={i}>{line}</div>)
+          )}
         </div>
       )}
     </div>

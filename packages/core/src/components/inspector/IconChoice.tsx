@@ -1,6 +1,6 @@
-import type { Animation, ArrowStyle, DashStyle } from "@arq/schema";
+import type { Animation, ArrowStyle, DashStyle, FontFamily } from "@arq/schema";
 import {
-  ARROW_BODY, DASH_ARRAY, edgePath, edgePaths, edgeTangents, pathSpecToSvg, resolveEdgeStyle,
+  ARROW_BODY, DASH_ARRAY, FONT_STACKS, edgePath, edgePaths, edgeTangents, pathSpecToSvg, resolveEdgeStyle,
 } from "@arq/render";
 
 /**
@@ -190,4 +190,10 @@ export function alignGlyph(align: "left" | "center" | "right"): string {
     })
     .join("");
   return svg(body);
+}
+
+/** A typeface: "Aa" set in that face. */
+export function fontGlyph(family: FontFamily): string {
+  const stack = FONT_STACKS[family].replace(/"/g, "'");
+  return svg(`<text x="13" y="13.5" text-anchor="middle" font-size="12" font-family="${stack}" fill="currentColor">Aa</text>`);
 }

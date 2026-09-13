@@ -96,6 +96,13 @@ several objects at once edits them together — a field that disagrees across th
 shows as blank/indeterminate rather than picking one value arbitrarily, and setting it applies
 to all of them.
 
+Shapes and lines have three tabs: **Style**, **Text** and **Animation**. The **Text** tab sets how
+a label reads — the label itself, typeface (hand-drawn, sans serif, serif, monospace), size,
+colour, **bold**, *italic*, underline, strikethrough, and an optional background plate (off by
+default; a line's label is bare text on the line unless you give it one). Double-clicking a label
+to type into it selects that shape or line and opens the Text tab, so the settings are right there.
+Only the hand-drawn face is embedded in exports; the others use fonts every system already has.
+
 ### Settings
 
 The toolbar's **Settings** button opens a modal for theme (light/dark/system), grid
@@ -157,6 +164,8 @@ JSON a `.arq` file holds, and the two stay in step both ways:
 - While the JSON is broken the diagram keeps its last good version; each problem is underlined on
   its line and listed under the editor — click one to jump to it.
 - Change the diagram on the canvas (or undo, or open a file) and the JSON is rewritten.
+- Select a shape or line and its object is highlighted in the JSON and scrolled into view; put
+  the cursor inside an object in the JSON and that element is selected on the canvas.
 
 **Shapes don't need positions.** Leave `layout.pinned` out and Arq lays the diagram out with ELK,
 flowing in `layout.direction` (`RIGHT`, `DOWN`, `LEFT`, `UP`). Shapes that already have a position
@@ -176,6 +185,7 @@ match what this build accepts.
 - **Background** — plain (the canvas colour), transparent, or the canvas colour with its grid.
 - **Area** — the whole diagram, or only the selection.
 - **Padding** around the content, and for PNG the **size** (1x–4x); the final pixel size is shown.
+- **Preview** opens the export full size — fitted to the window or at 100% — before you write it.
 
 Because the canvas and the exporter share one geometry module, exported node sizes and edge
 routes match what you saw on screen.

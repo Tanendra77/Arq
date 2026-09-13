@@ -23,6 +23,8 @@ const VIEWS = {
   json: { label: "JSON", title: "JSON — edit the diagram as text", d: "M9 4H8a2 2 0 0 0-2 2v4l-2 2 2 2v4a2 2 0 0 0 2 2h1 M15 4h1a2 2 0 0 1 2 2v4l2 2-2 2v4a2 2 0 0 1-2 2h-1" },
 } as const;
 
+const UNDO_ICON = "M9 14 4 9l5-5 M4 9h10.5a5.5 5.5 0 0 1 0 11H11";
+const REDO_ICON = "M15 14l5-5-5-5 M20 9H9.5a5.5 5.5 0 0 0 0 11H13";
 const EXPORT_ICON = "M12 4v11 M7 10l5 5 5-5 M5 20h14";
 
 export function Toolbar() {
@@ -57,8 +59,14 @@ export function Toolbar() {
       <button type="button" onClick={() => save(false)}>Save</button>
       <button type="button" onClick={() => save(true)}>Save As</button>
       <span className="arq-toolbar-sep" />
-      <button type="button" disabled={!canUndo} onClick={() => store.getState().undo()}>Undo</button>
-      <button type="button" disabled={!canRedo} onClick={() => store.getState().redo()}>Redo</button>
+      <button type="button" className="arq-toolbar-icon" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={!canUndo}
+        onClick={() => store.getState().undo()}>
+        <Icon d={UNDO_ICON} />
+      </button>
+      <button type="button" className="arq-toolbar-icon" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={!canRedo}
+        onClick={() => store.getState().redo()}>
+        <Icon d={REDO_ICON} />
+      </button>
       <span className="arq-toolbar-sep" />
       <button type="button" className="arq-toolbar-labelled" onClick={() => setExportOpen(true)} title="Export as PNG or SVG">
         <Icon d={EXPORT_ICON} /> Export

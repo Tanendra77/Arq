@@ -199,14 +199,30 @@ describe("renderSvg", () => {
     expect(canvasFillOf(renderSvg(custom, opts))).toBe("#123456");
   });
 
-  it("keeps the edge-label plate on the default background even with a custom canvasBackground", () => {
-    const custom = DocumentSchema.parse({ ...fixture, canvasBackground: "#123456" });
-    const svg = renderSvg(custom, opts);
-    // e1 is the only edge with a label ("orders/new"); its plate must still contrast against a
-    // non-default canvas, so it keeps the default fill rather than following canvasBackground.
-    const labelPlate = /<g><rect[^>]*\bfill="([^"]+)"[^>]*\/><text/.exec(svg);
-    expect(labelPlate?.[1]).toBe(STYLE_DEFAULTS.canvasBackground);
+  it("sets an edge label as bare text, with a plate only when one is asked for", () => {
+    const svg = renderSvg(DocumentSchema.parse({ ...fixture, canvasBackground: "#123456" }), opts);
+    // e1 is the only edge with a label ("orders/new").
+    expect(svg).toMatch(/<g><text[^>]*>orders\/new<\/text><\/g>/);
     expect(canvasFillOf(svg)).toBe("#123456");
+
+    const plated = DocumentSchema.parse({
+      ...fixture,
+      edges: fixture.edges.map((e) => (e.id === "e1" ? { ...e, style: { textBackground: "#ffee00", textColor: "#ff0000" } } : e)),
+    });
+    const out = renderSvg(plated, opts);
+    expect(out).toMatch(/<g><rect[^>]*fill="#ffee00"\/><text[^>]*fill="#ff0000"/);
+  });
+
+  it("writes only the text settings a label changes", () => {
+    const styled = DocumentSchema.parse({
+      ...fixture,
+      nodes: fixture.nodes.map((n, i) => (i === 0 ? { ...n, style: { fontFamily: "mono", bold: true, underline: true, strike: true } } : n)),
+    });
+    const svg = renderSvg(styled, opts);
+    expect(svg).toContain("font-weight:700");
+    expect(svg).toContain("text-decoration:underline line-through");
+    expect(svg).toContain("Consolas");
+    expect(renderSvg(doc, opts)).not.toContain(' style="'); // nothing set, nothing written
   });
 });
 

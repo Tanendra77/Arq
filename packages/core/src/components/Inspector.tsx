@@ -1,16 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
-  ANIMATION_DIRECTIONS, ANIMATION_SPEEDS, ARROW_STYLES, DASH_STYLES, LABEL_POSITIONS,
+  ANIMATION_DIRECTIONS, ANIMATION_SPEEDS, ARROW_STYLES, DASH_STYLES, FONT_FAMILIES, LABEL_POSITIONS,
   type ArqEdge, type ArqNode, type Animation, type AnimationDirection, type AnimationSpeed,
   type ArrowStyle, type DashStyle,
   type LabelPosition, type Routing,
 } from "@arq/schema";
-import { resolveEdgeStyle, resolveNodeStyle, STYLE_DEFAULTS } from "@arq/render";
+import { resolveEdgeStyle, resolveNodeStyle, STYLE_DEFAULTS, type ResolvedTextStyle } from "@arq/render";
+import { useTextEditing } from "../flow/text-editing";
 import { useEditor, useEditorStore } from "../store/context";
 import type { StylePatch } from "../store/editor-store";
 import { CheckboxField, ColorField, NumberField, TextField } from "./inspector/Field";
 import {
-  IconChoice, alignGlyph, animateGlyph, arrowGlyph, backgroundGlyph, dashGlyph, directionGlyph,
+  IconChoice, alignGlyph, animateGlyph, arrowGlyph, backgroundGlyph, dashGlyph, directionGlyph, fontGlyph,
   labelPosGlyph, rotateGlyph, routingGlyph, sketchGlyph, speedGlyph,
 } from "./inspector/IconChoice";
 import { useSettings } from "./SettingsModal";
@@ -136,7 +137,81 @@ const BACKGROUND_OPTIONS = [
   { value: "cross", title: "Crosses", glyph: backgroundGlyph("cross") },
 ] as const satisfies readonly { value: Settings["grid"]; title: string; glyph: string }[];
 
-const PANEL_TABS = ["Style", "Animation"] as const;
+const PANEL_TABS = ["Style", "Text", "Animation"] as const;
+
+const FONT_TITLES = { sketch: "Hand-drawn", sans: "Sans serif", serif: "Serif", mono: "Monospace" } as const;
+const FONT_OPTIONS = FONT_FAMILIES.map((f) => ({ value: f, title: FONT_TITLES[f], glyph: fontGlyph(f) }));
+/** The on/off text formats, each shown as its letter drawn the way it formats. */
+const TEXT_FORMATS = [
+  { key: "bold", title: "Bold", letter: "B", css: { fontWeight: 700 } },
+  { key: "italic", title: "Italic", letter: "I", css: { fontStyle: "italic", fontFamily: "Georgia, serif" } },
+  { key: "underline", title: "Underline", letter: "U", css: { textDecoration: "underline" } },
+  { key: "strike", title: "Strikethrough", letter: "S", css: { textDecoration: "line-through" } },
+] as const;
+const DEFAULT_TEXT_BACKGROUND = "#fff3bf";
+
+/**
+ * Everything about how a label's text is set, for shapes and lines alike: typeface, size, colour,
+ * bold/italic/underline/strikethrough and a background plate. `children` carries what only one kind
+ * has — the label itself, alignment for a shape, position along the line for an edge.
+ */
+function TextFields({
+  resolved, patch, children,
+}: {
+  resolved: ResolvedTextStyle[];
+  patch: (p: StylePatch, mergeKey?: string) => void;
+  children?: ReactNode;
+}) {
+  const fontFamily = commonValue(resolved.map((r) => r.fontFamily));
+  const fontSize = commonValue(resolved.map((r) => r.fontSize));
+  const color = commonValue(resolved.map((r) => r.textColor));
+  const bgOn = commonValue(resolved.map((r) => r.textBackground !== undefined));
+  const bg = bgOn === true ? commonValue(resolved.map((r) => r.textBackground)) : undefined;
+  return (
+    <>
+      {children}
+      <IconChoice label="Font" value={fontFamily} indeterminate={fontFamily === undefined}
+        options={FONT_OPTIONS} onChange={(v) => patch({ fontFamily: v === "sketch" ? undefined : v })} />
+      <div className="arq-field arq-field-icons" role="group" aria-label="Format">
+        <span className="arq-field-caption">Format</span>
+        <div className="arq-icon-row">
+          {TEXT_FORMATS.map((f) => {
+            const on = commonValue(resolved.map((r) => r[f.key])) === true;
+            return (
+              <button key={f.key} type="button" className={`arq-format${on ? " active" : ""}`} aria-label={f.title}
+                aria-pressed={on} title={f.title} style={f.css}
+                // Off is stored as no key at all, so an unformatted label stays exactly as it was.
+                onClick={() => patch({ [f.key]: on ? undefined : true })}>
+                {f.letter}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div className="arq-field-pair">
+        <NumberField label="Size" value={fontSize} indeterminate={fontSize === undefined} min={6} step={1}
+          onChange={(v) => patch({ fontSize: v }, "style:fontSize")} />
+        <ColorField label="Text colour" value={color ?? STYLE_DEFAULTS.edge.stroke} indeterminate={resolved.length > 1 && color === undefined}
+          onChange={(v) => patch({ textColor: v }, "style:textColor")} />
+      </div>
+      <CheckboxField label="Text background" checked={bgOn === true} indeterminate={bgOn === undefined}
+        onChange={(checked) => patch({ textBackground: checked ? bg ?? DEFAULT_TEXT_BACKGROUND : undefined })} />
+      {bgOn === true ? (
+        <ColorField label="Background colour" value={bg} indeterminate={bg === undefined}
+          onChange={(v) => patch({ textBackground: v }, "style:textBackground")} />
+      ) : null}
+    </>
+  );
+}
+
+/** Opens the Text tab whenever one of `ids` has its label being typed into on the canvas. */
+function useTextTab(ids: string[], setTab: (t: PanelTab) => void): void {
+  const editing = useTextEditing();
+  const key = ids.join(" ");
+  useEffect(() => {
+    if (editing !== null && key.split(" ").includes(editing)) setTab("Text");
+  }, [editing, key, setTab]);
+}
 type PanelTab = (typeof PANEL_TABS)[number];
 
 const ALIGN_TITLES = { left: "Left", center: "Centre", right: "Right" } as const;
@@ -225,10 +300,10 @@ function DocumentPanel() {
  * style a diagram while building it and animate it when explaining it — so paging between them
  * costs nothing and keeps either list short enough to scan.
  */
-function PanelTabs({ tab, onTab }: { tab: PanelTab; onTab: (t: PanelTab) => void }) {
+function PanelTabs({ tab, onTab, tabs = PANEL_TABS }: { tab: PanelTab; onTab: (t: PanelTab) => void; tabs?: readonly PanelTab[] }) {
   return (
     <div className="arq-panel-tabs" role="tablist">
-      {PANEL_TABS.map((t) => (
+      {tabs.map((t) => (
         <button
           key={t}
           type="button"
@@ -280,7 +355,6 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const sides = allSided
     ? commonValue(nodes.map((n, i) => resolved[i]!.sides ?? (n.shape === "star" ? 5 : 6)))
     : undefined;
-  const fontSize = commonValue(resolved.map((r) => r.fontSize));
   const textAlign = commonValue(resolved.map((r) => r.textAlign));
   const rotate = commonValue(resolved.map((r) => r.rotate));
   const animate = commonValue(resolved.map((r) => r.animate));
@@ -294,12 +368,21 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
     store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
 
   const [tab, setTab] = useState<PanelTab>("Style");
+  useTextTab(ids, setTab);
 
   return (
     <div className="arq-inspector-inner">
       <h3>{nodes.length === 1 ? "Shape" : `${nodes.length} shapes`}</h3>
-      <PanelTabs tab={tab} onTab={setTab} />
-      {tab === "Animation" ? (
+      <PanelTabs tab={tab} onTab={setTab} tabs={allInk ? ["Style", "Animation"] : PANEL_TABS} />
+      {tab === "Text" && !allInk ? (
+        <TextFields resolved={resolved} patch={patch}>
+          {only ? (
+            <TextField label="Label" value={only.label} onChange={(v) => store.getState().setLabel(only.id, v)} />
+          ) : null}
+          <IconChoice label="Align" value={textAlign} indeterminate={textAlign === undefined}
+            options={ALIGN_OPTIONS} onChange={(v) => patch({ textAlign: v })} />
+        </TextFields>
+      ) : tab === "Animation" ? (
         <AnimationFields
           animate={animate} speed={speed} direction={direction} options={NODE_ANIMATE_OPTIONS}
           glowOn={glowOn} glowColor={glowColor} patch={patch}
@@ -334,19 +417,6 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
       {allRect ? (
         <NumberField label="Corner radius" value={radius} indeterminate={radius === undefined} min={0} step={1}
           onChange={(v) => patch({ radius: v }, "style:radius")} />
-      ) : null}
-      {!allInk ? (
-        <>
-          {only ? (
-            <TextField label="Label" value={only.label} onChange={(v) => store.getState().setLabel(only.id, v)} />
-          ) : null}
-          <div className="arq-field-pair">
-            <NumberField label="Text size" value={fontSize} indeterminate={fontSize === undefined} min={8} step={1}
-              onChange={(v) => patch({ fontSize: v }, "style:fontSize")} />
-          </div>
-          <IconChoice label="Align" value={textAlign} indeterminate={textAlign === undefined}
-            options={ALIGN_OPTIONS} onChange={(v) => patch({ textAlign: v })} />
-        </>
       ) : null}
       <IconChoice label="Turn" value={rotate === undefined ? undefined : String(rotate)}
         indeterminate={rotate === undefined || !ROTATE_OPTIONS.some((o) => o.value === String(rotate))}
@@ -386,12 +456,21 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
   const patch = (p: StylePatch, mergeKey?: string) =>
     store.getState().setStyle(ids, p, mergeKey !== undefined ? { mergeKey } : undefined);
   const [tab, setTab] = useState<PanelTab>("Style");
+  useTextTab(ids, setTab);
 
   return (
     <div className="arq-inspector-inner">
       <h3>{edges.length === 1 ? "Line" : `${edges.length} lines`}</h3>
       <PanelTabs tab={tab} onTab={setTab} />
-      {tab === "Animation" ? (
+      {tab === "Text" ? (
+        <TextFields resolved={resolved} patch={patch}>
+          {only ? (
+            <TextField label="Label" value={only.label ?? ""} onChange={(v) => store.getState().setLabel(only.id, v)} />
+          ) : null}
+          <IconChoice label="Label at" value={labelPos} indeterminate={labelPos === undefined}
+            options={LABEL_POS_OPTIONS} onChange={(v) => patch({ labelPos: v })} />
+        </TextFields>
+      ) : tab === "Animation" ? (
         <AnimationFields
           animate={animate} speed={speed} direction={direction} options={EDGE_ANIMATE_OPTIONS}
           glowOn={glowOn} glowColor={glowColor} patch={patch}
@@ -423,11 +502,6 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
           onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
       </div>
 
-      {only ? (
-        <TextField label="Label" value={only.label ?? ""} onChange={(v) => store.getState().setLabel(only.id, v)} />
-      ) : null}
-      <IconChoice label="Label at" value={labelPos} indeterminate={labelPos === undefined}
-        options={LABEL_POS_OPTIONS} onChange={(v) => patch({ labelPos: v })} />
         </>
       )}
     </div>

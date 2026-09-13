@@ -34,6 +34,18 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-export-preview { display: flex; align-items: center; justify-content: center; height: 180px; border: 1px solid var(--arq-line); border-radius: 6px; overflow: hidden;
   background: repeating-conic-gradient(color-mix(in srgb, var(--arq-fg) 10%, transparent) 0% 25%, transparent 0% 50%) 50% / 16px 16px; }
 .arq-export-preview img { max-width: 100%; max-height: 100%; }
+.arq-export-preview { position: relative; }
+.arq-export-expand { position: absolute; right: 6px; bottom: 6px; font: inherit; font-size: 12px; color: var(--arq-fg); padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: var(--arq-bg); cursor: pointer; }
+.arq-export-full { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.82); outline: none; }
+.arq-export-full-bar { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 8px 12px; color: #eee; font-size: 12px; }
+.arq-export-full-bar span { margin-right: auto; opacity: 0.8; }
+.arq-export-full-bar button { font: inherit; color: #eee; padding: 3px 10px; border: 1px solid #555; border-radius: 4px; background: none; cursor: pointer; }
+.arq-export-full-bar button[aria-pressed="true"] { background: color-mix(in srgb, var(--arq-accent) 40%, transparent); border-color: var(--arq-accent); }
+.arq-export-full-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px 24px 24px; }
+.arq-export-full-stage.actual { display: block; overflow: auto; text-align: center; }
+.arq-export-full-stage img { max-width: 100%; max-height: 100%;
+  background: repeating-conic-gradient(#bbb 0% 25%, #eee 0% 50%) 50% / 20px 20px; }
+.arq-export-full-stage.actual img { max-width: none; max-height: none; }
 .arq-choice { display: inline-flex; flex-wrap: wrap; }
 .arq-choice button { font: inherit; font-size: 12px; color: inherit; padding: 3px 9px; border: 1px solid var(--arq-line); background: none; cursor: pointer; margin-left: -1px; }
 .arq-choice button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
@@ -87,6 +99,7 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-icon-row { display: flex; gap: 3px; flex-wrap: wrap; }
 .arq-icon-row button { display: flex; align-items: center; justify-content: center; padding: 3px; min-width: 30px; height: 24px; border: 1px solid transparent; border-radius: 4px; background: color-mix(in srgb, var(--arq-fg) 6%, transparent); color: inherit; cursor: pointer; }
 .arq-icon-row button:hover { background: color-mix(in srgb, var(--arq-accent) 18%, transparent); }
+.arq-icon-row button.arq-format { font-size: 13px; min-width: 30px; }
 .arq-icon-row button.active { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); }
 .arq-icon-row button svg { display: block; }
 .arq-field input, .arq-field select { font: inherit; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 4px; padding: 4px 6px; }
@@ -207,7 +220,8 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-edge-halo { fill: none; stroke: var(--arq-accent); stroke-width: 6; stroke-linecap: round; opacity: 0.35; pointer-events: none; }
 /* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
 .arq-edge-hit { pointer-events: stroke; cursor: pointer; }
-.arq-edge-label { position: absolute; pointer-events: all; font-family: var(--arq-sketch-font); font-size: 11px; padding: 1px 4px; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 3px; cursor: text; }
+.arq-edge-label { position: absolute; pointer-events: all; font-family: var(--arq-sketch-font); font-size: 11px; padding: 1px 4px; border-radius: 3px; cursor: text; white-space: pre; }
+.arq-label-plate { display: inline-block; padding: 0 4px; border-radius: 3px; }
 .arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-family: var(--arq-sketch-font); font-size: 11px; width: 100px; text-align: center; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 0; outline: none; border-radius: 3px; }
 /* The draggable dot standing in for an unattached edge end. Its handles exist only so React Flow
    will render the edge at all; the dot itself is what the user grabs, hence pointer-events: none

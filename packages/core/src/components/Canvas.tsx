@@ -24,7 +24,7 @@ import {
 } from "@arq/render";
 import type { Document, Endpoint } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
-import { useEditor } from "../store/context";
+import { useEditor, useEditorStore } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
 import { parseEndpointNodeId, toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
 import { endpointFor } from "../flow/endpoint-target";
@@ -190,6 +190,7 @@ function CanvasInner() {
   // Requires a ReactFlowProvider ancestor (for the zoom shortcuts' useReactFlow call), which is
   // why this lives here rather than in App: Canvas already wraps itself in one, App does not.
   useShortcuts();
+  const store = useEditorStore();
   const doc = useEditor((s) => s.document);
   const selection = useEditor((s) => s.selection);
   const addNode = useEditor((s) => s.addNode);
@@ -350,14 +351,19 @@ function CanvasInner() {
     [setPinned],
   );
 
+  // Stable on purpose, reading the selection from the store at call time. React Flow re-announces its
+  // own current selection whenever this callback changes identity; when it depended on `selection`,
+  // any selection made outside the canvas (the JSON editor, a shortcut) changed the callback, and
+  // React Flow promptly reported its *previous* selection back — undoing the one just made.
   const onSelectionChange = useCallback(
     (p: OnSelectionChangeParams) => {
+      const current = store.getState().selection;
       const next = { nodes: p.nodes.map((n) => n.id), edges: p.edges.map((e) => e.id) };
-      if (next.nodes.join() !== selection.nodes.join() || next.edges.join() !== selection.edges.join()) {
+      if (next.nodes.join() !== current.nodes.join() || next.edges.join() !== current.edges.join()) {
         setSelection(next);
       }
     },
-    [selection, setSelection],
+    [store, setSelection],
   );
 
   // One `onDelete` rather than `onNodesDelete` + `onEdgesDelete`: React Flow fires both for a single

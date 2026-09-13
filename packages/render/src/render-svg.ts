@@ -5,8 +5,8 @@ import { FONT_STACK, fontFaceCss } from "./font";
 import { escapeXml, inlineIcon, placeholderBox } from "./inline-icon";
 import { layoutDocument } from "./layout-document";
 import {
-  METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, wrapLabel,
-  type Rect,
+  METRICS, STYLE_DEFAULTS, resolveEdgeStyle, resolveNodeStyle, textCss, wrapLabel,
+  type Rect, type ResolvedTextStyle,
 } from "./metrics";
 import { FLOW_CSS, PULSE_CLASS, edgeMarkup, seedFromId, shapeMarkup } from "./sketch";
 
@@ -57,10 +57,17 @@ const r2 = (n: number): number => Math.round(n * 100) / 100;
 const fmt = (n: number): string => String(r2(n));
 
 const FG = STYLE_DEFAULTS.edge.stroke;
-// The edge-label plate's background — always the default, regardless of the document's own
-// canvas background, because a label plate needs to contrast with the canvas, not match it.
-const BG = STYLE_DEFAULTS.canvasBackground;
 const LINE = STYLE_DEFAULTS.node.stroke;
+
+/** A label's non-default text settings as a `style` attribute (a CSS rule on `text` would beat a
+ *  presentation attribute, so these have to be inline), or nothing at all when there are none. */
+function textStyleAttr(t: ResolvedTextStyle): string {
+  const css = Object.entries(textCss(t)).map(([k, v]) => `${k}:${v}`).join(";");
+  return css ? ` style="${escapeXml(css)}"` : "";
+}
+
+/** Roughly how wide a line of text sets, for sizing the plate behind it without a layout engine. */
+const textWidth = (chars: number, fontSize: number) => chars * fontSize * 0.56;
 
 function renderGroup(id: string, label: string, r: Rect): string {
   const m = METRICS;
@@ -95,6 +102,13 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
   // makes a `text` node (no outline, no icon) read as a plain label at its own position.
   const labelTop =
     n.icon !== undefined ? iconBox.y + iconBox.h + m.gap : r.y + (r.h - lines.length * m.labelLineHeight) / 2;
+  const plate = s.textBackground !== undefined && lines.length > 0
+    ? (() => {
+        const w = Math.max(...lines.map((l) => textWidth(l.length, s.fontSize))) + 8;
+        const x = anchor === "middle" ? tx - w / 2 : anchor === "start" ? tx - 4 : tx - w + 4;
+        return `<rect x="${fmt(x)}" y="${fmt(labelTop - 2)}" width="${fmt(w)}" height="${fmt(lines.length * m.labelLineHeight + 4)}" rx="3" fill="${s.textBackground}"/>`;
+      })()
+    : "";
   const text = lines
     .map((line, i) => `<tspan x="${fmt(tx)}" y="${fmt(labelTop + i * m.labelLineHeight + m.labelLineHeight * 0.75)}">${escapeXml(line)}</tspan>`)
     .join("");
@@ -105,7 +119,7 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
   const rotate =
     s.rotate === 0 ? "" : ` transform="rotate(${fmt(s.rotate)} ${fmt(r.x + r.w / 2)} ${fmt(r.y + r.h / 2)})"`;
   const pulse = s.animate === "pulse" ? ` ${PULSE_CLASS}` : "";
-  return `<g class="arq-node${pulse}" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${rotate}${filter}>${shaped}${icon}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${FG}">${text}</text></g>`;
+  return `<g class="arq-node${pulse}" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${rotate}${filter}>${shaped}${icon}${plate}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${s.textColor ?? FG}"${textStyleAttr(s)}>${text}</text></g>`;
 }
 
 function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string {
@@ -123,8 +137,13 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
   // `mid` is the path's own midpoint; the label sits wherever the style says, which is only the
   // same point when labelPos is "middle".
   const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos, route);
+  // A label is bare text on the line unless it asks for a plate behind it.
+  const plateW = textWidth(e.label?.length ?? 0, s.fontSize) + 8;
+  const plate = s.textBackground !== undefined
+    ? `<rect x="${fmt(lp.x - plateW / 2)}" y="${fmt(lp.y - s.fontSize / 2 - 3)}" width="${fmt(plateW)}" height="${fmt(s.fontSize + 6)}" rx="3" fill="${s.textBackground}"/>`
+    : "";
   const label = e.label
-    ? `<g><rect x="${fmt(lp.x - e.label.length * 3.2 - 4)}" y="${fmt(lp.y - 8)}" width="${fmt(e.label.length * 6.4 + 8)}" height="16" rx="3" fill="${BG}" stroke="${LINE}"/><text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="${FG}">${escapeXml(e.label)}</text></g>`
+    ? `<g>${plate}<text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="${fmt(s.fontSize)}" text-anchor="middle" dominant-baseline="middle" fill="${s.textColor ?? FG}"${textStyleAttr(s)}>${escapeXml(e.label)}</text></g>`
     : "";
   const pulse = s.animate === "pulse" ? ` ${PULSE_CLASS}` : "";
   return `<g class="arq-edge${pulse}" data-id="${escapeXml(id)}"${filter}>${path}${label}</g>`;

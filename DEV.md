@@ -257,8 +257,7 @@ add native permissions without a concrete reason and a narrowly scoped rule.
   and `ci:`.
 - Do not commit generated build output (`dist/`, Rust `target/`, test reports)
   unless a task explicitly requires it.
-- Keep product documentation current. `README.md` describes shipped behaviour;
-  `PROJECT.md` also contains historical decisions and future planning, so verify
-  proposed work against the README and code.
+- Keep product documentation current. `README.md` describes shipped behaviour, so
+  verify proposed work against the README and code.
 
 [Tauri v2]: https://v2.tauri.app/

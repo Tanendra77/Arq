@@ -469,8 +469,6 @@ Phases 1 and 2 are complete. What exists today, and what does not:
 | In-app AI generation (prompt → diagram) | Not built |
 | Live broker metrics | Not built |
 
-`PROJECT.md` holds the full design rationale and the longer-term plan.
-
 ---
 
 ## Security

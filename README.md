@@ -78,6 +78,10 @@ a node to attach it. Edges carry no semantic type — they're styled, not typed:
 (straight, curved or orthogonal), an arrowhead per end (none, arrow, triangle, diamond or
 circle), stroke colour, width, dash and an optional glow, all editable in the Inspector.
 
+**Stacking.** Where elements overlap, the **Layer** buttons in the Inspector (or `Ctrl+]` /
+`Ctrl+[`) bring the selection forward or send it back. Lines always sit beneath shapes. A shape's
+**Stroke** row also has **No border**.
+
 **Shaping a line.** Select a line to get dots on it:
 
 - The dots at its **ends** re-point it — drop one on a shape to attach, on open canvas to float.
@@ -142,6 +146,7 @@ the whole gesture. **Delete** or **Backspace** removes the selection, also as on
 | Copy / Cut / Paste selection | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
 | Duplicate selection | `Ctrl+D` |
 | Nudge selection | Arrow keys (`Shift` for 10px) |
+| Bring forward / send backward | `Ctrl+]` / `Ctrl+[` (add `Shift` for all the way) |
 | Delete selection | `Delete` / `Backspace` |
 | Pan | Hold `Space` and drag, or the hand tool (`H`); `V` puts it down |
 
@@ -171,6 +176,11 @@ JSON a `.arq` file holds, and the two stay in step both ways:
 flowing in `layout.direction` (`RIGHT`, `DOWN`, `LEFT`, `UP`). Shapes that already have a position
 keep it; new ones are placed beside them. **Tidy layout** lays everything out again.
 
+The bar above the editor also has **Copy JSON** and **Download JSON** for the whole document, and a
+**Tree** checkbox that swaps the text for a collapsible outline — shapes and lines summarised by
+what they are, clicking one selects it. When the JSON has problems, **Copy errors** copies all of
+them at once, ready to paste back to an AI.
+
 **Generating a diagram with AI:** click **Copy AI instructions**, paste that into any chat model
 followed by what you want drawn, and paste the JSON it returns into the editor. The instructions
 are built from the schema itself — every shape, style key and allowed value — so they always
@@ -183,6 +193,8 @@ match what this build accepts.
 - **File name** and **format** — PNG, or SVG (self-contained: the font and icons are inlined, and
   animations keep playing).
 - **Background** — plain (the canvas colour), transparent, or the canvas colour with its grid.
+- **Theme** — light or dark: the colour of unstyled text and of a canvas with no colour set.
+  It starts on the theme you are editing in, so text exports the colour you saw.
 - **Area** — the whole diagram, or only the selection.
 - **Padding** around the content, and for PNG the **size** (1x–4x); the final pixel size is shown.
 - **Preview** opens the export full size — fitted to the window or at 100% — before you write it.

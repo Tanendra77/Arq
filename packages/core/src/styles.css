@@ -69,6 +69,25 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-json-problems button { all: unset; cursor: pointer; color: #e5484d; }
 .arq-json-problems button:hover { text-decoration: underline; }
 .arq-json-problems .more { opacity: 0.6; }
+.arq-json-problems-head { display: flex; justify-content: flex-end; }
+.arq-json-problems button.arq-json-copy-errors { all: unset; cursor: pointer; font-size: 11px; padding: 1px 6px; border: 1px solid var(--arq-line); border-radius: 4px; color: var(--arq-fg); }
+.arq-json-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.arq-json-bar { flex-wrap: wrap; }
+/* The JSON outline. */
+.arq-json-tree-wrap { flex: 1; min-height: 0; overflow: auto; padding: 6px 8px; font: 12px/1.6 ui-monospace, 'Cascadia Code', Consolas, monospace; }
+.arq-tree, .arq-tree ul { list-style: none; margin: 0; padding: 0; }
+.arq-tree ul { padding-left: 16px; border-left: 1px solid color-mix(in srgb, var(--arq-line) 60%, transparent); margin-left: 5px; }
+.arq-tree summary { cursor: pointer; border-radius: 3px; padding: 0 4px; }
+.arq-tree summary:hover { background: color-mix(in srgb, var(--arq-fg) 6%, transparent); }
+.arq-tree-branch.selected > details > summary { background: color-mix(in srgb, var(--arq-accent) 22%, transparent); }
+.arq-tree-leaf { padding-left: 14px; }
+.arq-tree-key { color: var(--arq-json-key); }
+.arq-tree-leaf .arq-tree-key::after { content: ": "; color: var(--arq-json-punct); }
+.arq-tree-count { margin-left: 6px; color: var(--arq-json-punct); }
+.arq-tree-hint { margin-left: 8px; opacity: 0.75; }
+.arq-tree-value.string { color: var(--arq-json-string); }
+.arq-tree-value.number { color: var(--arq-json-number); }
+.arq-tree-value.boolean, .arq-tree-value.null { color: var(--arq-json-keyword); }
 .arq-view-switch { display: inline-flex; }
 .arq-toolbar .arq-view-switch button { border-radius: 0; margin-left: -1px; }
 .arq-toolbar .arq-view-switch button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }

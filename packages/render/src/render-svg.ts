@@ -28,7 +28,19 @@ export interface RenderOptions {
   grid?: { variant: "dots" | "lines" | "cross"; size: number };
   /** Margin kept around the content, in document units. Defaults to the canvas padding. */
   padding?: number;
+  /**
+   * The colours for whatever the document leaves to the viewer: unstyled text, and the canvas when
+   * the document sets no background. "light" (the default) is dark ink on white; "dark" is what the
+   * editor shows in its dark theme, so an export matches the screen it was made on.
+   */
+  theme?: "light" | "dark";
 }
+
+/** Ink and canvas for each theme — the editor's own dark palette (`--arq-fg`, `--arq-bg`). */
+const THEME_COLORS = {
+  light: { ink: STYLE_DEFAULTS.edge.stroke, canvas: STYLE_DEFAULTS.canvasBackground },
+  dark: { ink: "#ececec", canvas: "#161616" },
+} as const;
 
 /** A pattern colour that shows on the given background without shouting over the diagram. */
 function gridColor(bg: string): string {
@@ -74,7 +86,7 @@ function renderGroup(id: string, label: string, r: Rect): string {
   return `<g class="arq-group" data-id="${escapeXml(id)}"><rect x="${fmt(r.x)}" y="${fmt(r.y)}" width="${fmt(r.w)}" height="${fmt(r.h)}" rx="${m.groupRadius}" fill="#f3f4f6" stroke="${LINE}"/><text x="${fmt(r.x + m.groupPadding)}" y="${fmt(r.y + m.groupHeaderHeight / 2)}" font-size="${m.labelFontSize}" font-weight="600" dominant-baseline="middle" fill="${FG}">${escapeXml(label)}</text></g>`;
 }
 
-function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconResolver): string {
+function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconResolver, ink: string): string {
   const n = doc.nodes.find((x) => x.id === id)!;
   const s = resolveNodeStyle(n.style);
   const m = METRICS;
@@ -119,10 +131,10 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
   const rotate =
     s.rotate === 0 ? "" : ` transform="rotate(${fmt(s.rotate)} ${fmt(r.x + r.w / 2)} ${fmt(r.y + r.h / 2)})"`;
   const pulse = s.animate === "pulse" ? ` ${PULSE_CLASS}` : "";
-  return `<g class="arq-node${pulse}" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${rotate}${filter}>${shaped}${icon}${plate}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${s.textColor ?? FG}"${textStyleAttr(s)}>${text}</text></g>`;
+  return `<g class="arq-node${pulse}" data-id="${escapeXml(id)}" data-shape="${n.shape}" color="${STYLE_DEFAULTS.edge.stroke}"${rotate}${filter}>${shaped}${icon}${plate}<text font-size="${fmt(s.fontSize)}" font-weight="500" text-anchor="${anchor}" fill="${s.textColor ?? ink}"${textStyleAttr(s)}>${text}</text></g>`;
 }
 
-function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string {
+function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>, ink: string): string {
   const e = doc.edges.find((x) => x.id === id)!;
   const ends = edgeEnds(e, nodes);
   if (!ends) return "";
@@ -143,7 +155,7 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
     ? `<rect x="${fmt(lp.x - plateW / 2)}" y="${fmt(lp.y - s.fontSize / 2 - 3)}" width="${fmt(plateW)}" height="${fmt(s.fontSize + 6)}" rx="3" fill="${s.textBackground}"/>`
     : "";
   const label = e.label
-    ? `<g>${plate}<text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="${fmt(s.fontSize)}" text-anchor="middle" dominant-baseline="middle" fill="${s.textColor ?? FG}"${textStyleAttr(s)}>${escapeXml(e.label)}</text></g>`
+    ? `<g>${plate}<text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="${fmt(s.fontSize)}" text-anchor="middle" dominant-baseline="middle" fill="${s.textColor ?? ink}"${textStyleAttr(s)}>${escapeXml(e.label)}</text></g>`
     : "";
   const pulse = s.animate === "pulse" ? ` ${PULSE_CLASS}` : "";
   return `<g class="arq-edge${pulse}" data-id="${escapeXml(id)}"${filter}>${path}${label}</g>`;
@@ -158,11 +170,12 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
   const style = `<style>${fontFaceCss(font)}text{font-family:${FONT_STACK}}${FLOW_CSS}</style>`;
   const defs = collectDefs(doc);
   const groups = doc.groups.map((g) => { const r = layout.groups.get(g.id); return r ? renderGroup(g.id, g.label, r) : ""; }).join("");
-  const edges = doc.edges.map((e) => renderEdge(doc, e.id, layout.nodes)).join("");
-  const nodes = doc.nodes.map((n) => renderNode(doc, n.id, layout.nodes.get(n.id)!, opts.resolveIcon)).join("");
+  const theme = THEME_COLORS[opts.theme ?? "light"];
+  const edges = doc.edges.map((e) => renderEdge(doc, e.id, layout.nodes, theme.ink)).join("");
+  const nodes = doc.nodes.map((n) => renderNode(doc, n.id, layout.nodes.get(n.id)!, opts.resolveIcon, theme.ink)).join("");
   // The full-canvas background rect is the one place the document's own color (when set) wins
   // over the default — this is what makes screen and export agree on canvas color.
-  const canvasFill = doc.canvasBackground ?? STYLE_DEFAULTS.canvasBackground;
+  const canvasFill = doc.canvasBackground ?? theme.canvas;
   const background = opts.background ?? "solid";
   const rect = (fill: string) => `<rect x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" fill="${fill}"/>`;
   const backdrop =

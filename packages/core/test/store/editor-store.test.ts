@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { emptyDocument, parseDocument, serializeDocument } from "@arq/schema";
-import { createEditorStore } from "../../src/store/editor-store";
+import { createEditorStore, reorderIds, type LayerMove } from "../../src/store/editor-store";
 import { endpointNodeId } from "../../src/flow/endpoint-id";
 
 const setup = () => createEditorStore(emptyDocument("T"));
@@ -331,5 +331,36 @@ describe("anchored edge endpoints", () => {
     s.getState().addEdge({ from: { node: a, ax: 0.5, ay: 0.5 }, to: { x: 400, y: 400 } });
     s.getState().removeNodes([a]);
     expect(s.getState().document.edges).toHaveLength(0);
+  });
+});
+
+describe("layer order", () => {
+  const items = ["a", "b", "c", "d"].map((id) => ({ id }));
+  const order = (sel: string[], move: LayerMove) => reorderIds(items, new Set(sel), move).map((x) => x.id).join("");
+
+  it("moves a selection to the front or back, keeping its own order", () => {
+    expect(order(["a", "c"], "front")).toBe("bdac");
+    expect(order(["b", "d"], "back")).toBe("bdac");
+  });
+
+  it("steps one place at a time, stopping at the ends", () => {
+    expect(order(["b"], "forward")).toBe("acbd");
+    expect(order(["d"], "forward")).toBe("abcd");
+    expect(order(["c"], "backward")).toBe("acbd");
+    expect(order(["a", "b"], "backward")).toBe("abcd");
+  });
+
+  it("reorders the document as one undo step, and not at all when nothing would move", () => {
+    const s = createEditorStore(emptyDocument());
+    const a = s.getState().addNode({ shape: "rect", label: "a", position: { x: 0, y: 0 } });
+    const b = s.getState().addNode({ shape: "rect", label: "b", position: { x: 0, y: 0 } });
+    const before = s.getState().past.length;
+    s.getState().reorder([a], "front");
+    expect(s.getState().document.nodes.map((n) => n.id)).toEqual([b, a]);
+    expect(s.getState().past.length).toBe(before + 1);
+    s.getState().reorder([a], "front");
+    expect(s.getState().past.length).toBe(before + 1);
+    s.getState().undo();
+    expect(s.getState().document.nodes.map((n) => n.id)).toEqual([a, b]);
   });
 });

@@ -347,6 +347,9 @@ export function shapeMarkup(
     const d = freehandPathD(points ?? [], r, s.strokeWidth);
     return d === "" ? "" : `<path d="${d}" fill="${s.stroke}" stroke="none"/>`;
   }
+  // No border: the same shape with its outline left unpainted, so the fill still covers exactly
+  // the area it did.
+  if (s.strokeDash === "none") s = { ...s, stroke: "none" };
   const body = (() => {
     if (s.roughness > 0) return sketchShape(shape, r, s, seed);
     const outline = shapeOutline(shape, r, s.radius, s.sides);
@@ -368,7 +371,7 @@ export function shapeMarkup(
  * outline is dozens of them.
  */
 export function borderFlowMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle): string {
-  if (s.animate !== "flow") return "";
+  if (s.animate !== "flow" || s.strokeDash === "none") return ""; // no border, nothing to march
   const outline = shapeOutline(shape, r, s.radius, s.sides);
   if (!outline) return ""; // a text node has no border to march
   const dash = DASH_ARRAY[s.strokeDash] ?? FLOW_DASH;
@@ -400,6 +403,8 @@ export function edgePaths(
   seed: number,
   ends: { start: Point; end: Point; startDir: Point; endDir: Point },
 ): PathSpec[] {
+  // An edge set to no stroke keeps its arrowheads and label but draws no line between them.
+  if (s.strokeDash === "none") s = { ...s, stroke: "none" };
   const flowing = s.animate === "flow";
   const dash = DASH_ARRAY[s.strokeDash];
   const line: PathSpec[] = (

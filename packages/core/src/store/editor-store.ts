@@ -137,6 +137,12 @@ export interface EditorState {
    * parts that actually differ are written, and an identical document is not an edit at all.
    */
   replaceDocument(next: Document, opts?: MutateOptions): void;
+  /**
+   * Move elements toward the viewer or away: `front`/`back` all the way, `forward`/`backward` one
+   * step past their neighbour. Shapes stack among shapes and lines among lines — lines always sit
+   * beneath shapes, on the canvas and in an export alike.
+   */
+  reorder(ids: string[], direction: LayerMove): void;
   /** Shape an edge's route by hand: `null` clears that part, so the router takes over again. */
   setRoute(edgeId: string, route: { legs?: number[] | null; via?: { x: number; y: number }[] | null }, opts?: MutateOptions): void;
   /** Shifts nodes and the loose ends of edges together, as one mutation. */
@@ -144,6 +150,30 @@ export interface EditorState {
 }
 
 export type EditorStore = StoreApi<EditorState>;
+
+export type LayerMove = "front" | "back" | "forward" | "backward";
+
+/**
+ * The stacking order after a layer move. Array order *is* stacking order — later draws on top — and
+ * the selected items keep their order among themselves whichever way they move.
+ */
+export function reorderIds<T extends { id: string }>(items: readonly T[], selected: ReadonlySet<string>, move: LayerMove): T[] {
+  const picked = items.filter((x) => selected.has(x.id));
+  const rest = items.filter((x) => !selected.has(x.id));
+  if (move === "front") return [...rest, ...picked];
+  if (move === "back") return [...picked, ...rest];
+  const out = [...items];
+  if (move === "forward") {
+    for (let i = out.length - 2; i >= 0; i -= 1) {
+      if (selected.has(out[i]!.id) && !selected.has(out[i + 1]!.id)) [out[i], out[i + 1]] = [out[i + 1]!, out[i]!];
+    }
+  } else {
+    for (let i = 1; i < out.length; i += 1) {
+      if (selected.has(out[i]!.id) && !selected.has(out[i - 1]!.id)) [out[i], out[i - 1]] = [out[i - 1]!, out[i]!];
+    }
+  }
+  return out;
+}
 
 export function newId(prefix: string, existing: Set<string>): string {
   let n = 1;
@@ -511,6 +541,19 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         }
       });
       return { nodes: nodes.map((n) => n.id), edges: edges.map((e) => e.id) };
+    },
+
+    reorder(ids, direction) {
+      const selected = new Set(ids);
+      const { nodes, edges } = get().document;
+      const nextNodes = reorderIds(nodes, selected, direction);
+      const nextEdges = reorderIds(edges, selected, direction);
+      const same = <T,>(a: readonly T[], b: readonly T[]) => a.every((x, i) => x === b[i]);
+      if (same(nodes, nextNodes) && same(edges, nextEdges)) return; // already there: not an undo step
+      get().mutate("reorder", (d) => {
+        if (!same(nodes, nextNodes)) d.nodes = nextNodes;
+        if (!same(edges, nextEdges)) d.edges = nextEdges;
+      });
     },
 
     setRoute(edgeId, route, opts) {

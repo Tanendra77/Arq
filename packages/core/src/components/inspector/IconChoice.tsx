@@ -63,6 +63,8 @@ export function routingGlyph(routing: "straight" | "curved" | "orthogonal"): str
 }
 
 export function dashGlyph(dash: DashStyle): string {
+  // No border: a faint outline crossed through, the usual "none" mark.
+  if (dash === "none") return svg(`${stroke("M4 9 H22", ' stroke-dasharray="1 3" opacity="0.45"')}${stroke("M8 15 L18 3")}`);
   const array = DASH_ARRAY[dash];
   return svg(stroke(`M${LEFT.x} ${LEFT.y} L${RIGHT.x} ${RIGHT.y}`, array ? ` stroke-dasharray="${array}"` : ""));
 }

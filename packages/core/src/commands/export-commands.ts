@@ -22,10 +22,12 @@ export interface ExportOptions {
   padding: number;
   /** PNG pixels per document unit. */
   scale: number;
+  /** Colours for unstyled text and an unset canvas: light, or the editor's dark theme. */
+  theme: "light" | "dark";
 }
 
 export const DEFAULT_EXPORT: Omit<ExportOptions, "name" | "grid"> = {
-  format: "png", background: "solid", area: "all", padding: 40, scale: 2,
+  format: "png", background: "solid", area: "all", padding: 40, scale: 2, theme: "light",
 };
 
 /** The document an export draws: all of it, or just the selection cut out as its own diagram. */
@@ -40,7 +42,7 @@ export function exportDocument(doc: Document, selection: Selection, area: Export
 /** The SVG an export produces and its size in document units — also what the dialog previews. */
 export function renderExport(doc: Document, selection: Selection, o: Omit<ExportOptions, "name" | "format" | "scale">, resolveIcon: IconResolver, font: "embed" | "system" = "embed") {
   const target = exportDocument(doc, selection, o.area);
-  const svg = renderSvg(target, { resolveIcon, font, background: o.background, grid: o.grid, padding: o.padding });
+  const svg = renderSvg(target, { resolveIcon, font, background: o.background, grid: o.grid, padding: o.padding, theme: o.theme });
   const { bounds } = layoutDocument(target, o.padding);
   return { svg, width: bounds.w, height: bounds.h };
 }

@@ -78,6 +78,7 @@ export const DASH_ARRAY: Record<DashStyle, string | undefined> = {
   solid: undefined,
   dashed: "8 4",
   dotted: "2 4",
+  none: undefined,
 };
 
 export function shapeRect(pinned: Pinned | undefined, shape: NodeShape): Rect {

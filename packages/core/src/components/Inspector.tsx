@@ -50,8 +50,10 @@ const START_ARROW_OPTIONS = ARROW_STYLES.map((a) => ({
   glyph: arrowGlyph(a).replace("<svg ", '<svg style="transform:scaleX(-1)" '),
 }));
 
-const DASH_TITLES: Record<DashStyle, string> = { solid: "Solid", dashed: "Dashed", dotted: "Dotted" };
+const DASH_TITLES: Record<DashStyle, string> = { solid: "Solid", dashed: "Dashed", dotted: "Dotted", none: "No border" };
 const DASH_OPTIONS = DASH_STYLES.map((d) => ({ value: d, title: DASH_TITLES[d], glyph: dashGlyph(d) }));
+/** A line with no stroke would be invisible, so lines (and mixed selections) are not offered it. */
+const LINE_DASH_OPTIONS = DASH_OPTIONS.filter((o) => o.value !== "none");
 
 const SKETCH_TITLES: Record<SketchLevel, string> = { clean: "Solid", sketch: "Sketch", rough: "Rough" };
 const SKETCH_OPTIONS = SKETCH_LEVELS.map((l) => ({
@@ -201,6 +203,34 @@ function TextFields({
           onChange={(v) => patch({ textBackground: v }, "style:textBackground")} />
       ) : null}
     </>
+  );
+}
+
+const LAYER_ACTIONS = [
+  { move: "back", title: "Send to back (Ctrl+Shift+[)", d: "M4 16h10v4H4z M8 4h12v10H8z M11 7l3 3 3-3" },
+  { move: "backward", title: "Send backward (Ctrl+[)", d: "M6 6h12v12H6z M12 9v6 M9 12l3 3 3-3" },
+  { move: "forward", title: "Bring forward (Ctrl+])", d: "M6 6h12v12H6z M12 15V9 M9 12l3-3 3 3" },
+  { move: "front", title: "Bring to front (Ctrl+Shift+])", d: "M4 4h10v4H4z M8 10h12v10H8z M11 17l3-3 3 3" },
+] as const;
+
+/** Stacking order for whatever is selected: which of several overlapping elements shows on top. */
+function LayerButtons({ ids }: { ids: string[] }) {
+  const store = useEditorStore();
+  return (
+    <div className="arq-field arq-field-icons" role="group" aria-label="Layer">
+      <span className="arq-field-caption">Layer</span>
+      <div className="arq-icon-row">
+        {LAYER_ACTIONS.map((a) => (
+          <button key={a.move} type="button" aria-label={a.title} title={a.title}
+            onClick={() => store.getState().reorder(ids, a.move)}>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth={1.6}
+              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d={a.d} />
+            </svg>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -418,6 +448,7 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
         <NumberField label="Corner radius" value={radius} indeterminate={radius === undefined} min={0} step={1}
           onChange={(v) => patch({ radius: v }, "style:radius")} />
       ) : null}
+      <LayerButtons ids={ids} />
       <IconChoice label="Turn" value={rotate === undefined ? undefined : String(rotate)}
         indeterminate={rotate === undefined || !ROTATE_OPTIONS.some((o) => o.value === String(rotate))}
         options={ROTATE_OPTIONS} onChange={(v) => patch({ rotate: Number(v) })} />
@@ -486,12 +517,13 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
           ↺ Reset route
         </button>
       ) : null}
+      <LayerButtons ids={ids} />
       <IconChoice label="Ends" value={startArrow} indeterminate={startArrow === undefined}
         options={START_ARROW_OPTIONS} onChange={(v) => patch({ startArrow: v })} />
       <IconChoice label="" value={endArrow} indeterminate={endArrow === undefined}
         options={END_ARROW_OPTIONS} onChange={(v) => patch({ endArrow: v })} />
       <IconChoice label="Stroke" value={strokeDash} indeterminate={strokeDash === undefined}
-        options={DASH_OPTIONS} onChange={(v) => patch({ strokeDash: v })} />
+        options={LINE_DASH_OPTIONS} onChange={(v) => patch({ strokeDash: v })} />
       <IconChoice label="Style" value={roughness === undefined ? undefined : sketchLevelOf(roughness)}
         indeterminate={roughness === undefined} options={SKETCH_OPTIONS}
         onChange={(v) => patch({ roughness: SKETCH_ROUGHNESS[v] })} />
@@ -529,6 +561,7 @@ function MixedPanel({ nodes, edges }: { nodes: ArqNode[]; edges: ArqEdge[] }) {
   return (
     <div className="arq-inspector-inner">
       <h3>{ids.length} objects</h3>
+      <LayerButtons ids={ids} />
       <div className="arq-field-pair">
         <ColorField label="Line" value={stroke} indeterminate={stroke === undefined}
           onChange={(v) => patch({ stroke: v }, "style:stroke")} />
@@ -536,7 +569,7 @@ function MixedPanel({ nodes, edges }: { nodes: ArqNode[]; edges: ArqEdge[] }) {
           onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
       </div>
       <IconChoice label="Stroke" value={strokeDash} indeterminate={strokeDash === undefined}
-        options={DASH_OPTIONS} onChange={(v) => patch({ strokeDash: v })} />
+        options={LINE_DASH_OPTIONS} onChange={(v) => patch({ strokeDash: v })} />
       <GlowFields
         on={glowOn}
         color={glowColor}

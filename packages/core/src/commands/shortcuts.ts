@@ -73,6 +73,16 @@ export function useShortcuts(): void {
         duplicateSelection(store);
         return;
       }
+      // Layers, as in most drawing tools: Ctrl+] forward, Ctrl+[ backward, with Shift all the way.
+      // Matched on the physical key, because Shift turns "]" into "}" on most layouts.
+      if (mod && (e.code === "BracketRight" || e.code === "BracketLeft")) {
+        const ids = [...realNodes(s.selection.nodes), ...s.selection.edges];
+        if (ids.length === 0) return;
+        e.preventDefault();
+        const up = e.code === "BracketRight";
+        s.reorder(ids, up ? (e.shiftKey ? "front" : "forward") : e.shiftKey ? "back" : "backward");
+        return;
+      }
       if (mod && (key === "=" || key === "+")) { e.preventDefault(); zoomIn(); return; }
       if (mod && key === "-") { e.preventDefault(); zoomOut(); return; }
       if (mod && key === "0") { e.preventDefault(); zoomTo(1); return; }

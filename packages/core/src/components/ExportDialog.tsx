@@ -7,6 +7,7 @@ import { reportCommandError } from "../commands/file-commands";
 import { parseEndpointNodeId } from "../flow/endpoint-id";
 import { createIconResolver } from "../icons/resolver";
 import { useSettings } from "./SettingsModal";
+import { isDarkTheme } from "../settings";
 import { NumberField, TextField } from "./inspector/Field";
 
 /** A row of mutually exclusive buttons: a lighter radio group. */
@@ -88,6 +89,8 @@ function ExportBody({ onClose }: { onClose: () => void }) {
     ...DEFAULT_EXPORT,
     name: fileSlug(doc.title),
     area: hasSelection ? "selection" : "all",
+    // The export starts in the theme on screen, so the text is the colour it was when you wrote it.
+    theme: isDarkTheme(settings.theme) ? "dark" : "light",
     grid: { variant: settings.grid === "off" ? "dots" : settings.grid, size: settings.gridSize },
   }));
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
@@ -136,6 +139,10 @@ function ExportBody({ onClose }: { onClose: () => void }) {
         { value: "solid", label: "Plain", title: "The canvas colour" },
         { value: "transparent", label: "Transparent", title: "No background at all" },
         { value: "grid", label: "Grid", title: "The canvas colour with its grid pattern" },
+      ]} />
+      <Choice label="Theme" value={o.theme} onChange={(v) => set({ theme: v })} options={[
+        { value: "light", label: "Light", title: "Dark text on a light canvas" },
+        { value: "dark", label: "Dark", title: "Light text on a dark canvas, as the editor's dark theme shows it" },
       ]} />
       <Choice label="Area" value={o.area} onChange={(v) => set({ area: v })} options={[
         { value: "all", label: "Whole diagram" },

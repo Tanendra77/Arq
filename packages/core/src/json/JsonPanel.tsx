@@ -8,7 +8,9 @@ import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import type { SyntaxNode } from "@lezer/common";
 import { serializeDocument, type Document, type ParseIssue } from "@arq/schema";
-import { useEditor, useEditorStore } from "../store/context";
+import { useEditor, useEditorStore, usePlatform } from "../store/context";
+import { fileSlug } from "../commands/export-commands";
+import { JsonTree } from "./JsonTree";
 import { reportCommandError } from "../commands/file-commands";
 import { requestFitView } from "../flow/fit-request";
 import { aiInstructions } from "./ai-instructions";
@@ -203,7 +205,9 @@ export default function JsonPanel() {
   /** Whether the text on screen is exactly what the diagram shows — false while typing or broken. */
   const inSync = useRef(true);
   const [status, setStatus] = useState<Status>({ kind: "ok" });
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const [tree, setTree] = useState(false);
+  const platform = usePlatform();
 
   /** Replace the editor's text with the document's, keeping the cursor about where it was. */
   const showDocument = (d: Document) => {
@@ -358,14 +362,21 @@ export default function JsonPanel() {
       .catch((e: unknown) => reportCommandError(store, e));
   };
 
-  const copyInstructions = () => {
-    void navigator.clipboard.writeText(aiInstructions()).then(
+  /** Copy text to the clipboard, and say so on the button that did it for a moment. */
+  const copy = (what: string, text: string) => {
+    void navigator.clipboard.writeText(text).then(
       () => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
+        setCopied(what);
+        setTimeout(() => setCopied((c) => (c === what ? null : c)), 1500);
       },
       (e: unknown) => reportCommandError(store, e),
     );
+  };
+  const editorText = () => view.current?.state.doc.toString() ?? serializeDocument(store.getState().document);
+  const downloadJson = () => {
+    void platform
+      .exportFile(editorText(), `${fileSlug(store.getState().document.title)}.json`, "application/json")
+      .catch((e: unknown) => reportCommandError(store, e));
   };
 
   const jump = (from: number) => {
@@ -381,15 +392,39 @@ export default function JsonPanel() {
         <span className={`arq-json-status ${status.kind}`} data-testid="json-status" role="status">
           {status.kind === "ok" ? "✓ In sync" : status.kind === "pending" ? "… Typing" : `✕ ${status.problems.length} problem${status.problems.length === 1 ? "" : "s"}`}
         </span>
+        <label className="arq-json-toggle" title="Show the JSON as a collapsible outline">
+          <input type="checkbox" checked={tree} onChange={(e) => setTree(e.target.checked)} /> Tree
+        </label>
         <span className="arq-json-spacer" />
         <button type="button" onClick={tidy} title="Lay out every shape again, following layout.direction">Tidy layout</button>
-        <button type="button" onClick={copyInstructions} title="Copy a prompt that teaches an AI this JSON format">
-          {copied ? "Copied ✓" : "Copy AI instructions"}
+        <button type="button" onClick={() => copy("ai", aiInstructions())} title="Copy a prompt that teaches an AI this JSON format">
+          {copied === "ai" ? "Copied ✓" : "Copy AI instructions"}
         </button>
+        <button type="button" onClick={() => copy("json", editorText())} title="Copy all of the JSON">
+          {copied === "json" ? "Copied ✓" : "Copy JSON"}
+        </button>
+        <button type="button" onClick={downloadJson} title="Save the JSON as a .json file">Download JSON</button>
       </div>
-      <div className="arq-json-editor" ref={host} />
+      {/* The text editor stays mounted under the outline, so its sync and its problems carry on. */}
+      <div className="arq-json-editor" ref={host} hidden={tree} />
+      {tree ? (
+        <div className="arq-json-tree-wrap">
+          <JsonTree
+            doc={doc}
+            selection={selection}
+            onSelect={(kind, id) =>
+              store.getState().setSelection(kind === "nodes" ? { nodes: [id], edges: [] } : { nodes: [], edges: [id] })}
+          />
+        </div>
+      ) : null}
       {status.kind === "error" ? (
         <ul className="arq-json-problems" data-testid="json-problems">
+          <li className="arq-json-problems-head">
+            <button type="button" className="arq-json-copy-errors" onClick={() =>
+              copy("errors", status.problems.map((p) => p.message).join("\n"))} title="Copy every problem, to fix or to paste to an AI">
+              {copied === "errors" ? "Copied ✓" : "Copy errors"}
+            </button>
+          </li>
           {status.problems.slice(0, 6).map((p, i) => (
             <li key={i}>
               <button type="button" onClick={() => jump(p.from)}>{p.message}</button>

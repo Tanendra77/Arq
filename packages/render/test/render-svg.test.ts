@@ -441,3 +441,16 @@ describe("export options", () => {
     expect(svg).toContain('fill="url(#arq-grid)"');
   });
 });
+
+describe("export theme", () => {
+  it("a dark export sets unstyled text light on the dark canvas, and leaves chosen colours alone", () => {
+    const light = renderSvg(doc, opts);
+    const dark = renderSvg(doc, { ...opts, theme: "dark" });
+    expect(light).toContain('fill="#1a1a1a"');
+    expect(dark).toContain('fill="#ececec"');
+    expect(dark).toContain('fill="#161616"/>');
+    expect(renderSvg(doc, { ...opts, theme: "light" })).toBe(light);
+    const custom = DocumentSchema.parse({ ...fixture, canvasBackground: "#123456" });
+    expect(renderSvg(custom, { ...opts, theme: "dark" })).toContain('fill="#123456"/>');
+  });
+});

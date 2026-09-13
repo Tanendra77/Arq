@@ -13,7 +13,8 @@ export const NODE_SHAPES = [
 ] as const;
 export type NodeShape = (typeof NODE_SHAPES)[number];
 
-export const DASH_STYLES = ["solid", "dashed", "dotted"] as const;
+/** "none" draws no outline at all — a borderless shape. */
+export const DASH_STYLES = ["solid", "dashed", "dotted", "none"] as const;
 export type DashStyle = (typeof DASH_STYLES)[number];
 
 export const ARROW_STYLES = ["none", "arrow", "triangle", "diamond", "circle"] as const;

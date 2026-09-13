@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml"><img src="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/platform-web%20%7C%20Windows-lightgrey" alt="Platform: web and Windows">
   <img src="https://img.shields.io/badge/built%20with-React%20%C2%B7%20Tauri-24c8db" alt="Built with React and Tauri">

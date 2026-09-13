@@ -1,0 +1,10 @@
+// Cloudflare deploy for the web build: static files only, no Worker script.
+// Build first (`pnpm --filter @arq/web build`), then `npx wrangler deploy` from this folder.
+{
+  "$schema": "https://unpkg.com/wrangler/config-schema.json",
+  "name": "arq",
+  "compatibility_date": "2026-09-11",
+  "assets": {
+    "directory": "./dist"
+  }
+}

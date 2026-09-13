@@ -37,6 +37,7 @@ describe("ArqNode", () => {
         iconSvg: undefined,
         iconId: undefined,
         pinned: { x: 10, y: 20, w: 300, h: 150 },
+        points: undefined,
       },
     };
     const { container } = renderNode(node);
@@ -59,6 +60,7 @@ describe("ArqNode", () => {
         iconSvg: undefined,
         iconId: undefined,
         pinned: undefined,
+        points: undefined,
       },
     };
     const { container } = renderNode(node);
@@ -79,6 +81,7 @@ describe("ArqNode", () => {
         iconSvg: undefined,
         iconId: undefined,
         pinned: undefined,
+        points: undefined,
       },
     };
     const { container } = renderNode(node);
@@ -96,7 +99,7 @@ describe("ArqNode", () => {
       id,
       type: "arq",
       position: { x: 0, y: 0 },
-      data: { label: "Text", shape: "rect", style: undefined, iconSvg: undefined, iconId: undefined, pinned: undefined },
+      data: { label: "Text", shape: "rect", style: undefined, iconSvg: undefined, iconId: undefined, pinned: undefined, points: undefined },
     };
     const { container } = renderNode(node, store);
 

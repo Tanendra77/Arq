@@ -92,20 +92,35 @@ export function angleFromPointer(
  * `margin` widens every box, which is what makes an arrow end snap to a shape it is merely near
  * rather than demanding a hit inside it. Later nodes win, matching paint order — the one on top.
  */
+/**
+ * Every node whose box contains `p`, bottom to top.
+ *
+ * The eraser needs all of them, not just the one on top: where two shapes overlap, taking only the
+ * uppermost left the lower one untouched however many times you wiped across it.
+ */
+export function nodesAt(
+  nodes: readonly { id: string; shape: NodeShape }[],
+  pinned: Record<string, Pinned | undefined>,
+  p: Point,
+  margin = 0,
+): string[] {
+  const hits: string[] = [];
+  for (const n of nodes) {
+    const pin = pinned[n.id];
+    if (!pin) continue;
+    const r = shapeRect(pin, n.shape);
+    if (p.x >= r.x - margin && p.x <= r.x + r.w + margin && p.y >= r.y - margin && p.y <= r.y + r.h + margin) {
+      hits.push(n.id);
+    }
+  }
+  return hits;
+}
+
 export function nodeAt(
   nodes: readonly { id: string; shape: NodeShape }[],
   pinned: Record<string, Pinned | undefined>,
   p: Point,
   margin = 0,
 ): string | undefined {
-  let hit: string | undefined;
-  for (const n of nodes) {
-    const pin = pinned[n.id];
-    if (!pin) continue;
-    const r = shapeRect(pin, n.shape);
-    if (p.x >= r.x - margin && p.x <= r.x + r.w + margin && p.y >= r.y - margin && p.y <= r.y + r.h + margin) {
-      hit = n.id;
-    }
-  }
-  return hit;
+  return nodesAt(nodes, pinned, p, margin).at(-1);
 }

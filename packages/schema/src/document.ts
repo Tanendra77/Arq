@@ -47,6 +47,12 @@ export const NodeSchema = z.object({
   icon: IconId.optional(),
   group: Id.optional(),
   style: NodeStyleSchema.optional(),
+  /**
+   * A freehand stroke's path, as [x, y] pairs normalised to 0..1 within the node's own box.
+   * Normalised rather than absolute so resizing a drawing scales the drawing, the same way it
+   * scales any other shape.
+   */
+  points: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])).max(5000).optional(),
   // Free-form carrier for v1 `props` so a migration never silently drops authored data.
   meta: z.record(z.string()).optional(),
 }).strict();

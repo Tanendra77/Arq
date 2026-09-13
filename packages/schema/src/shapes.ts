@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-export const NODE_SHAPES = ["rect", "ellipse", "diamond", "triangle", "text"] as const;
+/**
+ * Every shape a node can take.
+ *
+ * `polygon` and `star` read their vertex/point count from `style.sides`. `freehand` is a pen stroke:
+ * its path lives in the node's own `points`, normalised to its box, so it moves, resizes and rotates
+ * exactly like any other shape.
+ */
+export const NODE_SHAPES = [
+  "rect", "ellipse", "diamond", "triangle", "text",
+  "polygon", "star", "parallelogram", "cylinder", "cloud", "note", "bubble", "freehand",
+] as const;
 export type NodeShape = (typeof NODE_SHAPES)[number];
 
 export const DASH_STYLES = ["solid", "dashed", "dotted"] as const;
@@ -69,6 +79,8 @@ export const NodeStyleSchema = z.object({
   textAlign: z.enum(["left", "center", "right"]).optional(),
   /** Degrees clockwise about the shape's own centre. */
   rotate: z.number().optional(),
+  /** Corners of a polygon, or points of a star. Ignored by every other shape. */
+  sides: z.number().int().min(3).max(24).optional(),
   animate: z.enum(ANIMATIONS).optional(),
   animateSpeed: z.enum(ANIMATION_SPEEDS).optional(),
   animateDirection: z.enum(ANIMATION_DIRECTIONS).optional(),

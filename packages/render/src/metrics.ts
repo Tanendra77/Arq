@@ -1,3 +1,4 @@
+import { shapePathD } from "./shape-paths";
 import type {
   Animation, AnimationDirection, AnimationSpeed, DashStyle, EdgeStyle, LabelPosition, NodeShape,
   NodeStyle, Pinned,
@@ -86,7 +87,9 @@ export function shapeRect(pinned: Pinned | undefined, shape: NodeShape): Rect {
 const fmt = (n: number) => String(Math.round(n * 100) / 100);
 
 /** One SVG element for the shape's outline. Fill and stroke are applied by the caller. */
-export function shapeOutline(shape: NodeShape, r: Rect, radius: number): string {
+export function shapeOutline(shape: NodeShape, r: Rect, radius: number, sides?: number): string {
+  const d = shapePathD(shape, r, sides);
+  if (d !== undefined) return `<path d="${d}"/>`;
   const cx = r.x + r.w / 2;
   const cy = r.y + r.h / 2;
   switch (shape) {
@@ -98,7 +101,8 @@ export function shapeOutline(shape: NodeShape, r: Rect, radius: number): string 
       return `<polygon points="${fmt(cx)},${fmt(r.y)} ${fmt(r.x + r.w)},${fmt(cy)} ${fmt(cx)},${fmt(r.y + r.h)} ${fmt(r.x)},${fmt(cy)}"/>`;
     case "triangle":
       return `<polygon points="${fmt(cx)},${fmt(r.y)} ${fmt(r.x + r.w)},${fmt(r.y + r.h)} ${fmt(r.x)},${fmt(r.y + r.h)}"/>`;
-    case "text":
+    default:
+      // "text" has no outline, and "freehand" is drawn from its points by `freehandPathD`.
       return "";
   }
 }
@@ -107,6 +111,8 @@ export type ResolvedNodeStyle = {
   fill: string; stroke: string; strokeWidth: number; strokeDash: DashStyle;
   radius: number; fontSize: number; textAlign: "left" | "center" | "right";
   rotate: number;
+  /** Undefined means "the shape's own default": six for a polygon, five for a star. */
+  sides: number | undefined;
   animate: Animation;
   animateSpeed: AnimationSpeed;
   animateDirection: AnimationDirection;
@@ -125,6 +131,7 @@ export function resolveNodeStyle(s: NodeStyle | undefined): ResolvedNodeStyle {
     fontSize: s?.fontSize ?? d.fontSize,
     textAlign: s?.textAlign ?? d.textAlign,
     rotate: s?.rotate ?? d.rotate,
+    sides: s?.sides,
     animate: s?.animate ?? d.animate,
     animateSpeed: s?.animateSpeed ?? d.animateSpeed,
     animateDirection: s?.animateDirection ?? d.animateDirection,

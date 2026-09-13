@@ -192,6 +192,31 @@ export function edgeLabelPoint(start: Point, end: Point, routing: Routing, pos: 
 }
 
 /**
+ * The routed line as a polyline, for hit-testing. A curve is sampled finely enough that the gap
+ * between chord and arc stays well inside any sensible hit radius.
+ */
+export function edgePolyline(start: Point, end: Point, routing: Routing, bend?: number): Point[] {
+  if (routing === "straight") return [start, end];
+  if (routing === "orthogonal") return orthogonalPoints(start, end, bend);
+  return Array.from({ length: 17 }, (_, i) => curvePointAt(start, end, i / 16));
+}
+
+/** Shortest distance from a point to a polyline. */
+export function distanceToPolyline(p: Point, line: readonly Point[]): number {
+  let best = Infinity;
+  for (let i = 1; i < line.length; i += 1) {
+    const a = line[i - 1]!;
+    const b = line[i]!;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    best = Math.min(best, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)));
+  }
+  return best;
+}
+
+/**
  * The point on an orthogonal route the bend handle sits on: the middle of the leg that `bend`
  * moves. Undefined for any route without one — a straight run, or a non-orthogonal mode.
  */

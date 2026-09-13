@@ -48,7 +48,7 @@ function renderNode(doc: Document, id: string, r: Rect, resolveIcon: RenderIconR
   const filter = s.glow ? ` filter="url(#${glowId(s.glow.color)})"` : "";
   // One shared painter for the outline, hand-drawn or crisp, seeded off the node's own id so the
   // export wobbles exactly the way the editor drew it.
-  const shaped = shapeMarkup(n.shape, r, s, seedFromId(id));
+  const shaped = shapeMarkup(n.shape, r, s, seedFromId(id), n.points);
 
   const iconBox: Rect = {
     x: r2(r.x + (r.w - m.iconSize) / 2), y: r2(r.y + m.padding), w: m.iconSize, h: m.iconSize,

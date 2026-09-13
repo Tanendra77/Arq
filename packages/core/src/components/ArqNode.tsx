@@ -32,7 +32,7 @@ function ArqNodeImpl({ id, data, selected }: NodeProps<ArqFlowNode>) {
   const box = data.pinned ? shapeRect(data.pinned, data.shape) : undefined;
   // The exporter's own painter, seeded off the node id: the hand-drawn wobble on screen is the
   // wobble in the exported file, down to the byte.
-  const shaped = shapeMarkup(data.shape, rect, s, seedFromId(id));
+  const shaped = shapeMarkup(data.shape, rect, s, seedFromId(id), data.points);
   // Referenced only, never defined here: `EdgeDefs` mounts `collectDefs(doc)` once per document,
   // which already emits `<filter id="arq-glow-<color>">` for every glowing node and edge. Defining
   // it again per-node would duplicate that id in the DOM.

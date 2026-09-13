@@ -12,8 +12,12 @@ describe("ColorSchema", () => {
 });
 
 describe("style schemas", () => {
-  it("has five node shapes", () => {
-    expect(NODE_SHAPES).toEqual(["rect", "ellipse", "diamond", "triangle", "text"]);
+  it("keeps the original five shapes first, in their original order", () => {
+    // Appending rather than inserting keeps every existing document's shape name meaning what it did.
+    expect(NODE_SHAPES.slice(0, 5)).toEqual(["rect", "ellipse", "diamond", "triangle", "text"]);
+    for (const s of ["polygon", "star", "parallelogram", "cylinder", "cloud", "note", "bubble", "freehand"]) {
+      expect(NODE_SHAPES).toContain(s);
+    }
   });
 
   it("accepts an empty style and a fully populated one", () => {

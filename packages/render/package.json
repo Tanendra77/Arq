@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@arq/schema": "workspace:*",
+    "perfect-freehand": "1.2.0",
     "roughjs": "4.6.4"
   },
   "devDependencies": {

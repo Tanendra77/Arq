@@ -67,6 +67,12 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-palette-list li.armed { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--arq-accent); }
 .arq-palette-icon svg { width: 24px; height: 24px; display: block; }
 .arq-palette-glyph { font-size: 16px; font-weight: 600; line-height: 1; }
+/* How many sides the next polygon — or points the next star — gets, shown under the grid while armed. */
+.arq-palette-sides { display: flex; flex-direction: column; gap: 3px; margin: 4px 6px; font-size: 11px; }
+.arq-palette-sides span { opacity: 0.6; }
+.arq-palette-sides input { font: inherit; color: inherit; width: 100%; box-sizing: border-box; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 4px; padding: 3px 5px; }
+/* What an eraser wipe is about to remove, before the pointer lifts and it commits. */
+.react-flow__node.arq-erasing, .react-flow__edge.arq-erasing { opacity: 0.2; }
 /*
  * A node's own fill/stroke/shape come from the inline <svg data-shape> ArqNode draws with
  * `shapeMarkup` (the same function the SVG exporter calls) — this stylesheet never paints the

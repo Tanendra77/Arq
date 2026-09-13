@@ -14,12 +14,16 @@ export interface Settings {
   nodeStroke: string;
   edgeStroke: string;
   edgeArrow: ArrowStyle;
+  /** Corners a new polygon is drawn with, and points a new star is drawn with. */
+  polygonSides: number;
+  starPoints: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   version: 1, theme: "system", grid: "dots", rulers: false, snap: true, gridSize: 10,
   nodeFill: STYLE_DEFAULTS.node.fill, nodeStroke: STYLE_DEFAULTS.node.stroke,
   edgeStroke: STYLE_DEFAULTS.edge.stroke, edgeArrow: "arrow",
+  polygonSides: 6, starPoints: 5,
 };
 
 const THEMES = ["light", "dark", "system"] as const;
@@ -68,6 +72,10 @@ function sanitize(parsed: Partial<Settings>): Settings {
   if (ColorSchema.safeParse(parsed.nodeStroke).success) s.nodeStroke = parsed.nodeStroke as string;
   if (ColorSchema.safeParse(parsed.edgeStroke).success) s.edgeStroke = parsed.edgeStroke as string;
   if (ARROW_STYLES.includes(parsed.edgeArrow as ArrowStyle)) s.edgeArrow = parsed.edgeArrow as ArrowStyle;
+  // Same bounds as NodeStyleSchema.sides: these go straight into a new node's style.
+  const sides = (n: unknown): n is number => Number.isInteger(n) && (n as number) >= 3 && (n as number) <= 24;
+  if (sides(parsed.polygonSides)) s.polygonSides = parsed.polygonSides;
+  if (sides(parsed.starPoints)) s.starPoints = parsed.starPoints;
   return s;
 }
 

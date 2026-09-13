@@ -15,6 +15,8 @@ export type ArqNodeData = {
   /** The document's pinned rect for this node, if any — carried through so `ArqNode` can size
    * itself with `@arq/render`'s `shapeRect`, exactly as the SVG exporter does. */
   pinned: Pinned | undefined;
+  /** A freehand stroke's normalised path; undefined for every other shape. */
+  points: [number, number][] | undefined;
 };
 export type ArqEdgeData = {
   label: string | undefined;
@@ -48,6 +50,7 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
         iconSvg: n.icon !== undefined ? resolveIcon(n.icon) : undefined,
         iconId: n.icon,
         pinned: p,
+        points: n.points,
       },
     };
   });

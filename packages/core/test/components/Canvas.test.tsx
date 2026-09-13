@@ -29,7 +29,7 @@ function flowNode(id: string, x: number, label: string, measured?: { width: numb
     id,
     type: "arq",
     position: { x, y: 0 },
-    data: { label, shape: "rect", style: undefined, iconSvg: undefined, iconId: undefined, pinned: undefined },
+    data: { label, shape: "rect", style: undefined, iconSvg: undefined, iconId: undefined, pinned: undefined, points: undefined },
     ...(measured !== undefined ? { measured } : {}),
   };
 }

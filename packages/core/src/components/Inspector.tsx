@@ -263,6 +263,11 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const ids = nodes.map((n) => n.id);
   const resolved = nodes.map((n) => resolveNodeStyle(n.style));
   const allRect = nodes.every((n) => n.shape === "rect");
+  // Polygons and stars share the one `sides` field; the caption says which it means for this set.
+  const allSided = nodes.every((n) => n.shape === "polygon" || n.shape === "star");
+  const allStars = nodes.every((n) => n.shape === "star");
+  // A pen stroke is ink in the line colour: fill, dash, sketch level and text mean nothing for it.
+  const allInk = nodes.every((n) => n.shape === "freehand");
   const only = nodes.length === 1 ? nodes[0] : undefined;
 
   const fill = commonValue(resolved.map((r) => r.fill));
@@ -270,6 +275,9 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
   const strokeWidth = commonValue(resolved.map((r) => r.strokeWidth));
   const strokeDash = commonValue(resolved.map((r) => r.strokeDash));
   const radius = allRect ? commonValue(resolved.map((r) => r.radius)) : undefined;
+  const sides = allSided
+    ? commonValue(nodes.map((n, i) => resolved[i]!.sides ?? (n.shape === "star" ? 5 : 6)))
+    : undefined;
   const fontSize = commonValue(resolved.map((r) => r.fontSize));
   const textAlign = commonValue(resolved.map((r) => r.textAlign));
   const rotate = commonValue(resolved.map((r) => r.rotate));
@@ -297,31 +305,47 @@ function NodePanel({ nodes }: { nodes: ArqNode[] }) {
       ) : (
         <>
       <div className="arq-field-pair">
-        <ColorField label="Fill" value={fill} indeterminate={fill === undefined}
-          onChange={(v) => patch({ fill: v }, "style:fill")} />
-        <ColorField label="Line" value={stroke} indeterminate={stroke === undefined}
+        {!allInk ? (
+          <ColorField label="Fill" value={fill} indeterminate={fill === undefined}
+            onChange={(v) => patch({ fill: v }, "style:fill")} />
+        ) : null}
+        <ColorField label={allInk ? "Ink" : "Line"} value={stroke} indeterminate={stroke === undefined}
           onChange={(v) => patch({ stroke: v }, "style:stroke")} />
         <NumberField label="Width" value={strokeWidth} indeterminate={strokeWidth === undefined} min={0.5} step={0.5}
           onChange={(v) => patch({ strokeWidth: v }, "style:strokeWidth")} />
       </div>
-      <IconChoice label="Stroke" value={strokeDash} indeterminate={strokeDash === undefined}
-        options={DASH_OPTIONS} onChange={(v) => patch({ strokeDash: v })} />
-      <IconChoice label="Style" value={roughness === undefined ? undefined : sketchLevelOf(roughness)}
-        indeterminate={roughness === undefined} options={SKETCH_OPTIONS}
-        onChange={(v) => patch({ roughness: SKETCH_ROUGHNESS[v] })} />
+      {allSided ? (
+        <div className="arq-field-pair">
+          <NumberField label={allStars ? "Points" : "Sides"} value={sides} indeterminate={sides === undefined}
+            min={3} step={1} onChange={(v) => patch({ sides: Math.min(24, Math.round(v)) }, "style:sides")} />
+        </div>
+      ) : null}
+      {!allInk ? (
+        <>
+          <IconChoice label="Stroke" value={strokeDash} indeterminate={strokeDash === undefined}
+            options={DASH_OPTIONS} onChange={(v) => patch({ strokeDash: v })} />
+          <IconChoice label="Style" value={roughness === undefined ? undefined : sketchLevelOf(roughness)}
+            indeterminate={roughness === undefined} options={SKETCH_OPTIONS}
+            onChange={(v) => patch({ roughness: SKETCH_ROUGHNESS[v] })} />
+        </>
+      ) : null}
       {allRect ? (
         <NumberField label="Corner radius" value={radius} indeterminate={radius === undefined} min={0} step={1}
           onChange={(v) => patch({ radius: v }, "style:radius")} />
       ) : null}
-      {only ? (
-        <TextField label="Label" value={only.label} onChange={(v) => store.getState().setLabel(only.id, v)} />
+      {!allInk ? (
+        <>
+          {only ? (
+            <TextField label="Label" value={only.label} onChange={(v) => store.getState().setLabel(only.id, v)} />
+          ) : null}
+          <div className="arq-field-pair">
+            <NumberField label="Text size" value={fontSize} indeterminate={fontSize === undefined} min={8} step={1}
+              onChange={(v) => patch({ fontSize: v }, "style:fontSize")} />
+          </div>
+          <IconChoice label="Align" value={textAlign} indeterminate={textAlign === undefined}
+            options={ALIGN_OPTIONS} onChange={(v) => patch({ textAlign: v })} />
+        </>
       ) : null}
-      <div className="arq-field-pair">
-        <NumberField label="Text size" value={fontSize} indeterminate={fontSize === undefined} min={8} step={1}
-          onChange={(v) => patch({ fontSize: v }, "style:fontSize")} />
-      </div>
-      <IconChoice label="Align" value={textAlign} indeterminate={textAlign === undefined}
-        options={ALIGN_OPTIONS} onChange={(v) => patch({ textAlign: v })} />
       <IconChoice label="Turn" value={rotate === undefined ? undefined : String(rotate)}
         indeterminate={rotate === undefined || !ROTATE_OPTIONS.some((o) => o.value === String(rotate))}
         options={ROTATE_OPTIONS} onChange={(v) => patch({ rotate: Number(v) })} />

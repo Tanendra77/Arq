@@ -63,6 +63,8 @@ export interface NewNode {
   style?: NodeStyle;
   position: { x: number; y: number };
   size?: { w: number; h: number };
+  /** A freehand stroke's path, normalised to 0..1 within `size`. */
+  points?: [number, number][];
 }
 
 export interface NewEdge {
@@ -116,6 +118,8 @@ export interface EditorState {
 
   addNode(input: NewNode): string;
   removeNodes(ids: string[]): void;
+  /** Nodes and edges together, as one undo step — what an eraser stroke needs. */
+  removeElements(nodeIds: string[], edgeIds: string[]): void;
   setPinned(id: string, pinned: Pinned, opts?: MutateOptions): void;
   addEdge(input: NewEdge): string;
   removeEdges(ids: string[]): void;
@@ -281,6 +285,7 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         label: input.label,
         ...(input.icon !== undefined ? { icon: input.icon } : {}),
         ...(input.style !== undefined ? { style: input.style } : {}),
+        ...(input.points !== undefined ? { points: input.points } : {}),
       });
       get().mutate("add node", (d) => {
         d.nodes.push(node);
@@ -308,6 +313,30 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
             d.edges.splice(i, 1);
         }
         for (const id of gone) delete d.layout.pinned[id];
+      });
+    },
+
+    removeElements(nodeIds, edgeIds) {
+      const nodes = new Set(nodeIds);
+      const edges = new Set(edgeIds);
+      const doc = get().document;
+      if (!doc.nodes.some((n) => nodes.has(n.id)) && !doc.edges.some((e) => edges.has(e.id))) return;
+      get().mutate("erase", (d) => {
+        for (let i = d.nodes.length - 1; i >= 0; i -= 1) {
+          const n = d.nodes[i];
+          if (n !== undefined && nodes.has(n.id)) d.nodes.splice(i, 1);
+        }
+        // An edge goes if it was hit itself, or if either end was attached to a node that went.
+        for (let i = d.edges.length - 1; i >= 0; i -= 1) {
+          const e = d.edges[i];
+          if (e === undefined) continue;
+          const orphaned = [e.from, e.to].some((ep) => {
+            const bound = endpointNode(ep);
+            return bound !== undefined && nodes.has(bound);
+          });
+          if (edges.has(e.id) || orphaned) d.edges.splice(i, 1);
+        }
+        for (const id of nodes) delete d.layout.pinned[id];
       });
     },
 

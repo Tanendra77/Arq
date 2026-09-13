@@ -17,7 +17,8 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  edgePath, edgePaths, edgeTangents, resolveEdgeStyle, resolveNodeStyle, shapeMarkup, shapeRect,
+  edgePath, edgePaths, edgeTangents, freehandPathD, normaliseStroke, resolveEdgeStyle, resolveNodeStyle,
+  shapeMarkup,
 } from "@arq/render";
 import type { Document, Endpoint } from "@arq/schema";
 import { isNodeRef } from "@arq/schema";
@@ -25,6 +26,7 @@ import { useEditor } from "../store/context";
 import { DRAG_MIME, decodeDragPayload } from "../flow/drag-payload";
 import { parseEndpointNodeId, toFlow, type ArqFlowEdge, type ArqFlowNode } from "../flow/to-flow";
 import { endpointFor } from "../flow/endpoint-target";
+import { eraserHits } from "../flow/eraser";
 import { createIconResolver } from "../icons/resolver";
 import { useShortcuts } from "../commands/shortcuts";
 import { ArqEndpointNode, ArqNode } from "./ArqNode";
@@ -47,6 +49,9 @@ const DRAG_THRESHOLD = 6;
 
 /** One fixed seed for whatever the in-flight gesture previews. */
 const PREVIEW_SEED = 1;
+
+/** Ink width for a new pen stroke. */
+const STROKE_WIDTH = 2;
 
 
 
@@ -111,13 +116,27 @@ export function mergeMeasured(prev: ArqFlowNode[], next: ArqFlowNode[]): ArqFlow
  * reads as flicker.
  */
 function DrawPreview({
-  item, from, to, settings,
+  item, from, to, settings, stroke,
 }: {
   item: PaletteItem;
   from: { x: number; y: number };
   to: { x: number; y: number };
   settings: Settings;
+  /** The pen's samples so far, in flow coordinates. */
+  stroke: readonly { x: number; y: number }[];
 }) {
+  if (item.kind === "eraser") return null; // the elements it will take are faded in place instead
+  if (item.kind === "pen") {
+    if (stroke.length < 2) return null;
+    // Drawn through the same `freehandPathD` the finished node uses, so lifting the pen changes
+    // nothing on screen.
+    const { box, points } = normaliseStroke(stroke, STROKE_WIDTH);
+    return (
+      <svg className="arq-draw-preview arq-pen-preview" width={1} height={1} style={{ overflow: "visible" }}>
+        <path d={freehandPathD(points, box, STROKE_WIDTH)} fill={settings.edgeStroke} />
+      </svg>
+    );
+  }
   if (item.kind === "edge") {
     const s = resolveEdgeStyle(edgeCreationStyle(item, settings));
     const { d } = edgePath(from, to, s.routing);
@@ -147,7 +166,11 @@ function DrawPreview({
         __html: shapeMarkup(
           item.shape,
           { x: 0, y: 0, w: box.w, h: box.h },
-          resolveNodeStyle(nodeCreationStyle(settings)),
+          resolveNodeStyle({
+            ...nodeCreationStyle(settings),
+            ...(item.shape === "polygon" ? { sides: settings.polygonSides } : {}),
+            ...(item.shape === "star" ? { sides: settings.starPoints } : {}),
+          }),
           PREVIEW_SEED,
         ),
       }}
@@ -165,6 +188,7 @@ function CanvasInner() {
   const addEdge = useEditor((s) => s.addEdge);
   const removeNodes = useEditor((s) => s.removeNodes);
   const removeEdges = useEditor((s) => s.removeEdges);
+  const removeElements = useEditor((s) => s.removeElements);
   const setPinned = useEditor((s) => s.setPinned);
   const setSelection = useEditor((s) => s.setSelection);
   const past = useEditor((s) => s.past);
@@ -179,6 +203,22 @@ function CanvasInner() {
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
   /** The same gesture in flow coordinates, for the live preview. */
   const [drag, setDrag] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
+  /** The pen's samples for the stroke in progress, in flow coordinates. */
+  const [stroke, setStroke] = useState<{ x: number; y: number }[]>([]);
+  /**
+   * What the eraser has touched so far in this wipe, as "n:<id>" / "e:<id>" keys. Nothing is removed
+   * until the pointer lifts, so a wipe can be seen — everything it will take is faded — before it
+   * commits, and the whole wipe lands as one undo step.
+   */
+  const [erasing, setErasing] = useState<Set<string>>(new Set());
+  const collectHits = useCallback(
+    (prev: Set<string>, at: { x: number; y: number }): Set<string> => {
+      const { nodes: ns, edges: es } = eraserHits(doc, at);
+      if (ns.every((id) => prev.has(`n:${id}`)) && es.every((id) => prev.has(`e:${id}`))) return prev;
+      return new Set([...prev, ...ns.map((id) => `n:${id}`), ...es.map((id) => `e:${id}`)]);
+    },
+    [doc],
+  );
   /** Pointer position in canvas-local pixels, tracked only while the rulers are shown. */
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
 
@@ -190,6 +230,8 @@ function CanvasInner() {
       setTool(null);
       dragFrom.current = null;
       setDrag(null);
+      setStroke([]);
+      setErasing(new Set());
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -217,8 +259,24 @@ function CanvasInner() {
 
   const [nodes, setNodes, onNodesChange] = useNodesState<ArqFlowNode>(derived.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<ArqFlowEdge>(derived.edges);
-  useEffect(() => setNodes((prev) => mergeMeasured(prev, derived.nodes)), [derived.nodes, setNodes]);
-  useEffect(() => setEdges(derived.edges), [derived.edges, setEdges]);
+  // Anything the eraser is about to take is faded in place, via React Flow's own per-element class.
+  useEffect(
+    () =>
+      setNodes((prev) =>
+        mergeMeasured(
+          prev,
+          erasing.size === 0 ? derived.nodes : derived.nodes.map((n) => (erasing.has(`n:${n.id}`) ? { ...n, className: "arq-erasing" } : n)),
+        ),
+      ),
+    [derived.nodes, setNodes, erasing],
+  );
+  useEffect(
+    () =>
+      setEdges(
+        erasing.size === 0 ? derived.edges : derived.edges.map((e) => (erasing.has(`e:${e.id}`) ? { ...e, className: "arq-erasing" } : e)),
+      ),
+    [derived.edges, setEdges, erasing],
+  );
 
   // Currently unreachable: node handles are hidden and `pointer-events: none` (styles.css), so no
   // drag can start a connection — arrows are drawn with the two-click arrow tool instead. Kept as
@@ -308,9 +366,12 @@ function CanvasInner() {
     (e: MouseEvent) => {
       if (armed === undefined || e.button !== 0) return;
       dragFrom.current = { x: e.clientX, y: e.clientY };
-      setDrag({ from: screenToFlowPosition({ x: e.clientX, y: e.clientY }), to: screenToFlowPosition({ x: e.clientX, y: e.clientY }) });
+      const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      setDrag({ from: at, to: at });
+      if (armed.kind === "pen") setStroke([at]);
+      if (armed.kind === "eraser") setErasing(collectHits(new Set(), at));
     },
-    [armed, screenToFlowPosition],
+    [armed, screenToFlowPosition, collectHits],
   );
 
   const onMouseMove = useCallback(
@@ -322,9 +383,12 @@ function CanvasInner() {
         setPointer({ x: e.clientX - o.left, y: e.clientY - o.top });
       }
       if (dragFrom.current === null) return;
-      setDrag((d) => (d === null ? null : { ...d, to: screenToFlowPosition({ x: e.clientX, y: e.clientY }) }));
+      const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      setDrag((d) => (d === null ? null : { ...d, to: at }));
+      if (armed?.kind === "pen") setStroke((pts) => [...pts, at]);
+      if (armed?.kind === "eraser") setErasing((hit) => collectHits(hit, at));
     },
-    [screenToFlowPosition, settings.rulers],
+    [screenToFlowPosition, settings.rulers, armed, collectHits],
   );
 
   const onMouseUp = useCallback(
@@ -338,6 +402,31 @@ function CanvasInner() {
       const moved =
         Math.abs(e.clientX - press.x) >= DRAG_THRESHOLD || Math.abs(e.clientY - press.y) >= DRAG_THRESHOLD;
 
+      if (armed.kind === "pen") {
+        // A tap with no travel draws nothing: a single sample is a dot too small to ever select.
+        const samples = stroke;
+        setStroke([]);
+        if (samples.length >= 2) {
+          const { box, points } = normaliseStroke(samples, STROKE_WIDTH);
+          addNode({
+            shape: "freehand",
+            label: "",
+            position: { x: box.x, y: box.y },
+            size: { w: box.w, h: box.h },
+            points,
+            style: { stroke: settings.edgeStroke, strokeWidth: STROKE_WIDTH },
+          });
+        }
+        return; // the pen stays armed for the next stroke
+      }
+      if (armed.kind === "eraser") {
+        const hit = erasing;
+        setErasing(new Set());
+        const nodeIds = [...hit].filter((k) => k.startsWith("n:")).map((k) => k.slice(2));
+        const edgeIds = [...hit].filter((k) => k.startsWith("e:")).map((k) => k.slice(2));
+        removeElements(nodeIds, edgeIds); // one wipe is one undo, however much it took
+        return; // the eraser stays armed too
+      }
       if (armed.kind === "edge") {
         const to = moved ? b : { x: a.x + FREE_LINE_LENGTH, y: a.y };
         const from = endpointAt(a);
@@ -358,7 +447,7 @@ function CanvasInner() {
       }
       setTool(null);
     },
-    [armed, screenToFlowPosition, settings, addNode, addEdge, endpointAt, setTool],
+    [armed, screenToFlowPosition, settings, addNode, addEdge, endpointAt, setTool, stroke, erasing, removeElements],
   );
 
   return (
@@ -408,7 +497,7 @@ function CanvasInner() {
             scales and pans with everything else instead of being re-projected by hand. */}
         {drag !== null && armed !== undefined ? (
           <ViewportPortal>
-            <DrawPreview item={armed} from={drag.from} to={drag.to} settings={settings} />
+            <DrawPreview item={armed} from={drag.from} to={drag.to} settings={settings} stroke={stroke} />
           </ViewportPortal>
         ) : null}
       </ReactFlow>

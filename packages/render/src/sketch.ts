@@ -1,6 +1,7 @@
 import rough from "roughjs";
 import type { AnimationSpeed, NodeShape } from "@arq/schema";
 import { DASH_ARRAY, shapeOutline, type Point, type ResolvedEdgeStyle, type ResolvedNodeStyle, type Rect } from "./metrics";
+import { freehandPathD, shapePathD } from "./shape-paths";
 
 /**
  * Hand-drawn geometry, via rough.js — the same library Excalidraw draws with.
@@ -250,8 +251,12 @@ export function sketchShape(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, see
         generator.polygon([[cx, r.y], [r.x + r.w, r.y + r.h], [r.x, r.y + r.h]], opts),
         dash,
       );
-    case "text":
-      return "";
+    default: {
+      // Every shape added after the first five is path data, so rough.js sketches it straight from
+      // the same `d` the crisp renderer draws — one geometry, two looks.
+      const d = shapePathD(shape, r, s.sides);
+      return d === undefined ? "" : toSvg(generator.path(d, opts), dash);
+    }
   }
 }
 
@@ -329,10 +334,22 @@ function sketchPathSpecs(d: string, s: ResolvedEdgeStyle, seed: number): PathSpe
  * spliced in, which is what this package did everywhere before hand-drawn rendering existed);
  * above 0 it emits rough.js's sketched version of the same shape.
  */
-export function shapeMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, seed: number): string {
+export function shapeMarkup(
+  shape: NodeShape,
+  r: Rect,
+  s: ResolvedNodeStyle,
+  seed: number,
+  points?: readonly (readonly [number, number])[],
+): string {
+  // A pen stroke is ink, not an outline: one filled path in the line colour, never sketched over —
+  // rough.js on an already hand-drawn stroke only makes it look drawn twice.
+  if (shape === "freehand") {
+    const d = freehandPathD(points ?? [], r, s.strokeWidth);
+    return d === "" ? "" : `<path d="${d}" fill="${s.stroke}" stroke="none"/>`;
+  }
   const body = (() => {
     if (s.roughness > 0) return sketchShape(shape, r, s, seed);
-    const outline = shapeOutline(shape, r, s.radius);
+    const outline = shapeOutline(shape, r, s.radius, s.sides);
     if (!outline) return "";
     const dash = DASH_ARRAY[s.strokeDash];
     // shapeOutline emits one element with no paint attributes, ending in `/>`.
@@ -352,7 +369,7 @@ export function shapeMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle, see
  */
 export function borderFlowMarkup(shape: NodeShape, r: Rect, s: ResolvedNodeStyle): string {
   if (s.animate !== "flow") return "";
-  const outline = shapeOutline(shape, r, s.radius);
+  const outline = shapeOutline(shape, r, s.radius, s.sides);
   if (!outline) return ""; // a text node has no border to march
   const dash = DASH_ARRAY[s.strokeDash] ?? FLOW_DASH;
   const { className, style } = animAttrs({

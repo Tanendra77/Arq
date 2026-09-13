@@ -1,3 +1,22 @@
+<p align="center">
+  <img src=".github/assets/banner.svg" alt="Arq: draw it, write it as JSON, watch it move" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml"><img src="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
+  <img src="https://img.shields.io/badge/platform-web%20%7C%20Windows-lightgrey" alt="Platform: web and Windows">
+  <img src="https://img.shields.io/badge/built%20with-React%20%C2%B7%20Tauri-24c8db" alt="Built with React and Tauri">
+</p>
+
+<p align="center">
+  <a href="#examples">Examples</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#using-arq">Using Arq</a> ·
+  <a href="#the-json-view">JSON view</a> ·
+  <a href="#development">Development</a>
+</p>
+
 # Arq
 
 A desktop and web diagramming tool for event-driven architecture, born out of Solace PubSub+
@@ -16,15 +35,36 @@ Three things make it different from a general-purpose drawing tool:
    arrowheads — an edge can even end on a bare point instead of a node, so a connector and a
    free-floating line are the same thing.
 
-> **Status: phase 2 complete.** The editor creates, styles, connects, saves and exports
-> diagrams today, with an Inspector for per-object properties and a Settings panel for
-> defaults. Icon-pack import, group editing on the canvas, automatic layout and flow animation
-> are **not built yet** — see [Roadmap](#roadmap).
+> **Status: in active development.** The editor draws, styles, connects, animates, lays out,
+> saves and exports diagrams today, in the browser and as a Windows app. Icon-pack import and
+> group editing on the canvas are **not built yet** — see [Roadmap](#roadmap).
+
+---
+
+## Examples
+
+<p align="center">
+  <img src="examples/sample-1/enterprise-e-commerce-architecture.svg" alt="Enterprise e-commerce architecture, drawn in Arq, with animated flows" width="100%">
+</p>
+
+*Enterprise e-commerce architecture — 34 shapes, 41 connections, exported from Arq as an animated
+SVG.*
+
+Every example comes as the same diagram in two forms, so use whichever suits you:
+
+| File | How to use it |
+|---|---|
+| [`enterprise-e-commerce-architecture.arq`](examples/sample-1/enterprise-e-commerce-architecture.arq) | **Open** it in Arq (toolbar → Open). |
+| [`enterprise-e-commerce-architecture.json`](examples/sample-1/enterprise-e-commerce-architecture.json) | Copy the text and paste it into the **JSON view** — the diagram appears as you paste. Handy for tweaking it by hand or handing it to an AI to extend. |
+| [`enterprise-e-commerce-architecture.svg`](examples/sample-1/enterprise-e-commerce-architecture.svg) | The animated export shown above. Opens in any browser. |
+
+An `.arq` file *is* JSON — the two files are identical; only the extension differs.
 
 ---
 
 ## Contents
 
+- [Examples](#examples)
 - [Install](#install)
 - [Using Arq](#using-arq)
 - [The .arq file format](#the-arq-file-format)
@@ -60,14 +100,17 @@ The desktop and web builds are the same editor; only the file dialogs differ.
 ### Creating shapes
 
 The **palette** on the left has two tabs: **Shapes** (built in) and **Icons** (for imported
-icon packs, not built yet). Shapes offers exactly seven items:
+icon packs, not built yet). Shapes offers:
 
-**Rectangle** · **Ellipse** · **Diamond** · **Triangle** · **Text** · **Line** · **Arrow**
+- **Shapes** — Rectangle · Ellipse · Diamond · Triangle · Text · Polygon · Star · Parallelogram ·
+  Cylinder · Cloud · Sticky note · Speech bubble
+- **Lines** — Line · Arrow
+- **Tools** — Hand (pan) · Pen (freehand) · Eraser
 
 Either **drag** an item onto the canvas or **double-click** it to drop one in. Palette items
-are keyboard reachable — Tab to one and press **Enter** or **Space**. Rectangle through Text
-create nodes; Line and Arrow create a free-floating edge with no attached node — differing
-only in whether the end carries an arrowhead.
+are keyboard reachable — Tab to one and press **Enter** or **Space**. Shapes create nodes; Line
+and Arrow create a free-floating edge with no attached node — differing only in whether the end
+carries an arrowhead.
 
 ### Connecting
 
@@ -396,7 +439,7 @@ Phases 1 and 2 are complete. What exists today, and what does not:
 | Document schema, parse/serialize/migrate (v1 → v2) | Built |
 | Editor store, undo/redo, selection | Built |
 | Generic shape model — nodes, styled edges, point endpoints | Built |
-| Canvas, palette (7 shapes), pan/zoom navigation | Built |
+| Canvas, palette (12 shapes, lines, pen, eraser), pan/zoom navigation, minimap | Built |
 | Inspector panel (document and per-selection styling) | Built |
 | Settings panel (theme, grid, snap, creation defaults) | Built |
 | Toolbar, file lifecycle, keyboard shortcuts | Built |

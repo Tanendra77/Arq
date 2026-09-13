@@ -6,6 +6,11 @@ manifest.json
 node_modules/
 dist/
 .claude/
+.remember/
+.superpowers/
+.code-review-graph/
+.env
+.env.*
 target/
 test-results/
 playwright-report/

@@ -1,0 +1,979 @@
+{
+  "version": 2,
+  "kind": "generic",
+  "title": "Enterprise E-Commerce Architecture",
+  "nodes": [
+    {
+      "id": "users",
+      "shape": "ellipse",
+      "label": "Customers",
+      "style": {
+        "fill": "#1e1e1e",
+        "stroke": "#f8f9fa",
+        "bold": true
+      },
+      "z": 41
+    },
+    {
+      "id": "web",
+      "shape": "rect",
+      "label": "Web App\nReact",
+      "style": {
+        "fill": "#10263b",
+        "stroke": "#4dabf7"
+      },
+      "z": 42
+    },
+    {
+      "id": "mobile",
+      "shape": "rect",
+      "label": "Mobile App\niOS / Android",
+      "style": {
+        "fill": "#10263b",
+        "stroke": "#4dabf7"
+      },
+      "z": 43
+    },
+    {
+      "id": "cdn",
+      "shape": "cloud",
+      "label": "Global CDN",
+      "style": {
+        "fill": "#10263b",
+        "stroke": "#4dabf7"
+      },
+      "z": 44
+    },
+    {
+      "id": "waf",
+      "shape": "polygon",
+      "label": "WAF",
+      "style": {
+        "fill": "#3a1420",
+        "stroke": "#ff8787",
+        "strokeWidth": 2,
+        "sides": 6
+      },
+      "z": 45
+    },
+    {
+      "id": "gateway",
+      "shape": "polygon",
+      "label": "API Gateway",
+      "style": {
+        "fill": "#2b1f3a",
+        "stroke": "#b197fc",
+        "strokeWidth": 2.5,
+        "sides": 6,
+        "glow": {
+          "color": "#b197fc"
+        }
+      },
+      "z": 46
+    },
+    {
+      "id": "auth",
+      "shape": "rect",
+      "label": "Auth Service\nOAuth2 / JWT",
+      "style": {
+        "fill": "#3a1420",
+        "stroke": "#ff8787"
+      },
+      "z": 47
+    },
+    {
+      "id": "user_service",
+      "shape": "rect",
+      "label": "User Service",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9"
+      },
+      "z": 48
+    },
+    {
+      "id": "catalog_service",
+      "shape": "rect",
+      "label": "Catalog Service",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9"
+      },
+      "z": 49
+    },
+    {
+      "id": "cart_service",
+      "shape": "rect",
+      "label": "Cart Service",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9"
+      },
+      "z": 50
+    },
+    {
+      "id": "order_service",
+      "shape": "rect",
+      "label": "Order Service",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9",
+        "strokeWidth": 2
+      },
+      "z": 51
+    },
+    {
+      "id": "payment_service",
+      "shape": "rect",
+      "label": "Payment Service",
+      "style": {
+        "fill": "#3a1420",
+        "stroke": "#ff8787"
+      },
+      "z": 52
+    },
+    {
+      "id": "inventory_service",
+      "shape": "rect",
+      "label": "Inventory Service",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9"
+      },
+      "z": 53
+    },
+    {
+      "id": "notification_service",
+      "shape": "rect",
+      "label": "Notification Service",
+      "style": {
+        "fill": "#3a2a10",
+        "stroke": "#ffc078"
+      },
+      "z": 54
+    },
+    {
+      "id": "search_service",
+      "shape": "rect",
+      "label": "Search Service",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9"
+      },
+      "z": 55
+    },
+    {
+      "id": "redis",
+      "shape": "cylinder",
+      "label": "Redis Cluster\nCache / Sessions",
+      "style": {
+        "fill": "#3a1420",
+        "stroke": "#ff8787"
+      },
+      "z": 56
+    },
+    {
+      "id": "kafka",
+      "shape": "parallelogram",
+      "label": "Apache Kafka\nEvent Bus",
+      "style": {
+        "fill": "#1e1e1e",
+        "stroke": "#f8f9fa",
+        "strokeWidth": 2,
+        "strokeDash": "dotted",
+        "animate": "flow",
+        "animateSpeed": "normal"
+      },
+      "z": 57
+    },
+    {
+      "id": "orders_topic",
+      "shape": "parallelogram",
+      "label": "orders.events",
+      "style": {
+        "fill": "#2e2410",
+        "stroke": "#ffd43b"
+      },
+      "z": 58
+    },
+    {
+      "id": "payments_topic",
+      "shape": "parallelogram",
+      "label": "payments.events",
+      "style": {
+        "fill": "#2e2410",
+        "stroke": "#ffd43b"
+      },
+      "z": 59
+    },
+    {
+      "id": "inventory_topic",
+      "shape": "parallelogram",
+      "label": "inventory.events",
+      "style": {
+        "fill": "#2e2410",
+        "stroke": "#ffd43b"
+      },
+      "z": 60
+    },
+    {
+      "id": "user_db",
+      "shape": "cylinder",
+      "label": "Users DB\nPostgreSQL",
+      "style": {
+        "fill": "#10263b",
+        "stroke": "#4dabf7",
+        "roughness": 0
+      },
+      "z": 61
+    },
+    {
+      "id": "order_db",
+      "shape": "cylinder",
+      "label": "Orders DB\nPostgreSQL",
+      "style": {
+        "fill": "#10263b",
+        "stroke": "#4dabf7"
+      },
+      "z": 62
+    },
+    {
+      "id": "catalog_db",
+      "shape": "cylinder",
+      "label": "Catalog DB\nPostgreSQL",
+      "style": {
+        "fill": "#10263b",
+        "stroke": "#4dabf7",
+        "roughness": 0
+      },
+      "z": 63
+    },
+    {
+      "id": "search_db",
+      "shape": "cylinder",
+      "label": "OpenSearch",
+      "style": {
+        "fill": "#2b1f3a",
+        "stroke": "#b197fc"
+      },
+      "z": 64
+    },
+    {
+      "id": "object_storage",
+      "shape": "cylinder",
+      "label": "Object Storage\nImages / Files",
+      "style": {
+        "fill": "#0f2e22",
+        "stroke": "#38d9a9",
+        "roughness": 0
+      },
+      "z": 65
+    },
+    {
+      "id": "payment_provider",
+      "shape": "cloud",
+      "label": "Payment Gateway\nExternal",
+      "style": {
+        "fill": "#3a1420",
+        "stroke": "#ff8787"
+      },
+      "z": 66
+    },
+    {
+      "id": "shipping_provider",
+      "shape": "cloud",
+      "label": "Shipping Provider\nExternal",
+      "style": {
+        "fill": "#3a2a10",
+        "stroke": "#ffc078"
+      },
+      "z": 67
+    },
+    {
+      "id": "email_provider",
+      "shape": "cloud",
+      "label": "Email / SMS\nProvider",
+      "style": {
+        "fill": "#3a2a10",
+        "stroke": "#ffc078"
+      },
+      "z": 68
+    },
+    {
+      "id": "analytics",
+      "shape": "rect",
+      "label": "Analytics Pipeline\nStream Processing",
+      "style": {
+        "fill": "#2b1f3a",
+        "stroke": "#b197fc"
+      },
+      "z": 69
+    },
+    {
+      "id": "warehouse",
+      "shape": "cylinder",
+      "label": "Data Warehouse",
+      "style": {
+        "fill": "#2b1f3a",
+        "stroke": "#b197fc"
+      },
+      "z": 70
+    },
+    {
+      "id": "monitoring",
+      "shape": "rect",
+      "label": "Observability\nMetrics / Logs / Traces",
+      "style": {
+        "fill": "#1e1e1e",
+        "stroke": "#adb5bd"
+      },
+      "z": 71
+    },
+    {
+      "id": "alerting",
+      "shape": "star",
+      "label": "Alert Manager",
+      "style": {
+        "fill": "#3a1420",
+        "stroke": "#ff8787",
+        "sides": 6,
+        "animate": "pulse",
+        "animateSpeed": "slow"
+      },
+      "z": 72
+    },
+    {
+      "id": "security_note",
+      "shape": "note",
+      "label": "Security\nTLS + JWT\nSecrets management\nLeast privilege",
+      "style": {
+        "fill": "#ffe98a",
+        "stroke": "#c9a227",
+        "fontSize": 12
+      },
+      "z": 73
+    },
+    {
+      "id": "resilience_note",
+      "shape": "note",
+      "label": "Resilience\nRetries\nCircuit breakers\nDead-letter queues\nIdempotency",
+      "style": {
+        "fill": "#ffe98a",
+        "stroke": "#c9a227",
+        "fontSize": 12
+      },
+      "z": 74
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-users-web",
+      "from": "users",
+      "to": "web",
+      "label": "HTTPS",
+      "style": {
+        "stroke": "#f8f9fa",
+        "routing": "curved"
+      },
+      "z": 1
+    },
+    {
+      "id": "e-users-mobile",
+      "from": "users",
+      "to": "mobile",
+      "label": "HTTPS",
+      "style": {
+        "stroke": "#f8f9fa",
+        "routing": "curved"
+      },
+      "z": 2
+    },
+    {
+      "id": "e-web-cdn",
+      "from": "web",
+      "to": "cdn",
+      "style": {
+        "stroke": "#4dabf7"
+      },
+      "z": 3
+    },
+    {
+      "id": "e-mobile-cdn",
+      "from": "mobile",
+      "to": "cdn",
+      "style": {
+        "stroke": "#4dabf7"
+      },
+      "z": 4
+    },
+    {
+      "id": "e-cdn-waf",
+      "from": "cdn",
+      "to": "waf",
+      "label": "HTTPS",
+      "style": {
+        "stroke": "#4dabf7",
+        "animate": "flow",
+        "animateSpeed": "fast"
+      },
+      "z": 5
+    },
+    {
+      "id": "e-waf-gateway",
+      "from": "waf",
+      "to": "gateway",
+      "label": "Validated traffic",
+      "style": {
+        "stroke": "#ff8787",
+        "animate": "flow"
+      },
+      "z": 6
+    },
+    {
+      "id": "e-gateway-auth",
+      "from": "gateway",
+      "to": "auth",
+      "label": "Authenticate",
+      "style": {
+        "stroke": "#b197fc"
+      },
+      "z": 7
+    },
+    {
+      "id": "e-gateway-user",
+      "from": "gateway",
+      "to": "user_service",
+      "label": "REST",
+      "style": {
+        "stroke": "#38d9a9"
+      },
+      "z": 8
+    },
+    {
+      "id": "e-gateway-catalog",
+      "from": "gateway",
+      "to": "catalog_service",
+      "label": "REST",
+      "style": {
+        "stroke": "#38d9a9"
+      },
+      "z": 9
+    },
+    {
+      "id": "e-gateway-cart",
+      "from": "gateway",
+      "to": "cart_service",
+      "label": "REST",
+      "style": {
+        "stroke": "#38d9a9"
+      },
+      "z": 10
+    },
+    {
+      "id": "e-gateway-order",
+      "from": "gateway",
+      "to": "order_service",
+      "label": "REST",
+      "style": {
+        "stroke": "#38d9a9"
+      },
+      "z": 11
+    },
+    {
+      "id": "e-gateway-search",
+      "from": "gateway",
+      "to": "search_service",
+      "label": "REST",
+      "style": {
+        "stroke": "#38d9a9"
+      },
+      "z": 12,
+      "legs": [
+        1064
+      ]
+    },
+    {
+      "id": "e-auth-user",
+      "from": "auth",
+      "to": "user_service",
+      "label": "Identity",
+      "style": {
+        "stroke": "#ff8787",
+        "strokeDash": "dashed",
+        "routing": "curved"
+      },
+      "z": 13
+    },
+    {
+      "id": "e-user-db",
+      "from": "user_service",
+      "to": "user_db",
+      "label": "SQL",
+      "style": {
+        "stroke": "#4dabf7"
+      },
+      "z": 14
+    },
+    {
+      "id": "e-catalog-db",
+      "from": "catalog_service",
+      "to": "catalog_db",
+      "label": "SQL",
+      "style": {
+        "stroke": "#4dabf7"
+      },
+      "z": 15
+    },
+    {
+      "id": "e-catalog-storage",
+      "from": "catalog_service",
+      "to": "object_storage",
+      "label": "Media",
+      "style": {
+        "stroke": "#38d9a9",
+        "strokeDash": "dashed"
+      },
+      "z": 16,
+      "legs": [
+        1132,
+        956,
+        1295
+      ]
+    },
+    {
+      "id": "e-cart-redis",
+      "from": "cart_service",
+      "to": "redis",
+      "label": "Cache",
+      "style": {
+        "stroke": "#ff8787"
+      },
+      "z": 17
+    },
+    {
+      "id": "e-order-db",
+      "from": "order_service",
+      "to": "order_db",
+      "label": "Transactions",
+      "style": {
+        "stroke": "#4dabf7"
+      },
+      "z": 18
+    },
+    {
+      "id": "e-order-payment",
+      "from": "order_service",
+      "to": "payment_service",
+      "label": "Charge",
+      "style": {
+        "stroke": "#ff8787",
+        "routing": "curved"
+      },
+      "z": 19
+    },
+    {
+      "id": "e-order-inventory",
+      "from": "order_service",
+      "to": "inventory_service",
+      "label": "Reserve stock",
+      "style": {
+        "stroke": "#38d9a9",
+        "routing": "curved"
+      },
+      "z": 20
+    },
+    {
+      "id": "e-order-events",
+      "from": "order_service",
+      "to": "orders_topic",
+      "label": "Order created",
+      "style": {
+        "stroke": "#ffd43b",
+        "animate": "packets",
+        "animateSpeed": "fast"
+      },
+      "z": 21
+    },
+    {
+      "id": "e-kafka-orders",
+      "from": "kafka",
+      "to": "orders_topic",
+      "label": "Topic",
+      "style": {
+        "stroke": "#ffd43b"
+      },
+      "z": 22
+    },
+    {
+      "id": "e-payment-events",
+      "from": "payment_service",
+      "to": "payments_topic",
+      "label": "Payment status",
+      "style": {
+        "stroke": "#ffd43b",
+        "animate": "packets"
+      },
+      "z": 23
+    },
+    {
+      "id": "e-inventory-events",
+      "from": "inventory_service",
+      "to": "inventory_topic",
+      "label": "Stock changes",
+      "style": {
+        "stroke": "#ffd43b",
+        "animate": "packets"
+      },
+      "z": 24
+    },
+    {
+      "id": "e-payment-provider",
+      "from": "payment_service",
+      "to": "payment_provider",
+      "label": "HTTPS",
+      "style": {
+        "stroke": "#ff8787",
+        "strokeDash": "dashed",
+        "animate": "flow"
+      },
+      "z": 25
+    },
+    {
+      "id": "e-inventory-shipping",
+      "from": "inventory_service",
+      "to": "shipping_provider",
+      "label": "Shipment API",
+      "style": {
+        "stroke": "#ffc078",
+        "strokeDash": "dashed"
+      },
+      "z": 26
+    },
+    {
+      "id": "e-orders-notification",
+      "from": "orders_topic",
+      "to": "notification_service",
+      "label": "Order event",
+      "style": {
+        "stroke": "#ffd43b",
+        "strokeDash": "dashed",
+        "animate": "flow"
+      },
+      "z": 27
+    },
+    {
+      "id": "e-payments-notification",
+      "from": "payments_topic",
+      "to": "notification_service",
+      "label": "Payment event",
+      "style": {
+        "stroke": "#ffd43b",
+        "strokeDash": "dashed"
+      },
+      "z": 28
+    },
+    {
+      "id": "e-notification-provider",
+      "from": "notification_service",
+      "to": "email_provider",
+      "label": "Email / SMS",
+      "style": {
+        "stroke": "#ffc078",
+        "strokeDash": "dashed"
+      },
+      "z": 29
+    },
+    {
+      "id": "e-search-db",
+      "from": "search_service",
+      "to": "search_db",
+      "label": "Query",
+      "style": {
+        "stroke": "#b197fc"
+      },
+      "z": 30
+    },
+    {
+      "id": "e-catalog-search",
+      "from": "catalog_service",
+      "to": "search_db",
+      "label": "Index",
+      "style": {
+        "stroke": "#b197fc",
+        "strokeDash": "dashed",
+        "animate": "packets"
+      },
+      "z": 31
+    },
+    {
+      "id": "e-orders-analytics",
+      "from": "orders_topic",
+      "to": "analytics",
+      "label": "Stream",
+      "style": {
+        "stroke": "#b197fc",
+        "strokeDash": "dashed",
+        "animate": "flow"
+      },
+      "z": 32
+    },
+    {
+      "id": "e-payments-analytics",
+      "from": "payments_topic",
+      "to": "analytics",
+      "label": "Stream",
+      "style": {
+        "stroke": "#b197fc",
+        "strokeDash": "dashed"
+      },
+      "z": 33
+    },
+    {
+      "id": "e-inventory-analytics",
+      "from": "inventory_topic",
+      "to": "analytics",
+      "label": "Stream",
+      "style": {
+        "stroke": "#b197fc",
+        "strokeDash": "dashed"
+      },
+      "z": 34
+    },
+    {
+      "id": "e-analytics-warehouse",
+      "from": "analytics",
+      "to": "warehouse",
+      "label": "ETL",
+      "style": {
+        "stroke": "#b197fc",
+        "animate": "flow"
+      },
+      "z": 35
+    },
+    {
+      "id": "e-gateway-monitoring",
+      "from": "gateway",
+      "to": "monitoring",
+      "label": "Metrics / Traces",
+      "style": {
+        "stroke": "#adb5bd",
+        "strokeDash": "dotted",
+        "routing": "curved"
+      },
+      "z": 36
+    },
+    {
+      "id": "e-order-monitoring",
+      "from": "order_service",
+      "to": "monitoring",
+      "label": "Logs",
+      "style": {
+        "stroke": "#adb5bd",
+        "strokeDash": "dotted",
+        "routing": "curved"
+      },
+      "z": 37
+    },
+    {
+      "id": "e-payment-monitoring",
+      "from": "payment_service",
+      "to": "monitoring",
+      "label": "Metrics",
+      "style": {
+        "stroke": "#adb5bd",
+        "strokeDash": "dotted",
+        "routing": "curved"
+      },
+      "z": 38
+    },
+    {
+      "id": "e-monitoring-alerting",
+      "from": "monitoring",
+      "to": "alerting",
+      "label": "Alerts",
+      "style": {
+        "stroke": "#ff8787",
+        "animate": "pulse"
+      },
+      "z": 39
+    },
+    {
+      "id": "e-security-note",
+      "from": "security_note",
+      "to": "auth",
+      "style": {
+        "stroke": "#ffd43b",
+        "strokeDash": "dotted",
+        "routing": "curved",
+        "endArrow": "none"
+      },
+      "z": 40
+    },
+    {
+      "id": "e-resilience-note",
+      "from": "resilience_note",
+      "to": "kafka",
+      "style": {
+        "stroke": "#ffd43b",
+        "strokeDash": "dotted",
+        "routing": "curved",
+        "endArrow": "none"
+      },
+      "z": 0,
+      "via": [
+        {
+          "x": 1315,
+          "y": 164
+        },
+        {
+          "x": 1354,
+          "y": 301
+        }
+      ]
+    }
+  ],
+  "groups": [],
+  "annotations": [],
+  "layout": {
+    "engine": "elk",
+    "direction": "RIGHT",
+    "pinned": {
+      "users": {
+        "x": 20,
+        "y": 340
+      },
+      "web": {
+        "x": 180,
+        "y": 250
+      },
+      "mobile": {
+        "x": 180,
+        "y": 410
+      },
+      "cdn": {
+        "x": 360,
+        "y": 330
+      },
+      "waf": {
+        "x": 540,
+        "y": 330
+      },
+      "gateway": {
+        "x": 720,
+        "y": 330
+      },
+      "auth": {
+        "x": 920,
+        "y": 120
+      },
+      "user_service": {
+        "x": 920,
+        "y": 250
+      },
+      "catalog_service": {
+        "x": 920,
+        "y": 380
+      },
+      "cart_service": {
+        "x": 920,
+        "y": 510
+      },
+      "order_service": {
+        "x": 1160,
+        "y": 250
+      },
+      "payment_service": {
+        "x": 1160,
+        "y": 420
+      },
+      "inventory_service": {
+        "x": 1160,
+        "y": 590
+      },
+      "search_service": {
+        "x": 1160,
+        "y": 760
+      },
+      "redis": {
+        "x": 1380,
+        "y": 510
+      },
+      "user_db": {
+        "x": 1160,
+        "y": 90
+      },
+      "catalog_db": {
+        "x": 1160,
+        "y": 980
+      },
+      "order_db": {
+        "x": 1380,
+        "y": 250
+      },
+      "search_db": {
+        "x": 1380,
+        "y": 760
+      },
+      "object_storage": {
+        "x": 1380,
+        "y": 917
+      },
+      "kafka": {
+        "x": 1380,
+        "y": 380
+      },
+      "orders_topic": {
+        "x": 1600,
+        "y": 250
+      },
+      "payments_topic": {
+        "x": 1600,
+        "y": 420
+      },
+      "inventory_topic": {
+        "x": 1600,
+        "y": 590
+      },
+      "notification_service": {
+        "x": 1820,
+        "y": 340
+      },
+      "payment_provider": {
+        "x": 1380,
+        "y": 120
+      },
+      "shipping_provider": {
+        "x": 1380,
+        "y": 700
+      },
+      "email_provider": {
+        "x": 2040,
+        "y": 340
+      },
+      "analytics": {
+        "x": 1820,
+        "y": 700
+      },
+      "warehouse": {
+        "x": 2040,
+        "y": 700
+      },
+      "monitoring": {
+        "x": 1820,
+        "y": 900
+      },
+      "alerting": {
+        "x": 2040,
+        "y": 900
+      },
+      "security_note": {
+        "x": 676,
+        "y": 11
+      },
+      "resilience_note": {
+        "x": 1253,
+        "y": -34
+      }
+    }
+  }
+}

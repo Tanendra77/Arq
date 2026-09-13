@@ -65,7 +65,9 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
   --xy-minimap-mask-stroke-width: 1;
   --xy-minimap-node-background-color: color-mix(in srgb, var(--arq-fg) 40%, transparent);
 }
-.arq-canvas .react-flow__minimap { border: 1px solid var(--arq-line); border-radius: 4px; overflow: hidden; }
+.arq-canvas .react-flow__minimap { margin: 10px; border: 1px solid color-mix(in srgb, var(--arq-line) 70%, transparent); border-radius: 4px; overflow: hidden;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+.arq-canvas .react-flow__minimap.awake { opacity: 1; pointer-events: auto; }
 .react-flow__minimap-node.arq-minimap-hidden { display: none; }
 /* Optional rulers, laid over the canvas edges. `pointer-events: none` throughout: they are a
    readout, and must never intercept a click meant for the diagram underneath. */

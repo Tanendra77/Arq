@@ -77,3 +77,31 @@ export function startAutosave(store: EditorStore): () => void {
     window.removeEventListener("beforeunload", flush);
   };
 }
+
+export const VIEWPORT_KEY = "arq.viewport";
+
+export interface SavedViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** Where the view was last left — pan and zoom — or null when there is nothing usable stored. */
+export function loadViewport(): SavedViewport | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(VIEWPORT_KEY) ?? "null") as Partial<SavedViewport> | null;
+    const finite = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
+    if (!v || !finite(v.x) || !finite(v.y) || !finite(v.zoom) || v.zoom <= 0) return null;
+    return { x: v.x, y: v.y, zoom: v.zoom };
+  } catch {
+    return null;
+  }
+}
+
+export function saveViewport(v: SavedViewport): void {
+  try {
+    localStorage.setItem(VIEWPORT_KEY, JSON.stringify({ x: v.x, y: v.y, zoom: v.zoom }));
+  } catch {
+    // Losing the scroll position is not worth a banner; the document itself is what autosave guards.
+  }
+}

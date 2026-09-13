@@ -38,7 +38,8 @@ import {
   type PaletteItem,
 } from "./Palette";
 import { useSettings } from "./SettingsModal";
-import { Rulers } from "./Rulers";
+import { RULER_SIZE, Rulers } from "./Rulers";
+import { loadViewport, saveViewport } from "../autosave";
 import type { Settings } from "../settings";
 
 // `arqEndpoint` must be registered: React Flow renders its own default node — a visible empty
@@ -51,6 +52,9 @@ const DRAG_THRESHOLD = 6;
 
 /** One fixed seed for whatever the in-flight gesture previews. */
 const PREVIEW_SEED = 1;
+
+/** How long the minimap lingers after the view stops moving. */
+const MINIMAP_LINGER_MS = 1200;
 
 /** Ink width for a new pen stroke. */
 const STROKE_WIDTH = 2;
@@ -253,7 +257,23 @@ function CanvasInner() {
    * an empty past *and* an empty future means "new document", while undoing back to the start
    * leaves a non-empty future and correctly does not refit.
    */
-  const fittedDoc = useRef<Document | null>(null);
+  // Where the last session left the view, read once. When there is one, the document on screen at
+  // start-up counts as already fitted, so the saved pan and zoom are kept instead of refitted.
+  const [savedViewport] = useState(loadViewport);
+  const fittedDoc = useRef<Document | null>(savedViewport ? doc : null);
+
+  /**
+   * The minimap shows only while the view is moving, and for a moment after — long enough to reach
+   * it and drag it. The pointer resting on it keeps it up.
+   */
+  const [minimapAwake, setMinimapAwake] = useState(false);
+  const minimapTimer = useRef<ReturnType<typeof setTimeout>>();
+  const wakeMinimap = useCallback(() => {
+    setMinimapAwake(true);
+    clearTimeout(minimapTimer.current);
+    minimapTimer.current = setTimeout(() => setMinimapAwake(false), MINIMAP_LINGER_MS);
+  }, []);
+  useEffect(() => () => clearTimeout(minimapTimer.current), []);
   useEffect(() => {
     if (!nodesInitialized || past.length > 0 || future.length > 0 || fittedDoc.current === doc) return;
     fittedDoc.current = doc;
@@ -389,13 +409,14 @@ function CanvasInner() {
         const o = e.currentTarget.getBoundingClientRect();
         setPointer({ x: e.clientX - o.left, y: e.clientY - o.top });
       }
+      if (e.target instanceof Element && e.target.closest(".react-flow__minimap")) wakeMinimap();
       if (dragFrom.current === null) return;
       const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
       setDrag((d) => (d === null ? null : { ...d, to: at }));
       if (armed?.kind === "pen") setStroke((pts) => [...pts, at]);
       if (armed?.kind === "eraser") setErasing((hit) => collectHits(hit, at));
     },
-    [screenToFlowPosition, settings.rulers, armed, collectHits],
+    [screenToFlowPosition, settings.rulers, armed, collectHits, wakeMinimap],
   );
 
   const onMouseUp = useCallback(
@@ -490,6 +511,14 @@ function CanvasInner() {
         zoomOnScroll={false}
         zoomOnPinch
         panOnDrag={panning ? true : [1, 2]}
+        {...(savedViewport ? { defaultViewport: savedViewport } : {})}
+        // All three: a single scroll tick reports only a start, and the linger should count from the end.
+        onMoveStart={wakeMinimap}
+        onMove={wakeMinimap}
+        onMoveEnd={(_e, vp) => {
+          wakeMinimap();
+          saveViewport(vp);
+        }}
         minZoom={0.1}
         maxZoom={4}
         snapToGrid={settings.snap}
@@ -500,9 +529,13 @@ function CanvasInner() {
           <Background variant={GRID_VARIANT[settings.grid]} gap={settings.gridSize} />
         ) : null}
         {settings.rulers ? <Rulers pointer={pointer} /> : null}
-        <Controls />
+        {/* Clear of the vertical ruler when it is showing. */}
+        <Controls style={settings.rulers ? { marginLeft: 15 + RULER_SIZE } : {}} />
         {settings.minimap ? (
           <MiniMap
+            className={minimapAwake ? "arq-minimap awake" : "arq-minimap"}
+            style={{ width: 180, height: 135 }}
+            offsetScale={2}
             pannable
             zoomable
             ariaLabel="Minimap"

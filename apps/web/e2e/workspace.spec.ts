@@ -101,10 +101,49 @@ test("zoom buttons and the minimap follow the dark theme", async ({ page }) => {
   await page.getByLabel("Theme").selectOption("dark");
   await page.keyboard.press("Escape");
 
-  await expect(page.getByTestId("rf__minimap")).toBeVisible();
   const bg = await page.locator(".react-flow__controls-button").first().evaluate((el) => getComputedStyle(el).backgroundColor);
   expect(bg).toBe("rgb(22, 22, 22)");
 
   await page.getByTestId("inspector").getByLabel("Minimap").uncheck();
   await expect(page.getByTestId("rf__minimap")).toHaveCount(0);
+});
+
+test("the minimap shows only while the view moves", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Rectangle" }).dblclick();
+  const minimap = page.getByTestId("rf__minimap");
+  const opacity = () => minimap.evaluate((el) => Number(getComputedStyle(el).opacity));
+  await expect.poll(opacity, { timeout: 4000 }).toBe(0);
+  await expect(minimap).toHaveCSS("width", "180px");
+
+  const b = (await page.getByTestId("canvas").boundingBox())!;
+  await page.mouse.move(b.x + 300, b.y + 300);
+  await page.mouse.wheel(0, 120); // scroll pans
+  await expect.poll(opacity).toBe(1);
+  await expect.poll(opacity, { timeout: 4000 }).toBe(0); // and it goes away again once still
+});
+
+test("zoom and scroll position survive a reload", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Rectangle" }).dblclick();
+  const b = (await page.getByTestId("canvas").boundingBox())!;
+  await page.mouse.move(b.x + 300, b.y + 300);
+  await page.keyboard.press("Control+="); // zoom in
+  await page.mouse.wheel(90, 140); // and scroll
+  await page.waitForTimeout(500);
+  const before = await viewport(page);
+  expect(before).not.toBe("matrix(1, 0, 0, 1, 0, 0)"); // the view really did move
+
+  await page.reload();
+  await expect(page.locator(".react-flow__node")).toHaveCount(1);
+  await page.waitForTimeout(500); // past any refit that would have run
+  expect(await viewport(page)).toBe(before);
+});
+
+test("the zoom buttons move clear of the ruler", async ({ page }) => {
+  await page.goto("/");
+  const controls = page.locator(".react-flow__controls");
+  const x0 = (await controls.boundingBox())!.x;
+  await page.getByTestId("inspector").getByLabel("Rulers").check();
+  await expect.poll(async () => (await controls.boundingBox())!.x).toBeGreaterThanOrEqual(x0 + 22);
 });

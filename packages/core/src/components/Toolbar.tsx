@@ -1,4 +1,6 @@
+/// <reference path="../modules.d.ts" />
 import { useState } from "react";
+import logoUrl from "../assets/arq-logo.png";
 import { useEditor, useEditorStore, usePlatform } from "../store/context";
 import { confirmDiscard, newDocument, openDocument, reportCommandError, saveDocument } from "../commands/file-commands";
 import { SettingsModal, useSettings } from "./SettingsModal";
@@ -54,6 +56,7 @@ export function Toolbar() {
 
   return (
     <>
+      <img className="arq-toolbar-logo" src={logoUrl} alt="Arq" title="Arq" width={24} height={24} />
       <button type="button" onClick={() => confirmDiscard(store) && newDocument(store)}>New</button>
       <button type="button" onClick={open}>Open</button>
       <button type="button" onClick={() => save(false)}>Save</button>
@@ -68,7 +71,7 @@ export function Toolbar() {
         <Icon d={REDO_ICON} />
       </button>
       <span className="arq-toolbar-sep" />
-      <button type="button" className="arq-toolbar-labelled" onClick={() => setExportOpen(true)} title="Export as PNG or SVG">
+      <button type="button" className="arq-toolbar-labelled" onClick={() => setExportOpen(true)} title="Export as PNG, SVG, animated SVG, GIF or MP4">
         <Icon d={EXPORT_ICON} /> Export
       </button>
       <ExportDialog open={exportOpen} onClose={() => setExportOpen(false)} />

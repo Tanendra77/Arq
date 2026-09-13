@@ -1,4 +1,4 @@
-/// <reference path="../gifenc.d.ts" />
+/// <reference path="../modules.d.ts" />
 import { FLOW_SECONDS, PACKET_SECONDS, layoutDocument, renderSvg } from "@arq/render";
 import type { Document } from "@arq/schema";
 import type { EditorStore, Selection } from "../store/editor-store";

@@ -89,8 +89,30 @@ test("the lines grid is graph paper: thin, medium every fifth, heavy every tenth
     Number(getComputedStyle(e.querySelector("path")!).strokeWidth.replace("px", "")),
   ]));
   const [thin, medium, heavy] = widths;
-  expect(medium![0]).toBeCloseTo(thin![0] * 5);
-  expect(heavy![0]).toBeCloseTo(thin![0] * 10);
-  expect(thin![1]).toBeLessThan(medium![1]);
-  expect(medium![1]).toBeLessThan(heavy![1]);
+  expect(medium![0]!).toBeCloseTo(thin![0]! * 5);
+  expect(heavy![0]!).toBeCloseTo(thin![0]! * 10);
+  expect(thin![1]!).toBeLessThan(medium![1]!);
+  expect(medium![1]!).toBeLessThan(heavy![1]!);
+
+  // Zoomed well out, the thin lines would pack into a grey wash, so they fade away; the heavy ones stay.
+  await page.getByTestId("canvas").click({ position: { x: 400, y: 300 } });
+  for (let i = 0; i < 6; i += 1) await page.keyboard.press("Control+-");
+  await expect.poll(() => layers.count()).toBeLessThan(3);
+  await expect(page.locator('.react-flow__background.arq-graph-paper pattern[id$="graph-10"]')).toHaveCount(1);
+});
+
+test("the app wears its logo: tab icon, install manifest and toolbar", async ({ page, request }) => {
+  await page.goto("/");
+  const icon = await page.locator('link[rel="icon"]').getAttribute("href");
+  expect(icon).toBe("/favicon.png");
+  const png = await request.get(icon!);
+  expect(png.ok()).toBe(true);
+  expect(png.headers()["content-type"]).toContain("image/png");
+  const manifest = await (await request.get("/manifest.webmanifest")).json() as { name: string; icons: { src: string }[] };
+  expect(manifest.name).toBe("Arq");
+  for (const i of manifest.icons) expect((await request.get(i.src)).ok()).toBe(true);
+
+  const logo = page.getByRole("img", { name: "Arq" });
+  await expect(logo).toBeVisible();
+  expect(await logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
 });

@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactFlowProps } from "@xyflow/react";
 import { emptyDocument } from "@arq/schema";
 import { STYLE_DEFAULTS } from "@arq/render";
-import { Canvas, mergeMeasured, planDeletion } from "../../src/components/Canvas";
+import { Canvas, gridLineFade, mergeMeasured, planDeletion } from "../../src/components/Canvas";
 import { DEFAULT_NODE_LABEL, FREE_LINE_LENGTH, setActiveTool } from "../../src/components/Palette";
 import { endpointNodeId, type ArqFlowNode } from "../../src/flow/to-flow";
 import { EditorStoreProvider } from "../../src/store/context";
@@ -320,5 +320,15 @@ describe("mergeMeasured", () => {
   it("leaves the node alone when the previous state had no measurements either", () => {
     const merged = mergeMeasured([flowNode("app-1", 0, "OMS")], [flowNode("app-1", 0, "OMS")]);
     expect(merged[0]).not.toHaveProperty("measured");
+  });
+});
+
+describe("gridLineFade", () => {
+  it("keeps lines that are well apart, fades them as they crowd, and drops them once packed solid", () => {
+    expect(gridLineFade(40)).toBe(1);
+    expect(gridLineFade(16)).toBe(1);
+    expect(gridLineFade(11)).toBeCloseTo(0.5);
+    expect(gridLineFade(6)).toBe(0);
+    expect(gridLineFade(1)).toBe(0);
   });
 });

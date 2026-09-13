@@ -9,6 +9,7 @@ import {
   useKeyPress,
   useNodesInitialized,
   useReactFlow,
+  useStore,
   ViewportPortal,
   useNodesState,
   useEdgesState,
@@ -183,6 +184,36 @@ function DrawPreview({
         ),
       }}
     />
+  );
+}
+
+/** Below this many screen pixels apart a set of grid lines has started to fade; by this many more, it is gone. */
+const FADE_FROM_PX = 16;
+const FADE_OVER_PX = 10;
+
+/** How visible a set of lines spaced `gapPx` apart on screen should be: 1 when well apart, 0 once packed solid. */
+export function gridLineFade(gapPx: number): number {
+  return Math.min(1, Math.max(0, (gapPx - (FADE_FROM_PX - FADE_OVER_PX)) / FADE_OVER_PX));
+}
+
+/**
+ * Graph paper, three layers deep: a thin line every step, a medium one every fifth, a heavy one every
+ * tenth — the weights the exporter draws too. Zoomed out, a layer's lines crowd together into a grey
+ * wash, so each fades by how far apart its lines are on screen: the thin ones go first, the heavy ones
+ * last, and the paper stays legible at any zoom.
+ */
+function GraphPaper({ gridSize }: { gridSize: number }) {
+  const zoom = useStore((s) => s.transform[2]);
+  return (
+    <>
+      {GRAPH_PAPER.map(({ every, width, opacity }) => {
+        const fade = gridLineFade(gridSize * every * zoom);
+        return fade === 0 ? null : (
+          <Background key={every} id={`graph-${every}`} className="arq-graph-paper" style={{ opacity: opacity * fade }}
+            variant={BackgroundVariant.Lines} gap={gridSize * every} lineWidth={width} />
+        );
+      })}
+    </>
   );
 }
 
@@ -556,12 +587,7 @@ function CanvasInner() {
       >
         <EdgeDefs doc={doc} />
         {settings.grid === "lines" ? (
-          // Graph paper, three layers deep: a thin line every step, a medium one every fifth, a heavy
-          // one every tenth — the weights the exporter draws too.
-          GRAPH_PAPER.map(({ every, width, opacity }) => (
-            <Background key={every} id={`graph-${every}`} className="arq-graph-paper" style={{ opacity }}
-              variant={BackgroundVariant.Lines} gap={settings.gridSize * every} lineWidth={width} />
-          ))
+          <GraphPaper gridSize={settings.gridSize} />
         ) : settings.grid !== "off" ? (
           <Background variant={GRID_VARIANT[settings.grid]} gap={settings.gridSize} />
         ) : null}

@@ -1,0 +1,262 @@
+:root { --arq-json-key: #0b6bcb; --arq-json-string: #1a7f37; --arq-json-number: #b35900; --arq-json-keyword: #8250df; --arq-json-punct: #6e7781; }
+@media (prefers-color-scheme: dark) { :root { --arq-json-key: #79b8ff; --arq-json-string: #85e89d; --arq-json-number: #ffab70; --arq-json-keyword: #b392f0; --arq-json-punct: #959da5; } }
+:root[data-theme="light"] { --arq-json-key: #0b6bcb; --arq-json-string: #1a7f37; --arq-json-number: #b35900; --arq-json-keyword: #8250df; --arq-json-punct: #6e7781; }
+:root[data-theme="dark"] { --arq-json-key: #79b8ff; --arq-json-string: #85e89d; --arq-json-number: #ffab70; --arq-json-keyword: #b392f0; --arq-json-punct: #959da5; }
+:root { color-scheme: light dark; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; --arq-accent: #00c895;
+  /* Mirrors FONT_STACK in @arq/render/src/font.ts. The face itself is injected as an @font-face
+     by installSketchFont() from the same bytes the exporter embeds, so screen and file agree. */
+  --arq-sketch-font: Excalifont, 'Segoe Print', 'Bradley Hand', Chilanka, system-ui, sans-serif; }
+@media (prefers-color-scheme: dark) { :root { --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; } }
+/* Explicit `theme` setting (SettingsModal sets `data-theme` on the root) overrides whatever the
+   OS reports; "system" leaves the attribute unset so the media query above wins. */
+:root[data-theme="light"] { color-scheme: light; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; }
+:root[data-theme="dark"] { color-scheme: dark; --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; }
+html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sans-serif; color: var(--arq-fg); background: var(--arq-bg); }
+.arq-app { position: relative; display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: var(--arq-left, 112px) 1fr var(--arq-right, 260px); grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
+.arq-toolbar { grid-area: toolbar; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--arq-line); }
+.arq-palette { grid-area: palette; border-right: 1px solid var(--arq-line); overflow: auto; }
+/* `--arq-canvas-bg` is unset by default (the canvas shows through to the app background); the
+   Inspector's "Canvas background" field sets it on the root element when the user picks one. */
+.arq-main { grid-area: main; min-width: 0; min-height: 0; display: flex; }
+.arq-main-canvas { flex: 1 1 0; min-width: 0; background: var(--arq-canvas-bg, transparent); }
+.arq-main.view-json .arq-main-canvas { display: none; }
+/* The JSON view: a bar, the editor, and any problems under it. */
+.arq-json { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; background: var(--arq-bg); }
+.arq-main.view-split .arq-main-canvas { flex: var(--arq-split, 0.5) 1 0; }
+.arq-main.view-split .arq-json { flex: calc(1 - var(--arq-split, 0.5)) 1 0; }
+.arq-split-divider { flex: 0 0 5px; cursor: col-resize; touch-action: none; background: var(--arq-line); }
+.arq-split-divider:hover, .arq-split-divider:focus-visible, .arq-split-divider.dragging { background: var(--arq-accent); outline: none; }
+/* Icon-only toolbar buttons: square, with the name in the tooltip and for screen readers. */
+.arq-toolbar button.arq-toolbar-icon { display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; }
+.arq-toolbar button.arq-toolbar-labelled { display: inline-flex; align-items: center; gap: 5px; }
+/* The export dialog. */
+.arq-export { width: min(440px, 92vw); }
+.arq-export-preview { display: flex; align-items: center; justify-content: center; height: 180px; border: 1px solid var(--arq-line); border-radius: 6px; overflow: hidden;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--arq-fg) 10%, transparent) 0% 25%, transparent 0% 50%) 50% / 16px 16px; }
+.arq-export-preview img { max-width: 100%; max-height: 100%; }
+.arq-export-preview { position: relative; }
+.arq-export-expand { position: absolute; right: 6px; bottom: 6px; font: inherit; font-size: 12px; color: var(--arq-fg); padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: var(--arq-bg); cursor: pointer; }
+.arq-export-full { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: rgba(0, 0, 0, 0.82); outline: none; }
+.arq-export-full-bar { display: flex; align-items: center; justify-content: flex-end; gap: 6px; padding: 8px 12px; color: #eee; font-size: 12px; }
+.arq-export-full-bar span { margin-right: auto; opacity: 0.8; }
+.arq-export-full-bar button { font: inherit; color: #eee; padding: 3px 10px; border: 1px solid #555; border-radius: 4px; background: none; cursor: pointer; }
+.arq-export-full-bar button[aria-pressed="true"] { background: color-mix(in srgb, var(--arq-accent) 40%, transparent); border-color: var(--arq-accent); }
+.arq-export-full-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px 24px 24px; }
+.arq-export-full-stage.actual { display: block; overflow: auto; text-align: center; }
+.arq-export-full-stage img { max-width: 100%; max-height: 100%;
+  background: repeating-conic-gradient(#bbb 0% 25%, #eee 0% 50%) 50% / 20px 20px; }
+.arq-export-full-stage.actual img { max-width: none; max-height: none; }
+.arq-choice { display: inline-flex; flex-wrap: wrap; }
+.arq-choice button { font: inherit; font-size: 12px; color: inherit; padding: 3px 9px; border: 1px solid var(--arq-line); background: none; cursor: pointer; margin-left: -1px; }
+.arq-choice button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.arq-choice button:last-child { border-radius: 0 4px 4px 0; }
+.arq-choice button[aria-pressed="true"] { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); position: relative; }
+.arq-choice button:disabled { opacity: 0.4; cursor: default; }
+.arq-export-meta { margin: 0; font-size: 12px; opacity: 0.7; }
+.arq-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.arq-modal-actions button { font: inherit; color: inherit; padding: 5px 12px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; cursor: pointer; }
+.arq-modal-actions button.primary { background: var(--arq-accent); border-color: var(--arq-accent); color: #0b0b0b; }
+.arq-modal-actions button:disabled { opacity: 0.5; cursor: default; }
+.arq-json-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--arq-line); font-size: 12px; }
+.arq-json-bar button { padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; font: inherit; }
+.arq-json-bar button:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
+.arq-json-spacer { flex: 1; }
+.arq-json-status.ok { color: var(--arq-accent); }
+.arq-json-status.pending { opacity: 0.6; }
+.arq-json-status.error { color: #e5484d; }
+.arq-json-editor { flex: 1; min-height: 0; overflow: hidden; }
+.arq-json-problems { list-style: none; margin: 0; padding: 4px 8px; max-height: 30%; overflow: auto; border-top: 1px solid var(--arq-line); font-size: 12px; }
+.arq-json-problems button { all: unset; cursor: pointer; color: #e5484d; }
+.arq-json-problems button:hover { text-decoration: underline; }
+.arq-json-problems .more { opacity: 0.6; }
+.arq-json-problems-head { display: flex; justify-content: flex-end; }
+.arq-json-problems button.arq-json-copy-errors { all: unset; cursor: pointer; font-size: 11px; padding: 1px 6px; border: 1px solid var(--arq-line); border-radius: 4px; color: var(--arq-fg); }
+.arq-json-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.arq-json-bar { flex-wrap: wrap; }
+/* The JSON outline. */
+.arq-json-tree-wrap { flex: 1; min-height: 0; overflow: auto; padding: 6px 8px; font: 12px/1.6 ui-monospace, 'Cascadia Code', Consolas, monospace; }
+.arq-tree, .arq-tree ul { list-style: none; margin: 0; padding: 0; }
+.arq-tree ul { padding-left: 16px; border-left: 1px solid color-mix(in srgb, var(--arq-line) 60%, transparent); margin-left: 5px; }
+.arq-tree summary { cursor: pointer; border-radius: 3px; padding: 0 4px; }
+.arq-tree summary:hover { background: color-mix(in srgb, var(--arq-fg) 6%, transparent); }
+.arq-tree-branch.selected > details > summary { background: color-mix(in srgb, var(--arq-accent) 22%, transparent); }
+.arq-tree-leaf { padding-left: 14px; }
+.arq-tree-key { color: var(--arq-json-key); }
+.arq-tree-leaf .arq-tree-key::after { content: ": "; color: var(--arq-json-punct); }
+.arq-tree-count { margin-left: 6px; color: var(--arq-json-punct); }
+.arq-tree-hint { margin-left: 8px; opacity: 0.75; }
+.arq-tree-value.string { color: var(--arq-json-string); }
+.arq-tree-value.number { color: var(--arq-json-number); }
+.arq-tree-value.boolean, .arq-tree-value.null { color: var(--arq-json-keyword); }
+.arq-view-switch { display: inline-flex; }
+.arq-toolbar .arq-view-switch button { border-radius: 0; margin-left: -1px; }
+.arq-toolbar .arq-view-switch button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.arq-toolbar .arq-view-switch button:last-child { border-radius: 0 4px 4px 0; }
+.arq-toolbar .arq-view-switch button[aria-pressed="true"] { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); position: relative; }
+/* Drag handles on the inner edge of each side panel. */
+.arq-splitter { position: absolute; top: 40px; bottom: 0; width: 7px; margin-left: -3px; z-index: 6; cursor: col-resize; touch-action: none; }
+.arq-splitter-left { left: var(--arq-left, 112px); }
+.arq-splitter-right { left: calc(100% - var(--arq-right, 260px)); }
+.arq-splitter:hover, .arq-splitter:focus-visible, .arq-splitter.dragging { background: color-mix(in srgb, var(--arq-accent) 45%, transparent); outline: none; }
+.arq-inspector { grid-area: inspector; border-left: 1px solid var(--arq-line); overflow: auto; }
+.arq-inspector-inner { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.arq-inspector-inner h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
+/* Separates the document's own properties from this machine's view of it. */
+.arq-panel-section { margin: 6px 0 0; padding-top: 8px; border-top: 1px solid var(--arq-line); font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.45; }
+/* Style / Animation, one strip per selection panel. */
+.arq-panel-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--arq-line); margin-bottom: 2px; }
+.arq-panel-tabs button { flex: 1; padding: 4px 6px; font: inherit; font-size: 11px; background: none; border: 0; border-bottom: 2px solid transparent; color: inherit; opacity: 0.6; cursor: pointer; }
+.arq-panel-tabs button.active { opacity: 1; border-bottom-color: var(--arq-accent); }
+.arq-field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+/* Colour and size controls sit on one line instead of a stack of full-width rows. */
+.arq-field-pair { display: flex; gap: 6px; align-items: flex-end; }
+.arq-field-pair .arq-field { flex: 1; min-width: 0; }
+/* An icon row's caption is a quiet heading, not a form label: the buttons name themselves. */
+.arq-field-caption { font-size: 11px; opacity: 0.55; text-transform: uppercase; letter-spacing: 0.04em; }
+.arq-field-caption:empty { display: none; }
+.arq-field-caption em { font-style: normal; opacity: 0.8; margin-left: 4px; text-transform: none; letter-spacing: 0; }
+.arq-icon-row { display: flex; gap: 3px; flex-wrap: wrap; }
+.arq-icon-row button { display: flex; align-items: center; justify-content: center; padding: 3px; min-width: 30px; height: 24px; border: 1px solid transparent; border-radius: 4px; background: color-mix(in srgb, var(--arq-fg) 6%, transparent); color: inherit; cursor: pointer; }
+.arq-icon-row button:hover { background: color-mix(in srgb, var(--arq-accent) 18%, transparent); }
+.arq-icon-row button.arq-format { font-size: 13px; min-width: 30px; }
+.arq-icon-row button.active { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); }
+.arq-icon-row button svg { display: block; }
+.arq-field input, .arq-field select { font: inherit; color: inherit; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 4px; padding: 4px 6px; }
+.arq-field input[type="color"] { padding: 2px; height: 28px; }
+.arq-field-checkbox { flex-direction: row; align-items: center; gap: 6px; }
+/* `position: relative` anchors the placement overlays below, which sit over the flow. */
+.arq-canvas { width: 100%; height: 100%; position: relative; }
+/* A palette tool is armed: the next click on empty canvas places it. */
+.arq-canvas.armed, .arq-canvas.armed .react-flow__pane { cursor: crosshair; }
+/* The hand, or Space held: the whole canvas grabs the view, shapes included. */
+.arq-canvas.panning, .arq-canvas.panning .react-flow__pane, .arq-canvas.panning .react-flow__node { cursor: grab; }
+.arq-canvas.panning .react-flow__pane.dragging { cursor: grabbing; }
+/* Zoom buttons and minimap in the app's own theme tokens, so they follow light, dark and system alike. */
+.arq-canvas .react-flow {
+  --xy-controls-button-background-color: var(--arq-bg);
+  --xy-controls-button-background-color-hover: color-mix(in srgb, var(--arq-accent) 18%, var(--arq-bg));
+  --xy-controls-button-color: var(--arq-fg);
+  --xy-controls-button-color-hover: var(--arq-fg);
+  --xy-controls-button-border-color: var(--arq-line);
+  --xy-controls-box-shadow: 0 0 0 1px var(--arq-line);
+  --xy-minimap-background-color: var(--arq-bg);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--arq-fg) 10%, transparent);
+  --xy-minimap-mask-stroke-color: var(--arq-accent);
+  --xy-minimap-mask-stroke-width: 1;
+  --xy-minimap-node-background-color: color-mix(in srgb, var(--arq-fg) 40%, transparent);
+}
+.arq-canvas .react-flow__minimap { margin: 10px; border: 1px solid color-mix(in srgb, var(--arq-line) 70%, transparent); border-radius: 4px; overflow: hidden;
+  opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+.arq-canvas .react-flow__minimap.awake { opacity: 1; pointer-events: auto; }
+.react-flow__minimap-node.arq-minimap-hidden { display: none; }
+/* Graph paper: one ink for every weight; the layers differ in line width and opacity. */
+.arq-canvas .react-flow__background.arq-graph-paper { --xy-background-pattern-color: color-mix(in srgb, var(--arq-fg) 22%, transparent); }
+/* Optional rulers, laid over the canvas edges. `pointer-events: none` throughout: they are a
+   readout, and must never intercept a click meant for the diagram underneath. */
+.arq-rulers { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+.arq-ruler { position: absolute; background: color-mix(in srgb, var(--arq-bg) 88%, transparent); }
+.arq-ruler-x { left: 0; top: 0; border-bottom: 1px solid var(--arq-line); }
+.arq-ruler-y { left: 0; top: 0; border-right: 1px solid var(--arq-line); }
+.arq-ruler line { stroke: var(--arq-line); }
+.arq-ruler text { fill: var(--arq-fg); opacity: 0.55; font-size: 9px; font-family: system-ui, sans-serif; }
+.arq-ruler line.arq-ruler-cursor { stroke: var(--arq-accent); stroke-width: 1; }
+.arq-ruler-corner { position: absolute; left: 0; top: 0; min-width: 22px; height: 22px; padding: 0 4px; display: flex; align-items: center; justify-content: center; background: var(--arq-bg); border-right: 1px solid var(--arq-line); border-bottom: 1px solid var(--arq-line); font-size: 9px; opacity: 0.7; font-variant-numeric: tabular-nums; }
+
+/* The real shape or arrow the in-flight gesture will produce, drawn in the flow's own viewport. */
+.arq-draw-preview { position: absolute; pointer-events: none; overflow: visible; opacity: 0.7; }
+.arq-palette-tabs { display: flex; border-bottom: 1px solid var(--arq-line); }
+.arq-palette-tabs button { flex: 1; padding: 6px; background: none; border: 0; color: inherit; cursor: pointer; }
+.arq-palette-tabs button.active { border-bottom: 2px solid var(--arq-accent); }
+/* Symbol-only tiles packed into rows and columns: the item name lives in `title`/`aria-label`
+   rather than beside every swatch, so the panel is a compact grid instead of a tall list. */
+.arq-palette-list { list-style: none; margin: 0; padding: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); gap: 4px; }
+.arq-palette-list li { display: flex; align-items: center; justify-content: center; aspect-ratio: 1; border-radius: 4px; cursor: grab; user-select: none; }
+.arq-palette-list li:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
+.arq-palette-list li.armed { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); box-shadow: inset 0 0 0 1px var(--arq-accent); }
+.arq-palette-icon svg { width: 24px; height: 24px; display: block; }
+.arq-palette-glyph { font-size: 16px; font-weight: 600; line-height: 1; }
+/* How many sides the next polygon — or points the next star — gets, shown under the grid while armed. */
+.arq-palette-sides { display: flex; flex-direction: column; gap: 3px; margin: 4px 6px; font-size: 11px; }
+.arq-palette-sides span { opacity: 0.6; }
+.arq-palette-sides input { font: inherit; color: inherit; width: 100%; box-sizing: border-box; background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 4px; padding: 3px 5px; }
+/* What an eraser wipe is about to remove, before the pointer lifts and it commits. */
+.react-flow__node.arq-erasing, .react-flow__edge.arq-erasing { opacity: 0.2; }
+/*
+ * A node's own fill/stroke/shape come from the inline <svg data-shape> ArqNode draws with
+ * `shapeMarkup` (the same function the SVG exporter calls) — this stylesheet never paints the
+ * shape itself. `.arq-node` only lays out its children and, when selected, draws a halo around
+ * the box that sits independent of whatever fill/stroke the document's style resolves to.
+ */
+.arq-node { position: relative; }
+.arq-node.selected { box-shadow: 0 0 0 2px color-mix(in srgb, var(--arq-accent) 40%, transparent); border-radius: 4px; }
+/* Corner handles and the rotation grip. They are children of the rotated box, so they turn with
+   the shape and stay on its own corners; `node-handles.ts` does the matching arithmetic. */
+.arq-resize-handle { position: absolute; width: 9px; height: 9px; margin: -5px 0 0 -5px; border: 1px solid var(--arq-accent); border-radius: 2px; background: var(--arq-bg); }
+.arq-resize-nw { left: 0; top: 0; cursor: nwse-resize; }
+.arq-resize-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.arq-resize-se { left: 100%; top: 100%; cursor: nwse-resize; }
+.arq-resize-sw { left: 0; top: 100%; cursor: nesw-resize; }
+.arq-rotate-grip { position: absolute; left: 50%; top: -22px; width: 11px; height: 11px; margin-left: -6px; border: 1px solid var(--arq-accent); border-radius: 50%; background: var(--arq-bg); cursor: grab; }
+/* The stem joining the grip to the shape, so it reads as attached rather than floating. */
+.arq-rotate-grip::after { content: ""; position: absolute; left: 50%; top: 100%; width: 1px; height: 12px; margin-left: -0.5px; background: var(--arq-accent); }
+.arq-node-shape { pointer-events: none; }
+/* React Flow needs a handle on each node to resolve edge geometry at all, but Arq does not bind
+   arrows to a handle — `anchorOn` picks the side facing the other end, so an arrow meets a shape
+   wherever it should. The handles are therefore kept and hidden rather than removed: two visible
+   dots on every shape suggested connection points that do not exist. */
+.arq-node .react-flow__handle { opacity: 0; pointer-events: none; width: 1px; height: 1px; min-width: 0; min-height: 0; border: 0; }
+.arq-node-icon svg { width: 100%; height: 100%; display: block; }
+.arq-node-icon-missing { box-sizing: border-box; border: 1px dashed var(--arq-line); font-size: 8px; overflow: hidden; word-break: break-all; display: flex; align-items: center; justify-content: center; text-align: center; }
+/* Font metrics mirror METRICS in @arq/render (labelFontSize/labelLineHeight); position (top/left/
+   width) is computed inline from `shapeRect`/`wrapLabel` so it lines up with the exported SVG's
+   text block. */
+/* Hit-testable (unlike the rest of the node's decoration) purely so double-click can open the
+   inline editor; a single click still bubbles to the node, so select and drag are unaffected. */
+.arq-node-label { font-family: var(--arq-sketch-font); font-weight: 500; overflow-wrap: anywhere; line-height: 16px; cursor: text; }
+/* No frame while typing: editing a label should look like editing the label, not like a form
+   field dropped on top of the shape. The caret and the live text are the only feedback needed. */
+.arq-node-label-input { font: inherit; font-family: var(--arq-sketch-font); font-weight: 500; line-height: 16px; color: inherit; background: none; border: 0; outline: none; padding: 0; box-sizing: border-box; }
+/* The wrapper React Flow puts around a loose-endpoint node. `.arq-endpoint` below paints the dot;
+   this only has to stop the wrapper painting a second one of its own. */
+.react-flow__node-arqEndpoint { background: none; }
+.arq-edge { stroke-linecap: round; }
+/* Selection halo, drawn under the edge. Deliberately a path and not a CSS filter — see ArqEdge. */
+/* Slides the middle leg of a right-angled route; only rendered while the edge is selected. */
+/* Dots on a selected line. React Flow makes an edge answer only to its painted stroke, which left a
+   dot grabbable on its 2px ring alone; every grip takes the pointer across its whole area instead. */
+.arq-panel-action { align-self: flex-start; font: inherit; font-size: 12px; color: inherit; padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; cursor: pointer; }
+.arq-panel-action:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
+.arq-grip { pointer-events: all; cursor: grab; }
+.arq-grip-hit { fill: transparent; stroke: none; }
+.arq-bend-handle .arq-grip-dot { fill: var(--arq-accent); stroke: var(--arq-bg); stroke-width: 1.5; }
+.arq-bend-handle.horizontal { cursor: ns-resize; }
+.arq-bend-handle.vertical { cursor: ew-resize; }
+.arq-via-point .arq-grip-dot { fill: var(--arq-accent); stroke: var(--arq-bg); stroke-width: 1.5; }
+.arq-via-point { cursor: move; }
+.arq-via-add .arq-grip-dot { fill: var(--arq-bg); stroke: var(--arq-accent); stroke-width: 1.5; opacity: 0.7; }
+.arq-via-add:hover .arq-grip-dot { opacity: 1; fill: var(--arq-accent); }
+/* Either end of a selected line; drag to re-point it, onto a shape or onto empty canvas. */
+.arq-edge-end .arq-grip-dot { fill: var(--arq-bg); stroke: var(--arq-accent); stroke-width: 2; }
+.arq-edge-end:hover .arq-grip-dot { fill: var(--arq-accent); }
+.arq-edge-halo { fill: none; stroke: var(--arq-accent); stroke-width: 6; stroke-linecap: round; opacity: 0.35; pointer-events: none; }
+/* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
+.arq-edge-hit { pointer-events: stroke; cursor: pointer; }
+.arq-edge-label { position: absolute; pointer-events: all; font-family: var(--arq-sketch-font); font-size: 11px; padding: 1px 4px; border-radius: 3px; cursor: text; white-space: pre; }
+.arq-label-plate { display: inline-block; padding: 0 4px; border-radius: 3px; }
+.arq-edge-label-input { position: absolute; pointer-events: all; font: inherit; font-family: var(--arq-sketch-font); font-size: 11px; width: 100px; text-align: center; color: inherit; padding: 1px 4px; background: var(--arq-bg); border: 0; outline: none; border-radius: 3px; }
+/* The draggable dot standing in for an unattached edge end. Its handles exist only so React Flow
+   will render the edge at all; the dot itself is what the user grabs, hence pointer-events: none
+   on the handles (otherwise a press would start a new connection instead of moving the end). */
+/* Invisible: it exists so React Flow can resolve the edge's geometry. The grab dot the user sees
+   is `.arq-edge-end`, drawn by ArqEdge at both ends alike. */
+.arq-endpoint { position: relative; width: 1px; height: 1px; }
+.arq-endpoint-handle { opacity: 0; width: 6px; height: 6px; min-width: 0; min-height: 0; border: 0; pointer-events: none; }
+.arq-toolbar-logo { width: 24px; height: 24px; margin-right: 4px; flex: none; }
+.arq-toolbar button { padding: 4px 10px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; }
+.arq-toolbar button:disabled { opacity: 0.4; cursor: default; }
+.arq-toolbar-sep { width: 1px; height: 20px; background: var(--arq-line); margin: 0 4px; }
+.arq-toolbar-title { margin-left: auto; opacity: 0.8; }
+.arq-toolbar-error { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); background: #b3261e; color: #fff; padding: 8px 12px; border-radius: 6px; display: flex; gap: 12px; z-index: 10; }
+.arq-modal-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); display: flex; align-items: center; justify-content: center; z-index: 20; }
+.arq-modal { background: var(--arq-bg); border: 1px solid var(--arq-line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; max-height: 80vh; overflow: auto; }
+.arq-modal h2 { margin: 0; font-size: 14px; }

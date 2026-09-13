@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "kind": "event-flow",
+  "title": "Order ingestion",
+  "nodes": [
+    { "id": "oms", "shape": "rect", "label": "OMS", "group": "mumbai-dc", "meta": { "language": "java", "protocol": "JCSMP" } },
+    { "id": "pr", "shape": "rect", "label": "PR broker", "icon": "solace-products-logos/pubsub-event-broker", "group": "mumbai-dc", "meta": { "vpn": "BSE_PROD", "role": "primary" } },
+    { "id": "q-orders", "shape": "rect", "label": "Q/ORDERS/NEW", "meta": { "accessType": "exclusive" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "oms", "to": "pr", "kind": "publish", "label": "orders/new/v1", "meta": { "qos": "guaranteed" } },
+    { "id": "e2", "from": "pr", "to": "q-orders", "kind": "bind" }
+  ],
+  "groups": [ { "id": "mumbai-dc", "label": "Mumbai DC", "kind": "dc" } ],
+  "annotations": [ { "id": "n1", "type": "note", "text": "Failover target", "x": 400, "y": 120 } ],
+  "layout": {
+    "engine": "elk",
+    "direction": "RIGHT",
+    "pinned": {
+      "oms": { "x": 40, "y": 80 },
+      "pr": { "x": 260, "y": 80 },
+      "q-orders": { "x": 480, "y": 80 },
+      "mumbai-dc": { "x": 0, "y": 0, "w": 420, "h": 240 }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "version": 2,
+  "kind": "generic",
+  "title": "Shape gallery",
+  "nodes": [
+    { "id": "rect1", "shape": "rect", "label": "Rect with icon", "icon": "test/broker", "group": "dc" },
+    {
+      "id": "ell",
+      "shape": "ellipse",
+      "label": "Ellipse right",
+      "group": "dc",
+      "style": { "fill": "#e0f2fe", "stroke": "#0284c7", "strokeWidth": 2, "textAlign": "right" }
+    },
+    {
+      "id": "dia",
+      "shape": "diamond",
+      "label": "Diamond decision point",
+      "group": "dc",
+      "style": { "strokeDash": "dashed", "radius": 0, "glow": { "color": "#f59e0b" } }
+    },
+    { "id": "tri", "shape": "triangle", "label": "Triangle", "icon": "test/missing" },
+    { "id": "txt", "shape": "text", "label": "Text only", "style": { "textAlign": "left", "fontSize": 16 } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "rect1", "to": "ell", "label": "orders/new" },
+    {
+      "id": "e2",
+      "from": "ell",
+      "to": "dia",
+      "kind": "note",
+      "style": {
+        "routing": "curved",
+        "strokeDash": "dashed",
+        "stroke": "#0284c7",
+        "startArrow": "diamond",
+        "endArrow": "triangle"
+      }
+    },
+    {
+      "id": "e3",
+      "from": "dia",
+      "to": "tri",
+      "style": { "routing": "straight", "strokeWidth": 3, "endArrow": "circle", "glow": { "color": "#22c55e" } }
+    },
+    {
+      "id": "e4",
+      "from": { "x": 40, "y": 440 },
+      "to": { "x": 340, "y": 440 },
+      "style": { "routing": "straight", "strokeDash": "dotted", "endArrow": "none" }
+    }
+  ],
+  "groups": [{ "id": "dc", "label": "Mumbai DC", "kind": "dc" }],
+  "layout": {
+    "pinned": {
+      "dc": { "x": 0, "y": 0, "w": 680, "h": 260 },
+      "rect1": { "x": 40, "y": 60 },
+      "ell": { "x": 260, "y": 160 },
+      "dia": { "x": 480, "y": 60 },
+      "tri": { "x": 260, "y": 320, "w": 160, "h": 110 },
+      "txt": { "x": 40, "y": 340 }
+    }
+  }
+}

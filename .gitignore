@@ -1,0 +1,24 @@
+# Reference icon pack: Solace artwork, local fixtures only, never committed
+solace-icon-pack/
+manifest.json
+
+# Tooling
+node_modules/
+dist/
+.claude/
+.remember/
+.superpowers/
+.code-review-graph/
+.env
+.env.*
+target/
+test-results/
+playwright-report/
+*.tsbuildinfo
+# The drawing typeface is checked in so a clone can regenerate font.generated.ts; see
+# THIRD_PARTY_NOTICES.md for its licence. Anything else dropped in here stays untracked.
+packages/render/fonts/*
+!packages/render/fonts/Excalifont-Regular.woff2
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+solace-icons/

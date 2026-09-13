@@ -1,0 +1,52 @@
+{
+  "version": 2,
+  "kind": "generic",
+  "title": "Parity fixture",
+  "canvasBackground": "#f0f4ff",
+  "nodes": [
+    {
+      "id": "rectA",
+      "shape": "rect",
+      "label": "Rect A",
+      "style": { "fill": "#ffe4e1", "stroke": "#333333", "glow": { "color": "#ff00ff" } }
+    },
+    { "id": "ellipseB", "shape": "ellipse", "label": "Ellipse B" },
+    { "id": "diamondC", "shape": "diamond", "label": "Diamond C" },
+    { "id": "triangleD", "shape": "triangle", "label": "Triangle D" },
+    { "id": "textE", "shape": "text", "label": "Text E" }
+  ],
+  "edges": [
+    {
+      "id": "eStraight",
+      "from": "rectA",
+      "to": "ellipseB",
+      "style": { "routing": "straight", "glow": { "color": "#00ffff" } }
+    },
+    {
+      "id": "eCurved",
+      "from": "ellipseB",
+      "to": "diamondC",
+      "style": { "routing": "curved" }
+    },
+    {
+      "id": "eOrtho",
+      "from": "diamondC",
+      "to": "triangleD",
+      "style": { "routing": "orthogonal", "strokeDash": "dashed" }
+    },
+    {
+      "id": "eFreeLine",
+      "from": { "x": 480, "y": 260 },
+      "to": { "x": 600, "y": 320 }
+    }
+  ],
+  "layout": {
+    "pinned": {
+      "rectA": { "x": 40, "y": 40 },
+      "ellipseB": { "x": 240, "y": 40 },
+      "diamondC": { "x": 440, "y": 40 },
+      "triangleD": { "x": 40, "y": 220 },
+      "textE": { "x": 240, "y": 220 }
+    }
+  }
+}

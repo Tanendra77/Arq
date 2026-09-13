@@ -19,7 +19,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
-  edgePath, edgePaths, edgeTangents, freehandPathD, normaliseStroke, resolveEdgeStyle, resolveNodeStyle,
+  GRAPH_PAPER, edgePath, edgePaths, edgeTangents, freehandPathD, normaliseStroke, resolveEdgeStyle, resolveNodeStyle,
   shapeMarkup,
 } from "@arq/render";
 import type { Document, Endpoint } from "@arq/schema";
@@ -555,7 +555,14 @@ function CanvasInner() {
         snapGrid={[settings.gridSize, settings.gridSize]}
       >
         <EdgeDefs doc={doc} />
-        {settings.grid !== "off" ? (
+        {settings.grid === "lines" ? (
+          // Graph paper, three layers deep: a thin line every step, a medium one every fifth, a heavy
+          // one every tenth — the weights the exporter draws too.
+          GRAPH_PAPER.map(({ every, width, opacity }) => (
+            <Background key={every} id={`graph-${every}`} className="arq-graph-paper" style={{ opacity }}
+              variant={BackgroundVariant.Lines} gap={settings.gridSize * every} lineWidth={width} />
+          ))
+        ) : settings.grid !== "off" ? (
           <Background variant={GRID_VARIANT[settings.grid]} gap={settings.gridSize} />
         ) : null}
         {settings.rulers ? <Rulers pointer={pointer} /> : null}

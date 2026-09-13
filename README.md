@@ -116,6 +116,10 @@ shapes and edges. Settings apply only at creation time — they're baked into th
 own `style`, never rewritten into an existing document, so a `.arq` file always renders the
 same regardless of who opens it or what their local settings are.
 
+The canvas pattern (in the Inspector when nothing is selected) is plain, dots, crosses or **grid** —
+graph paper, with a thin line every grid step, a medium one every fifth and a heavy one every
+tenth. A **Grid** export background draws the same paper.
+
 ### Moving and deleting
 
 Drag a node to position it. Selected nodes move with the **arrow keys** (1px, or 10px with
@@ -191,13 +195,21 @@ match what this build accepts.
 
 **Export** opens a dialog with a live preview of exactly what will be written:
 
-- **File name** and **format** — PNG, or SVG (self-contained: the font and icons are inlined, and
-  animations keep playing).
+- **File name** and **format**:
+  - **PNG** and **SVG** — a still picture (animations frozen at their first moment). The SVG is
+    self-contained: the font and icons are inlined.
+  - **Animated SVG** — the vector file that plays its animations by itself in any browser.
+  - **GIF** and **MP4** — a recording of the animations. Pick the **frame rate** (12, 20 or 30) and
+    the **length**; left at 0 it records exactly one loop, so the file repeats seamlessly. A progress
+    line counts the frames as they record. MP4 uses the browser's own video encoder (H.264 where
+    available); a transparent background records on the canvas colour, since video has no
+    transparency.
 - **Background** — plain (the canvas colour), transparent, or the canvas colour with its grid.
 - **Theme** — light or dark: the colour of unstyled text and of a canvas with no colour set.
   It starts on the theme you are editing in, so text exports the colour you saw.
 - **Area** — the whole diagram, or only the selection.
-- **Padding** around the content, and for PNG the **size** (1x–4x); the final pixel size is shown.
+- **Padding** around the content, and for PNG, GIF and MP4 the **size** (1x–4x); the final pixel
+  size is shown.
 - **Preview** opens the export full size — fitted to the window or at 100% — before you write it.
 
 Because the canvas and the exporter share one geometry module, exported node sizes and edge

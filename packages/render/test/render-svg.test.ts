@@ -454,3 +454,33 @@ describe("export theme", () => {
     expect(renderSvg(custom, { ...opts, theme: "dark" })).toContain('fill="#123456"/>');
   });
 });
+
+describe("animation frames and graph paper", () => {
+  const animated = DocumentSchema.parse({
+    version: 2, title: "T",
+    nodes: [{ id: "a", shape: "rect", label: "A", style: { animate: "pulse" } }],
+    edges: [{ id: "e", from: { x: 0, y: 0 }, to: { x: 200, y: 0 }, style: { animate: "packets" } }],
+  });
+
+  it("freezes every animation at the requested moment, keeping each packet's place in the train", () => {
+    const live = renderSvg(animated, opts);
+    const frame = renderSvg(animated, { ...opts, frame: 0.5 });
+    expect(live).not.toContain("animation-play-state");
+    expect(frame).toContain("*{animation-play-state:paused!important}");
+    expect(frame).not.toContain("prefers-reduced-motion");
+    // Packets started at 0, -0.8 and -1.6s; half a second in they are at -0.5, -1.3 and -2.1.
+    expect(frame).toContain("animation-delay:-0.5s");
+    expect(frame).toContain("animation-delay:-1.3s");
+    expect(frame).toContain("animation-delay:-2.1s");
+    expect(frame).toContain(".arq-pulse{animation-delay:-0.5s}");
+  });
+
+  it("draws the lines grid as graph paper: thin every step, medium every fifth, heavy every tenth", () => {
+    const svg = renderSvg(doc, { ...opts, background: "grid", grid: { variant: "lines", size: 10 } });
+    expect(svg).toContain('<pattern id="arq-grid" width="100" height="100"');
+    expect(svg).toContain('stroke-width="0.5"');
+    expect(svg).toContain('stroke-width="1" stroke-opacity="0.7"');
+    expect(svg).toContain('stroke-width="1.5" stroke-opacity="1"');
+    expect(svg.match(/M50 0V100/g)).toHaveLength(2); // the fifth line, in the thin and the medium weight
+  });
+});

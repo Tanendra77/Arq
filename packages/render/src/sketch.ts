@@ -161,8 +161,8 @@ export function pathSpecToSvg(p: PathSpec): string {
 }
 
 /** Seconds per loop at each speed. Dashes cycle quickly; a packet has a whole line to cross. */
-const FLOW_SECONDS: Record<AnimationSpeed, number> = { slow: 1.8, normal: 0.9, fast: 0.45 };
-const PACKET_SECONDS: Record<AnimationSpeed, number> = { slow: 4.2, normal: 2.4, fast: 1.2 };
+export const FLOW_SECONDS: Record<AnimationSpeed, number> = { slow: 1.8, normal: 0.9, fast: 0.45 };
+export const PACKET_SECONDS: Record<AnimationSpeed, number> = { slow: 4.2, normal: 2.4, fast: 1.2 };
 
 /** How faint the underlying line is drawn while dashes march over it. */
 const RAIL_OPACITY = 0.3;

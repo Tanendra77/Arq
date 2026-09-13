@@ -149,6 +149,8 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
   opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
 .arq-canvas .react-flow__minimap.awake { opacity: 1; pointer-events: auto; }
 .react-flow__minimap-node.arq-minimap-hidden { display: none; }
+/* Graph paper: one ink for every weight; the layers differ in line width and opacity. */
+.arq-canvas .react-flow__background.arq-graph-paper { --xy-background-pattern-color: color-mix(in srgb, var(--arq-fg) 22%, transparent); }
 /* Optional rulers, laid over the canvas edges. `pointer-events: none` throughout: they are a
    readout, and must never intercept a click meant for the diagram underneath. */
 .arq-rulers { position: absolute; inset: 0; pointer-events: none; z-index: 6; }

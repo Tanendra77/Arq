@@ -127,3 +127,14 @@ is available from the project above. See `packages/core/package.json`.
 
 The JSON editor is built with [CodeMirror 6](https://codemirror.net) (MIT) and its Lezer JSON
 grammar (MIT). Normal npm dependencies; see `packages/core/package.json`.
+
+## gifenc
+
+GIF export encodes frames with [gifenc](https://github.com/mattdesl/gifenc) (MIT), loaded only when
+a GIF is exported. See `packages/core/package.json`.
+
+## Mediabunny
+
+MP4 export muxes the video with [Mediabunny](https://mediabunny.dev) (MPL-2.0), using the browser's
+own WebCodecs encoder. It is an unmodified npm dependency, loaded only when an MP4 is exported; its
+source is available from the project above. See `packages/core/package.json`.

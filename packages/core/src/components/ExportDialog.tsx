@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEditor, useEditorStore, usePlatform } from "../store/context";
 import {
-  DEFAULT_EXPORT, exportDiagram, exportFileName, fileSlug, renderExport, type ExportOptions,
+  DEFAULT_EXPORT, exportDiagram, exportFileName, fileSlug, isRecording, recordingLength, renderExport, type ExportOptions,
 } from "../commands/export-commands";
 import { reportCommandError } from "../commands/file-commands";
 import { parseEndpointNodeId } from "../flow/endpoint-id";
@@ -9,6 +9,8 @@ import { createIconResolver } from "../icons/resolver";
 import { useSettings } from "./SettingsModal";
 import { isDarkTheme } from "../settings";
 import { NumberField, TextField } from "./inspector/Field";
+
+const FORMAT_NAMES = { png: "PNG", svg: "SVG", "animated-svg": "animated SVG", gif: "GIF", mp4: "MP4" } as const;
 
 /** A row of mutually exclusive buttons: a lighter radio group. */
 function Choice<T extends string | number>({
@@ -95,6 +97,7 @@ function ExportBody({ onClose }: { onClose: () => void }) {
   }));
   const set = (patch: Partial<ExportOptions>) => setO((prev) => ({ ...prev, ...patch }));
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [previewing, setPreviewing] = useState(false);
 
   // The preview is the export itself, font embedded, so what is shown is what is written.
@@ -102,15 +105,20 @@ function ExportBody({ onClose }: { onClose: () => void }) {
   const previewUrl = useMemo(() => URL.createObjectURL(new Blob([out.svg], { type: "image/svg+xml" })), [out.svg]);
   useEffect(() => () => URL.revokeObjectURL(previewUrl), [previewUrl]);
 
-  const px = (n: number) => Math.ceil(n * (o.format === "png" ? o.scale : 1));
+  const raster = o.format === "png" || isRecording(o.format);
+  const px = (n: number) => Math.ceil(n * (raster ? o.scale : 1));
+  const recording = isRecording(o.format) ? recordingLength(out.target, o) : null;
   const empty = (o.area === "all" ? doc.nodes.length + doc.edges.length : Number(hasSelection)) === 0;
 
   const run = () => {
     setBusy(true);
-    exportDiagram(store, platform, resolveIcon, o)
+    exportDiagram(store, platform, resolveIcon, o, (done, total) => setProgress({ done, total }))
       .then(onClose)
       .catch((e: unknown) => reportCommandError(store, e))
-      .finally(() => setBusy(false));
+      .finally(() => {
+        setBusy(false);
+        setProgress(null);
+      });
   };
 
   return (
@@ -132,8 +140,11 @@ function ExportBody({ onClose }: { onClose: () => void }) {
       ) : null}
       <TextField label="File name" value={o.name} onChange={(v) => set({ name: v })} />
       <Choice label="Format" value={o.format} onChange={(v) => set({ format: v })} options={[
-        { value: "png", label: "PNG", title: "An image — for documents, slides and chat" },
-        { value: "svg", label: "SVG", title: "Vector — sharp at any size, and keeps the animation" },
+        { value: "png", label: "PNG", title: "A still image — for documents, slides and chat" },
+        { value: "svg", label: "SVG", title: "A still vector — sharp at any size" },
+        { value: "animated-svg", label: "Animated SVG", title: "Vector that plays its animations by itself, in any browser" },
+        { value: "gif", label: "GIF", title: "An animated image that plays almost anywhere, chat and email included" },
+        { value: "mp4", label: "MP4", title: "A video of the animation — for slides and screen recordings" },
       ]} />
       <Choice label="Background" value={o.background} onChange={(v) => set({ background: v })} options={[
         { value: "solid", label: "Plain", title: "The canvas colour" },
@@ -151,19 +162,34 @@ function ExportBody({ onClose }: { onClose: () => void }) {
       <div className="arq-field-pair">
         <NumberField label="Padding" value={o.padding} min={0} step={10}
           onChange={(v) => set({ padding: Math.max(0, Math.min(400, v)) })} />
-        {o.format === "png" ? (
+        {raster ? (
           <Choice label="Size" value={o.scale} onChange={(v) => set({ scale: v })} options={[
             { value: 1, label: "1x" }, { value: 2, label: "2x" }, { value: 3, label: "3x" }, { value: 4, label: "4x" },
           ]} />
         ) : null}
       </div>
+      {recording ? (
+        <div className="arq-field-pair">
+          <Choice label="Frame rate" value={o.fps} onChange={(v) => set({ fps: v })} options={[
+            { value: 12, label: "12" }, { value: 20, label: "20" }, { value: 30, label: "30" },
+          ]} />
+          <NumberField label="Length (s, 0 = one loop)" value={o.seconds} min={0} step={0.5}
+            onChange={(v) => set({ seconds: Math.max(0, Math.min(30, v)) })} />
+        </div>
+      ) : null}
       <p className="arq-export-meta" data-testid="export-size">
-        {exportFileName(o.name, doc.title, o.format)} · {px(out.width)} × {px(out.height)} {o.format === "png" ? "px" : "units"}
+        {exportFileName(o.name, doc.title, o.format)} · {px(out.width)} × {px(out.height)} {raster ? "px" : "units"}
+        {recording ? ` · ${recording.seconds}s, ${recording.frames} frames` : ""}
       </p>
+      {progress ? (
+        <p className="arq-export-meta" role="status" data-testid="export-progress">
+          Recording frame {progress.done} of {progress.total}…
+        </p>
+      ) : null}
       <div className="arq-modal-actions">
         <button type="button" onClick={onClose}>Cancel</button>
         <button type="button" className="primary" onClick={run} disabled={busy || empty}>
-          {busy ? "Exporting…" : `Export ${o.format.toUpperCase()}`}
+          {busy ? "Exporting…" : `Export ${FORMAT_NAMES[o.format]}`}
         </button>
       </div>
     </>

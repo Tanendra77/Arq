@@ -34,6 +34,32 @@ export interface RenderOptions {
    * editor shows in its dark theme, so an export matches the screen it was made on.
    */
   theme?: "light" | "dark";
+  /**
+   * Freeze every animation at this many seconds into its loop — one still frame, for a PNG, a still
+   * SVG, or one frame of a GIF or video. Unset, the SVG animates by itself.
+   */
+  frame?: number;
+}
+
+/**
+ * Pause the file's animations at `t` seconds. Each animation is paused and started `t` seconds
+ * early, which is exactly its state at `t`: shifting the delay each element already carries (a
+ * packet's place in its train) keeps the dots spaced as they were. The reduced-motion rule goes too,
+ * or a machine set to reduce motion would render every frame identical.
+ */
+function freezeAt(svg: string, t: number): string {
+  const shifted = svg.replace(/style="([^"]*)"/g, (whole, css: string) => {
+    if (!css.includes("animation")) return whole;
+    const withDelay = /animation-delay:(-?[\d.]+)s/.test(css)
+      ? css.replace(/animation-delay:(-?[\d.]+)s/, (_m, d: string) => `animation-delay:${fmt(Number(d) - t)}s`)
+      : `${css};animation-delay:${fmt(-t)}s`;
+    return `style="${withDelay}"`;
+  });
+  return shifted.replace(
+    FLOW_CSS,
+    FLOW_CSS.replace(/@media \(prefers-reduced-motion[^}]*\}\}/, "") +
+      `.${PULSE_CLASS}{animation-delay:${fmt(-t)}s}*{animation-play-state:paused!important}`,
+  );
 }
 
 /** Ink and canvas for each theme — the editor's own dark palette (`--arq-fg`, `--arq-bg`). */
@@ -50,11 +76,33 @@ function gridColor(bg: string): string {
   return luminance < 0.5 ? "#4a4a4a" : "#c8c8cc";
 }
 
+/**
+ * Graph paper: a thin line every grid step, a medium one every fifth, a heavy one every tenth — the
+ * same weights the editor draws (`GRAPH_PAPER` in the canvas).
+ */
+export const GRAPH_PAPER = [
+  { every: 1, width: 0.5, opacity: 0.45 },
+  { every: 5, width: 1, opacity: 0.7 },
+  { every: 10, width: 1.5, opacity: 1 },
+] as const;
+
 function gridPattern(grid: NonNullable<RenderOptions["grid"]>, color: string): string {
+  if (grid.variant === "lines") {
+    // One tile ten steps wide, holding all three weights, so the heavy lines land every tenth step.
+    const span = grid.size * 10;
+    const lines = GRAPH_PAPER.map(({ every, width, opacity }) => {
+      const step = grid.size * every;
+      const d = Array.from({ length: Math.round(span / step) }, (_, i) => {
+        const at = fmt(i * step);
+        return `M${at} 0V${fmt(span)}M0 ${at}H${fmt(span)}`;
+      }).join("");
+      return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-opacity="${opacity}"/>`;
+    }).join("");
+    return `<pattern id="arq-grid" width="${fmt(span)}" height="${fmt(span)}" patternUnits="userSpaceOnUse">${lines}</pattern>`;
+  }
   const g = fmt(grid.size);
   const mark =
     grid.variant === "dots" ? `<circle cx="${fmt(grid.size / 2)}" cy="${fmt(grid.size / 2)}" r="1" fill="${color}"/>`
-    : grid.variant === "lines" ? `<path d="M${g} 0 L0 0 0 ${g}" fill="none" stroke="${color}" stroke-width="1"/>`
     : `<path d="M${fmt(grid.size / 2 - 3)} ${fmt(grid.size / 2)} h6 M${fmt(grid.size / 2)} ${fmt(grid.size / 2 - 3)} v6" stroke="${color}" stroke-width="1"/>`;
   return `<pattern id="arq-grid" width="${g}" height="${g}" patternUnits="userSpaceOnUse">${mark}</pattern>`;
 }
@@ -188,5 +236,6 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
     background === "transparent" ? ""
     : background === "grid" && opts.grid ? `<defs>${gridPattern(opts.grid, gridColor(canvasFill))}</defs>${rect(canvasFill)}${rect("url(#arq-grid)")}`
     : rect(canvasFill);
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title>${backdrop}${groups}${elements}</svg>`;
+  const out = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title>${backdrop}${groups}${elements}</svg>`;
+  return opts.frame === undefined ? out : freezeAt(out, opts.frame);
 }

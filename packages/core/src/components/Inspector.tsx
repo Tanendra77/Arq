@@ -400,6 +400,13 @@ function EdgePanel({ edges }: { edges: ArqEdge[] }) {
         <>
       <IconChoice label="Shape" value={routing} indeterminate={routing === undefined}
         options={ROUTING_OPTIONS} onChange={(v) => patch({ routing: v })} />
+      {/* Only once a route has been shaped by hand: hands it back to the automatic router. */}
+      {edges.some((e) => e.legs !== undefined || e.via !== undefined) ? (
+        <button type="button" className="arq-panel-action" title="Forget the bends dragged into this line"
+          onClick={() => edges.forEach((e) => store.getState().setRoute(e.id, { legs: null, via: null }))}>
+          ↺ Reset route
+        </button>
+      ) : null}
       <IconChoice label="Ends" value={startArrow} indeterminate={startArrow === undefined}
         options={START_ARROW_OPTIONS} onChange={(v) => patch({ startArrow: v })} />
       <IconChoice label="" value={endArrow} indeterminate={endArrow === undefined}

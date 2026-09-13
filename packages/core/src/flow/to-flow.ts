@@ -23,6 +23,9 @@ export type ArqEdgeData = {
   style: EdgeStyle | undefined;
   from: Endpoint;
   to: Endpoint;
+  /** A hand-shaped route, when the author has shaped one (see `EdgeSchema.legs` / `via`). */
+  legs: number[] | undefined;
+  via: { x: number; y: number }[] | undefined;
 };
 
 /** Empty data for the hidden node standing in for a loose edge endpoint (see `endpointNodeId`). */
@@ -89,7 +92,7 @@ export function toFlow(doc: Document, resolveIcon: IconResolver, selection: Sele
     selected: selEdges.has(e.id),
     // The endpoints travel with the edge so ArqEdge can honour an anchored end, which React Flow's
     // own source/target ids cannot express.
-    data: { label: e.label, style: e.style, from: e.from, to: e.to },
+    data: { label: e.label, style: e.style, from: e.from, to: e.to, legs: e.legs, via: e.via },
   }));
 
   return { nodes: [...nodes, ...endpointNodes], edges };

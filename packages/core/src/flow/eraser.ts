@@ -1,6 +1,6 @@
 import type { Document } from "@arq/schema";
 import {
-  distanceToPolyline, edgeEnds, edgePolyline, layoutDocument, resolveEdgeStyle,
+  distanceToPolyline, edgeEnds, edgePolyline, edgeRoute, layoutDocument, resolveEdgeStyle,
 } from "@arq/render";
 import { nodesAt } from "./node-handles";
 
@@ -27,7 +27,7 @@ export function eraserHits(doc: Document, p: { x: number; y: number }, radius = 
       const ends = edgeEnds(e, rects);
       if (!ends) return false;
       const s = resolveEdgeStyle(e.style);
-      return distanceToPolyline(p, edgePolyline(ends.start, ends.end, s.routing, s.bend)) <= radius;
+      return distanceToPolyline(p, edgePolyline(ends.start, ends.end, s.routing, edgeRoute(e, s.bend))) <= radius;
     })
     .map((e) => e.id);
   return { nodes, edges };

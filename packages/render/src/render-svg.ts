@@ -1,6 +1,6 @@
 import type { Document } from "@arq/schema";
 import { collectDefs, glowId } from "./defs";
-import { edgeEnds, edgeLabelPoint, edgePath, edgeTangents } from "./edge-path";
+import { edgeEnds, edgeLabelPoint, edgePath, edgeRoute, edgeTangents } from "./edge-path";
 import { FONT_STACK, fontFaceCss } from "./font";
 import { escapeXml, inlineIcon, placeholderBox } from "./inline-icon";
 import { layoutDocument } from "./layout-document";
@@ -87,15 +87,16 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
   const ends = edgeEnds(e, nodes);
   if (!ends) return "";
   const s = resolveEdgeStyle(e.style);
-  const { d, mid } = edgePath(ends.start, ends.end, s.routing, s.bend);
+  const route = edgeRoute(e, s.bend);
+  const { d, mid } = edgePath(ends.start, ends.end, s.routing, route);
   const filter = s.glow ? ` filter="url(#${glowId(s.glow.color)})"` : "";
   const path = edgeMarkup(d, s, seedFromId(id), {
     ...ends,
-    ...edgeTangents(ends.start, ends.end, s.routing, s.bend),
+    ...edgeTangents(ends.start, ends.end, s.routing, route),
   });
   // `mid` is the path's own midpoint; the label sits wherever the style says, which is only the
   // same point when labelPos is "middle".
-  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos, s.bend);
+  const lp = s.labelPos === "middle" ? mid : edgeLabelPoint(ends.start, ends.end, s.routing, s.labelPos, route);
   const label = e.label
     ? `<g><rect x="${fmt(lp.x - e.label.length * 3.2 - 4)}" y="${fmt(lp.y - 8)}" width="${fmt(e.label.length * 6.4 + 8)}" height="16" rx="3" fill="${BG}" stroke="${LINE}"/><text x="${fmt(lp.x)}" y="${fmt(lp.y)}" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="${FG}">${escapeXml(e.label)}</text></g>`
     : "";

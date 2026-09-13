@@ -166,10 +166,22 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-edge { stroke-linecap: round; }
 /* Selection halo, drawn under the edge. Deliberately a path and not a CSS filter — see ArqEdge. */
 /* Slides the middle leg of a right-angled route; only rendered while the edge is selected. */
-.arq-bend-handle { fill: var(--arq-accent); stroke: var(--arq-bg); stroke-width: 1.5; cursor: ew-resize; }
+/* Dots on a selected line. React Flow makes an edge answer only to its painted stroke, which left a
+   dot grabbable on its 2px ring alone; every grip takes the pointer across its whole area instead. */
+.arq-panel-action { align-self: flex-start; font: inherit; font-size: 12px; color: inherit; padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; cursor: pointer; }
+.arq-panel-action:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
+.arq-grip { pointer-events: all; cursor: grab; }
+.arq-grip-hit { fill: transparent; stroke: none; }
+.arq-bend-handle .arq-grip-dot { fill: var(--arq-accent); stroke: var(--arq-bg); stroke-width: 1.5; }
+.arq-bend-handle.horizontal { cursor: ns-resize; }
+.arq-bend-handle.vertical { cursor: ew-resize; }
+.arq-via-point .arq-grip-dot { fill: var(--arq-accent); stroke: var(--arq-bg); stroke-width: 1.5; }
+.arq-via-point { cursor: move; }
+.arq-via-add .arq-grip-dot { fill: var(--arq-bg); stroke: var(--arq-accent); stroke-width: 1.5; opacity: 0.7; }
+.arq-via-add:hover .arq-grip-dot { opacity: 1; fill: var(--arq-accent); }
 /* Either end of a selected line; drag to re-point it, onto a shape or onto empty canvas. */
-.arq-edge-end { fill: var(--arq-bg); stroke: var(--arq-accent); stroke-width: 2; cursor: grab; }
-.arq-edge-end:hover { fill: var(--arq-accent); }
+.arq-edge-end .arq-grip-dot { fill: var(--arq-bg); stroke: var(--arq-accent); stroke-width: 2; }
+.arq-edge-end:hover .arq-grip-dot { fill: var(--arq-accent); }
 .arq-edge-halo { fill: none; stroke: var(--arq-accent); stroke-width: 6; stroke-linecap: round; opacity: 0.35; pointer-events: none; }
 /* A fat transparent copy of the edge path, so double-clicking a 1.5px line is actually possible. */
 .arq-edge-hit { pointer-events: stroke; cursor: pointer; }

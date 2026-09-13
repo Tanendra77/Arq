@@ -519,6 +519,9 @@ function CanvasInner() {
         onNodeDragStop={onNodeDragStop}
         onDelete={onDelete}
         onSelectionChange={onSelectionChange}
+        // A selected line is lifted above the shapes, so the dots at its ends can be grabbed even
+        // where they sit on a shape's border.
+        elevateEdgesOnSelect
         deleteKeyCode={["Delete", "Backspace"]}
         // With a tool armed the canvas only draws: pressing on a shape must start the gesture, not
         // pick the shape up. Without this, dragging an arrow from one shape to another dragged the

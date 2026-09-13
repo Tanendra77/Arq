@@ -137,6 +137,8 @@ export interface EditorState {
    * parts that actually differ are written, and an identical document is not an edit at all.
    */
   replaceDocument(next: Document, opts?: MutateOptions): void;
+  /** Shape an edge's route by hand: `null` clears that part, so the router takes over again. */
+  setRoute(edgeId: string, route: { legs?: number[] | null; via?: { x: number; y: number }[] | null }, opts?: MutateOptions): void;
   /** Shifts nodes and the loose ends of edges together, as one mutation. */
   moveBy(nodeIds: string[], edgeIds: string[], dx: number, dy: number, opts?: MutateOptions): void;
 }
@@ -159,6 +161,14 @@ function isDirty(past: HistoryEntry[], savedEntry: HistoryEntry | null): boolean
  * undo stack, so the document reads as unsaved until the next real save.
  */
 const UNSAVED: HistoryEntry = { name: "restored draft", patches: [], inverse: [], at: 0 };
+
+/** An edge's hand-shaped route moved by (dx, dy): legs alternate x and y, via points are points. */
+function shiftRoute(e: { legs?: number[] | undefined; via?: { x: number; y: number }[] | undefined }, dx: number, dy: number) {
+  return {
+    ...(e.legs ? { legs: e.legs.map((c, i) => c + (i % 2 === 0 ? dx : dy)) } : {}),
+    ...(e.via ? { via: e.via.map((p) => ({ x: p.x + dx, y: p.y + dy })) } : {}),
+  };
+}
 
 function samePinned(a: Pinned | undefined, b: Pinned): boolean {
   return a !== undefined && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
@@ -487,7 +497,9 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         if (from === undefined || to === undefined) return []; // bound to something that was not copied
         const id = newId("e", edgeIds);
         edgeIds.add(id);
-        return [{ ...e, id, from, to }];
+        // A hand-shaped route moves with the copy, like its loose ends do.
+        const route = shiftRoute(e, dx, dy);
+        return [{ ...e, ...route, id, from, to }];
       });
       if (nodes.length === 0 && edges.length === 0) return { nodes: [], edges: [] };
       get().mutate("paste", (d) => {
@@ -499,6 +511,19 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         }
       });
       return { nodes: nodes.map((n) => n.id), edges: edges.map((e) => e.id) };
+    },
+
+    setRoute(edgeId, route, opts) {
+      get().mutate("shape route", (d) => {
+        const e = d.edges.find((x) => x.id === edgeId);
+        if (!e) return;
+        for (const key of ["legs", "via"] as const) {
+          const v = route[key];
+          if (v === undefined) continue;
+          if (v === null) delete e[key];
+          else (e as Record<string, unknown>)[key] = v;
+        }
+      }, opts);
     },
 
     replaceDocument(next, opts) {
@@ -532,6 +557,7 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
             const ep = e[side];
             if (typeof ep === "object" && !isAnchored(ep)) e[side] = { x: ep.x + dx, y: ep.y + dy };
           }
+          Object.assign(e, shiftRoute(e, dx, dy));
         }
       }, opts);
     },

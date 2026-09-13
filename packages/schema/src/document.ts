@@ -66,6 +66,14 @@ export const EdgeSchema = z.object({
   // now would mean a third document version within two features.
   kind: z.string().optional(),
   style: EdgeStyleSchema.optional(),
+  /**
+   * A right-angled route the author shaped by hand: where each leg between the ends runs, in
+   * document coordinates, alternating x (a vertical leg) and y (a horizontal leg), first leg
+   * leaving the start horizontally. Absent means the router picks the route.
+   */
+  legs: z.array(z.number()).max(64).optional(),
+  /** Points a straight or curved line passes through between its ends, in order. */
+  via: z.array(PointSchema).max(64).optional(),
   // Free-form carrier for v1 edge `props` (e.g. `qos`, `mode`) so a migration never silently drops authored data.
   meta: z.record(z.string()).optional(),
 }).strict();

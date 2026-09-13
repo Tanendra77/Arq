@@ -132,6 +132,11 @@ export interface EditorState {
   setEndpoint(edgeId: string, which: "from" | "to", ep: Endpoint, opts?: MutateOptions): void;
   /** Adds a copied set of elements under fresh ids, shifted by (dx, dy), as one undo step. Returns what was added. */
   insertClip(clip: Clip, dx: number, dy: number): Selection;
+  /**
+   * Swap in a whole document as an undoable edit — what the JSON editor does. Only the top-level
+   * parts that actually differ are written, and an identical document is not an edit at all.
+   */
+  replaceDocument(next: Document, opts?: MutateOptions): void;
   /** Shifts nodes and the loose ends of edges together, as one mutation. */
   moveBy(nodeIds: string[], edgeIds: string[], dx: number, dy: number, opts?: MutateOptions): void;
 }
@@ -494,6 +499,21 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
         }
       });
       return { nodes: nodes.map((n) => n.id), edges: edges.map((e) => e.id) };
+    },
+
+    replaceDocument(next, opts) {
+      const current = get().document as Record<string, unknown>;
+      const incoming = next as Record<string, unknown>;
+      const keys = new Set([...Object.keys(current), ...Object.keys(incoming)]);
+      const changed = [...keys].filter((k) => JSON.stringify(current[k]) !== JSON.stringify(incoming[k]));
+      if (changed.length === 0) return;
+      get().mutate("edit JSON", (d) => {
+        const draft = d as Record<string, unknown>;
+        for (const k of changed) {
+          if (incoming[k] === undefined) delete draft[k];
+          else draft[k] = incoming[k];
+        }
+      }, opts);
     },
 
     moveBy(nodeIds, edgeIds, dx, dy, opts) {

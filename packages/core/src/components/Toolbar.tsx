@@ -3,7 +3,10 @@ import { useEditor, useEditorStore, usePlatform } from "../store/context";
 import { confirmDiscard, newDocument, openDocument, reportCommandError, saveDocument } from "../commands/file-commands";
 import { exportPng, exportSvg } from "../commands/export-commands";
 import { createIconResolver } from "../icons/resolver";
-import { SettingsModal } from "./SettingsModal";
+import { SettingsModal, useSettings } from "./SettingsModal";
+import { EDITOR_VIEWS } from "../settings";
+
+const VIEW_LABELS = { canvas: "Canvas", split: "Split", json: "JSON" } as const;
 
 export function Toolbar() {
   const store = useEditorStore();
@@ -16,6 +19,7 @@ export function Toolbar() {
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   const notice = useEditor((s) => s.notice);
+  const [settings, setSettings] = useSettings();
 
   const open = () => {
     if (!confirmDiscard(store)) return;
@@ -47,6 +51,14 @@ export function Toolbar() {
       <button type="button" onClick={() => void exportPng(store, platform, resolveIcon, scale).catch((e: unknown) => reportCommandError(store, e))}>Export PNG</button>
       <span className="arq-toolbar-sep" />
       <button type="button" onClick={() => setSettingsOpen(true)}>Settings</button>
+      <span className="arq-toolbar-sep" />
+      <span className="arq-view-switch" role="group" aria-label="View">
+        {EDITOR_VIEWS.map((v) => (
+          <button key={v} type="button" aria-pressed={settings.editorView === v} onClick={() => setSettings({ editorView: v })}>
+            {VIEW_LABELS[v]}
+          </button>
+        ))}
+      </span>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
       <span className="arq-toolbar-title" data-testid="title">{title}{dirty ? " *" : ""}</span>
       {/* The notice carries save and other command failures as well as open errors, so the banner

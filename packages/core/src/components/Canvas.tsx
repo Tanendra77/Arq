@@ -40,6 +40,7 @@ import {
 import { useSettings } from "./SettingsModal";
 import { RULER_SIZE, Rulers } from "./Rulers";
 import { loadViewport, saveViewport } from "../autosave";
+import { onFitViewRequest } from "../flow/fit-request";
 import type { Settings } from "../settings";
 
 // `arqEndpoint` must be registered: React Flow renders its own default node — a visible empty
@@ -274,6 +275,24 @@ function CanvasInner() {
     minimapTimer.current = setTimeout(() => setMinimapAwake(false), MINIMAP_LINGER_MS);
   }, []);
   useEffect(() => () => clearTimeout(minimapTimer.current), []);
+
+  // Fit on request from outside the canvas (the JSON panel). While the canvas is hidden behind the
+  // JSON view it has no size to fit into, so the request waits until it is shown again.
+  const fitPending = useRef(false);
+  const hidden = settings.editorView === "json";
+  useEffect(() => onFitViewRequest(() => {
+    if (hidden) {
+      fitPending.current = true;
+      return;
+    }
+    // After the new document has rendered and been measured.
+    requestAnimationFrame(() => void fitView({ maxZoom: 1, duration: 200 }));
+  }), [hidden, fitView]);
+  useEffect(() => {
+    if (hidden || !fitPending.current) return;
+    fitPending.current = false;
+    requestAnimationFrame(() => void fitView({ maxZoom: 1, duration: 200 }));
+  }, [hidden, fitView]);
   useEffect(() => {
     if (!nodesInitialized || past.length > 0 || future.length > 0 || fittedDoc.current === doc) return;
     fittedDoc.current = doc;

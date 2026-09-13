@@ -9,6 +9,8 @@ export interface Settings {
   grid: "off" | "dots" | "lines" | "cross";
   rulers: boolean;
   minimap: boolean;
+  /** What the main area shows: the canvas, the diagram's JSON, or both side by side. */
+  editorView: "canvas" | "split" | "json";
   /** Widths of the shape palette on the left and the inspector on the right, dragged by their edges. */
   paletteWidth: number;
   inspectorWidth: number;
@@ -24,7 +26,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1, theme: "system", grid: "dots", rulers: false, minimap: true, snap: true, gridSize: 10,
+  version: 1, theme: "system", grid: "dots", rulers: false, minimap: true, editorView: "canvas", snap: true, gridSize: 10,
   paletteWidth: 112, inspectorWidth: 260,
   nodeFill: STYLE_DEFAULTS.node.fill, nodeStroke: STYLE_DEFAULTS.node.stroke,
   edgeStroke: STYLE_DEFAULTS.edge.stroke, edgeArrow: "arrow",
@@ -39,6 +41,7 @@ export const PANEL_LIMITS = {
 
 const THEMES = ["light", "dark", "system"] as const;
 const GRIDS = ["off", "dots", "lines", "cross"] as const;
+export const EDITOR_VIEWS = ["canvas", "split", "json"] as const;
 
 /**
  * Shape colours that read on a dark canvas: a near-black fill with a white outline, the inverse of
@@ -79,6 +82,7 @@ function sanitize(parsed: Partial<Settings>): Settings {
   if (typeof parsed.snap === "boolean") s.snap = parsed.snap;
   if (typeof parsed.rulers === "boolean") s.rulers = parsed.rulers;
   if (typeof parsed.minimap === "boolean") s.minimap = parsed.minimap;
+  if (EDITOR_VIEWS.includes(parsed.editorView as (typeof EDITOR_VIEWS)[number])) s.editorView = parsed.editorView as Settings["editorView"];
   for (const k of ["paletteWidth", "inspectorWidth"] as const) {
     const v = parsed[k];
     if (typeof v === "number" && v >= PANEL_LIMITS[k].min && v <= PANEL_LIMITS[k].max) s[k] = v;

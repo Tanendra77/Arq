@@ -1,3 +1,7 @@
+:root { --arq-json-key: #0b6bcb; --arq-json-string: #1a7f37; --arq-json-number: #b35900; --arq-json-keyword: #8250df; --arq-json-punct: #6e7781; }
+@media (prefers-color-scheme: dark) { :root { --arq-json-key: #79b8ff; --arq-json-string: #85e89d; --arq-json-number: #ffab70; --arq-json-keyword: #b392f0; --arq-json-punct: #959da5; } }
+:root[data-theme="light"] { --arq-json-key: #0b6bcb; --arq-json-string: #1a7f37; --arq-json-number: #b35900; --arq-json-keyword: #8250df; --arq-json-punct: #6e7781; }
+:root[data-theme="dark"] { --arq-json-key: #79b8ff; --arq-json-string: #85e89d; --arq-json-number: #ffab70; --arq-json-keyword: #b392f0; --arq-json-punct: #959da5; }
 :root { color-scheme: light dark; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; --arq-accent: #00c895;
   /* Mirrors FONT_STACK in @arq/render/src/font.ts. The face itself is injected as an @font-face
      by installSketchFont() from the same bytes the exporter embeds, so screen and file agree. */
@@ -13,7 +17,29 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-palette { grid-area: palette; border-right: 1px solid var(--arq-line); overflow: auto; }
 /* `--arq-canvas-bg` is unset by default (the canvas shows through to the app background); the
    Inspector's "Canvas background" field sets it on the root element when the user picks one. */
-.arq-main { grid-area: main; min-width: 0; background: var(--arq-canvas-bg, transparent); }
+.arq-main { grid-area: main; min-width: 0; min-height: 0; display: flex; }
+.arq-main-canvas { flex: 1 1 0; min-width: 0; background: var(--arq-canvas-bg, transparent); }
+.arq-main.view-json .arq-main-canvas { display: none; }
+/* The JSON view: a bar, the editor, and any problems under it. */
+.arq-json { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; background: var(--arq-bg); }
+.arq-main.view-split .arq-json { border-left: 1px solid var(--arq-line); }
+.arq-json-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--arq-line); font-size: 12px; }
+.arq-json-bar button { padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; font: inherit; }
+.arq-json-bar button:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }
+.arq-json-spacer { flex: 1; }
+.arq-json-status.ok { color: var(--arq-accent); }
+.arq-json-status.pending { opacity: 0.6; }
+.arq-json-status.error { color: #e5484d; }
+.arq-json-editor { flex: 1; min-height: 0; overflow: hidden; }
+.arq-json-problems { list-style: none; margin: 0; padding: 4px 8px; max-height: 30%; overflow: auto; border-top: 1px solid var(--arq-line); font-size: 12px; }
+.arq-json-problems button { all: unset; cursor: pointer; color: #e5484d; }
+.arq-json-problems button:hover { text-decoration: underline; }
+.arq-json-problems .more { opacity: 0.6; }
+.arq-view-switch { display: inline-flex; }
+.arq-toolbar .arq-view-switch button { border-radius: 0; margin-left: -1px; }
+.arq-toolbar .arq-view-switch button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.arq-toolbar .arq-view-switch button:last-child { border-radius: 0 4px 4px 0; }
+.arq-toolbar .arq-view-switch button[aria-pressed="true"] { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); position: relative; }
 /* Drag handles on the inner edge of each side panel. */
 .arq-splitter { position: absolute; top: 40px; bottom: 0; width: 7px; margin-left: -3px; z-index: 6; cursor: col-resize; touch-action: none; }
 .arq-splitter-left { left: var(--arq-left, 112px); }

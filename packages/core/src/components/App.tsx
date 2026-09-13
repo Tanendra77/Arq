@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import { lazy, Suspense, type CSSProperties } from "react";
 import { Canvas } from "./Canvas";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
@@ -7,6 +7,9 @@ import { useSettings } from "./SettingsModal";
 import { DEFAULT_SETTINGS, PANEL_LIMITS } from "../settings";
 
 type PanelKey = keyof typeof PANEL_LIMITS;
+
+// CodeMirror and the JSON tooling load only when the JSON view is first opened.
+const JsonPanel = lazy(() => import("../json/JsonPanel"));
 
 /**
  * The drag handle on a side panel's inner edge. Pointer-drag to resize, arrow keys to step,
@@ -66,7 +69,16 @@ export function App() {
     <div className="arq-app" style={widths}>
       <header className="arq-toolbar" data-testid="toolbar"><Toolbar /></header>
       <aside className="arq-palette" data-testid="palette"><Palette /></aside>
-      <main className="arq-main"><Canvas /></main>
+      <main className={`arq-main view-${settings.editorView}`}>
+        {/* The canvas stays mounted in the JSON view — hidden, not unmounted — so its shortcuts and
+            viewport carry on and switching back is instant. */}
+        <div className="arq-main-canvas"><Canvas /></div>
+        {settings.editorView !== "canvas" ? (
+          <Suspense fallback={<div className="arq-json" aria-busy="true" />}>
+            <JsonPanel />
+          </Suspense>
+        ) : null}
+      </main>
       <aside className="arq-inspector" data-testid="inspector"><Inspector /></aside>
       <Splitter panel="paletteWidth" label="Resize shapes panel" />
       <Splitter panel="inspectorWidth" label="Resize inspector" />

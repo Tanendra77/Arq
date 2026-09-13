@@ -136,6 +136,26 @@ An unsaved diagram shows a `*` after the title. `Ctrl+N` and Open prompt before 
 unsaved work. Errors from open, save and export appear in a banner under the toolbar rather
 than being swallowed.
 
+### The JSON view
+
+The **Canvas / Split / JSON** switch in the toolbar shows the diagram as JSON — beside the canvas,
+or on its own. It is the same JSON a `.arq` file holds, and the two stay in step both ways:
+
+- Type in the JSON and the diagram follows as soon as you pause. Every shape, label, colour, arrow
+  end and animation is there to edit. A burst of typing is one `Ctrl+Z`.
+- While the JSON is broken the diagram keeps its last good version; each problem is underlined on
+  its line and listed under the editor — click one to jump to it.
+- Change the diagram on the canvas (or undo, or open a file) and the JSON is rewritten.
+
+**Shapes don't need positions.** Leave `layout.pinned` out and Arq lays the diagram out with ELK,
+flowing in `layout.direction` (`RIGHT`, `DOWN`, `LEFT`, `UP`). Shapes that already have a position
+keep it; new ones are placed beside them. **Tidy layout** lays everything out again.
+
+**Generating a diagram with AI:** click **Copy AI instructions**, paste that into any chat model
+followed by what you want drawn, and paste the JSON it returns into the editor. The instructions
+are built from the schema itself — every shape, style key and allowed value — so they always
+match what this build accepts.
+
 ### Exporting
 
 **Export SVG** writes a self-contained `.svg` — icons are inlined, so there are no external
@@ -335,9 +355,10 @@ Phases 1 and 2 are complete. What exists today, and what does not:
 | Web app and Windows desktop app | Built |
 | Icon-pack import (draw.io libraries) | Not built |
 | Group editing on the canvas | Not built |
-| Automatic layout | Not built |
-| Animated edges | Not built |
-| AI diagram generation | Not built |
+| Automatic layout (ELK, JSON view and Tidy layout) | Built |
+| Animated edges | Built |
+| JSON view, two-way sync, AI instructions | Built |
+| In-app AI generation (prompt → diagram) | Not built |
 | Live broker metrics | Not built |
 
 `PROJECT.md` holds the full design rationale and the longer-term plan.

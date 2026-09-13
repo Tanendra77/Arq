@@ -115,3 +115,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 Hand-drawn geometry is generated with [rough.js](https://roughjs.com) (MIT),
 the same library Excalidraw draws with. It is a normal npm dependency; see
 `packages/render/package.json`.
+
+## ELK (elkjs)
+
+Automatic layout for the JSON view uses [elkjs](https://github.com/kieler/elkjs), the JavaScript
+build of the Eclipse Layout Kernel, licensed under EPL-2.0 OR GPL-3.0-or-later (Arq uses it under
+EPL-2.0). It is an unmodified npm dependency, loaded only when a layout is first needed; its source
+is available from the project above. See `packages/core/package.json`.
+
+## CodeMirror
+
+The JSON editor is built with [CodeMirror 6](https://codemirror.net) (MIT) and its Lezer JSON
+grammar (MIT). Normal npm dependencies; see `packages/core/package.json`.

@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml?query=branch%3Amain"><img src="https://github.com/Tanendra77/Arq/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status on main"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/platform-web%20%7C%20Windows-lightgrey" alt="Platform: web and Windows">
   <img src="https://img.shields.io/badge/built%20with-React%20%C2%B7%20Tauri-24c8db" alt="Built with React and Tauri">
@@ -64,17 +63,34 @@ An `.arq` file *is* JSON — the two files are identical; only the extension dif
 
 ## Contents
 
-- [Examples](#examples)
-- [Install](#install)
-- [Using Arq](#using-arq)
-- [The .arq file format](#the-arq-file-format)
-- [Development](#development)
-- [Building the desktop app](#building-the-desktop-app)
-- [Contributing](#contributing)
-- [Roadmap](#roadmap)
-- [Security](#security)
-- [Legal and trademarks](#legal-and-trademarks)
-- [License](#license)
+- [Arq](#arq)
+  - [Examples](#examples)
+  - [Contents](#contents)
+  - [Install](#install)
+    - [Windows desktop](#windows-desktop)
+    - [Web](#web)
+  - [Using Arq](#using-arq)
+    - [Creating shapes](#creating-shapes)
+    - [Connecting](#connecting)
+    - [The Inspector](#the-inspector)
+    - [Settings](#settings)
+    - [Moving and deleting](#moving-and-deleting)
+    - [Navigating the canvas](#navigating-the-canvas)
+    - [Toolbar and shortcuts](#toolbar-and-shortcuts)
+    - [The JSON view](#the-json-view)
+    - [Exporting](#exporting)
+  - [The .arq file format](#the-arq-file-format)
+  - [Development](#development)
+    - [Prerequisites](#prerequisites)
+    - [Getting started](#getting-started)
+    - [Repo layout](#repo-layout)
+    - [Tests](#tests)
+  - [Building the desktop app](#building-the-desktop-app)
+  - [Contributing](#contributing)
+  - [Roadmap](#roadmap)
+  - [Security](#security)
+  - [Legal and trademarks](#legal-and-trademarks)
+  - [License](#license)
 
 ---
 

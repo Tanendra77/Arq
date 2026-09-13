@@ -8,7 +8,8 @@ export interface DocumentLayout {
   bounds: Rect;
 }
 
-export function layoutDocument(doc: Document): DocumentLayout {
+/** `padding` is the margin kept around the content in `bounds` — what an export crops to. */
+export function layoutDocument(doc: Document, padding: number = METRICS.canvasPadding): DocumentLayout {
   const nodes = new Map<string, Rect>();
   for (const n of doc.nodes) nodes.set(n.id, shapeRect(doc.layout.pinned[n.id], n.shape));
   const groups = new Map<string, Rect>();
@@ -24,7 +25,7 @@ export function layoutDocument(doc: Document): DocumentLayout {
     // Only a loose point stretches the bounds on its own; a bound end is inside its shape already.
     for (const ep of [e.from, e.to]) if (endpointNode(ep) === undefined) points.push(ep as { x: number; y: number });
   }
-  const pad = METRICS.canvasPadding;
+  const pad = padding;
   if (all.length === 0 && points.length === 0) {
     return { nodes, groups, bounds: { x: -pad, y: -pad, w: 2 * pad, h: 2 * pad } };
   }

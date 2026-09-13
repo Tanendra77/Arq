@@ -19,6 +19,32 @@ export type RenderIconResolver = (id: string | undefined) => string | undefined;
 export interface RenderOptions {
   resolveIcon: RenderIconResolver;
   font?: "embed" | "system";
+  /**
+   * What sits behind the diagram: the canvas colour (the default), nothing at all, or the canvas
+   * colour with the editor's grid pattern drawn on it.
+   */
+  background?: "solid" | "transparent" | "grid";
+  /** The grid drawn by `background: "grid"`, aligned to document coordinates like the editor's. */
+  grid?: { variant: "dots" | "lines" | "cross"; size: number };
+  /** Margin kept around the content, in document units. Defaults to the canvas padding. */
+  padding?: number;
+}
+
+/** A pattern colour that shows on the given background without shouting over the diagram. */
+function gridColor(bg: string): string {
+  const hex = bg.length === 4 ? bg.replace(/^#(.)(.)(.)$/, "#$1$1$2$2$3$3") : bg;
+  const n = Number.parseInt(hex.slice(1), 16);
+  const luminance = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  return luminance < 0.5 ? "#4a4a4a" : "#c8c8cc";
+}
+
+function gridPattern(grid: NonNullable<RenderOptions["grid"]>, color: string): string {
+  const g = fmt(grid.size);
+  const mark =
+    grid.variant === "dots" ? `<circle cx="${fmt(grid.size / 2)}" cy="${fmt(grid.size / 2)}" r="1" fill="${color}"/>`
+    : grid.variant === "lines" ? `<path d="M${g} 0 L0 0 0 ${g}" fill="none" stroke="${color}" stroke-width="1"/>`
+    : `<path d="M${fmt(grid.size / 2 - 3)} ${fmt(grid.size / 2)} h6 M${fmt(grid.size / 2)} ${fmt(grid.size / 2 - 3)} v6" stroke="${color}" stroke-width="1"/>`;
+  return `<pattern id="arq-grid" width="${g}" height="${g}" patternUnits="userSpaceOnUse">${mark}</pattern>`;
 }
 
 /**
@@ -106,7 +132,7 @@ function renderEdge(doc: Document, id: string, nodes: Map<string, Rect>): string
 
 export function renderSvg(doc: Document, opts: RenderOptions): string {
   const font = opts.font ?? "embed";
-  const layout = layoutDocument(doc);
+  const layout = layoutDocument(doc, opts.padding);
   const b = layout.bounds;
   // FLOW_CSS travels with the file so an animated edge still animates when the SVG is opened on
   // its own, with no viewer-side scripting.
@@ -118,5 +144,11 @@ export function renderSvg(doc: Document, opts: RenderOptions): string {
   // The full-canvas background rect is the one place the document's own color (when set) wins
   // over the default — this is what makes screen and export agree on canvas color.
   const canvasFill = doc.canvasBackground ?? STYLE_DEFAULTS.canvasBackground;
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title><rect x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" fill="${canvasFill}"/>${groups}${edges}${nodes}</svg>`;
+  const background = opts.background ?? "solid";
+  const rect = (fill: string) => `<rect x="${fmt(b.x)}" y="${fmt(b.y)}" width="${fmt(b.w)}" height="${fmt(b.h)}" fill="${fill}"/>`;
+  const backdrop =
+    background === "transparent" ? ""
+    : background === "grid" && opts.grid ? `<defs>${gridPattern(opts.grid, gridColor(canvasFill))}</defs>${rect(canvasFill)}${rect("url(#arq-grid)")}`
+    : rect(canvasFill);
+  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="${fmt(b.x)} ${fmt(b.y)} ${fmt(b.w)} ${fmt(b.h)}" width="${fmt(b.w)}" height="${fmt(b.h)}">${style}${defs}<title>${escapeXml(doc.title)}</title>${backdrop}${groups}${edges}${nodes}</svg>`;
 }

@@ -6,6 +6,9 @@ test("restyle a shape and see it in the exported SVG", async ({ page }) => {
   await page.getByRole("button", { name: "Rectangle" }).dblclick();
   await page.locator(".react-flow__node").first().click();
   await page.getByLabel("Fill").fill("#ff0000");
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "SVG", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Whole diagram" }).click();
   const [dl] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export SVG" }).click(),

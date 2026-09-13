@@ -22,7 +22,29 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-main.view-json .arq-main-canvas { display: none; }
 /* The JSON view: a bar, the editor, and any problems under it. */
 .arq-json { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; background: var(--arq-bg); }
-.arq-main.view-split .arq-json { border-left: 1px solid var(--arq-line); }
+.arq-main.view-split .arq-main-canvas { flex: var(--arq-split, 0.5) 1 0; }
+.arq-main.view-split .arq-json { flex: calc(1 - var(--arq-split, 0.5)) 1 0; }
+.arq-split-divider { flex: 0 0 5px; cursor: col-resize; touch-action: none; background: var(--arq-line); }
+.arq-split-divider:hover, .arq-split-divider:focus-visible, .arq-split-divider.dragging { background: var(--arq-accent); outline: none; }
+/* Icon-only toolbar buttons: square, with the name in the tooltip and for screen readers. */
+.arq-toolbar button.arq-toolbar-icon { display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; }
+.arq-toolbar button.arq-toolbar-labelled { display: inline-flex; align-items: center; gap: 5px; }
+/* The export dialog. */
+.arq-export { width: min(440px, 92vw); }
+.arq-export-preview { display: flex; align-items: center; justify-content: center; height: 180px; border: 1px solid var(--arq-line); border-radius: 6px; overflow: hidden;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--arq-fg) 10%, transparent) 0% 25%, transparent 0% 50%) 50% / 16px 16px; }
+.arq-export-preview img { max-width: 100%; max-height: 100%; }
+.arq-choice { display: inline-flex; flex-wrap: wrap; }
+.arq-choice button { font: inherit; font-size: 12px; color: inherit; padding: 3px 9px; border: 1px solid var(--arq-line); background: none; cursor: pointer; margin-left: -1px; }
+.arq-choice button:first-child { border-radius: 4px 0 0 4px; margin-left: 0; }
+.arq-choice button:last-child { border-radius: 0 4px 4px 0; }
+.arq-choice button[aria-pressed="true"] { background: color-mix(in srgb, var(--arq-accent) 28%, transparent); border-color: var(--arq-accent); position: relative; }
+.arq-choice button:disabled { opacity: 0.4; cursor: default; }
+.arq-export-meta { margin: 0; font-size: 12px; opacity: 0.7; }
+.arq-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.arq-modal-actions button { font: inherit; color: inherit; padding: 5px 12px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; cursor: pointer; }
+.arq-modal-actions button.primary { background: var(--arq-accent); border-color: var(--arq-accent); color: #0b0b0b; }
+.arq-modal-actions button:disabled { opacity: 0.5; cursor: default; }
 .arq-json-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--arq-line); font-size: 12px; }
 .arq-json-bar button { padding: 3px 8px; border: 1px solid var(--arq-line); border-radius: 4px; background: none; color: inherit; cursor: pointer; font: inherit; }
 .arq-json-bar button:hover { background: color-mix(in srgb, var(--arq-accent) 15%, transparent); }

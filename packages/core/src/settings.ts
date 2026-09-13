@@ -11,6 +11,8 @@ export interface Settings {
   minimap: boolean;
   /** What the main area shows: the canvas, the diagram's JSON, or both side by side. */
   editorView: "canvas" | "split" | "json";
+  /** In the split view, the share of the width the canvas takes; the JSON gets the rest. */
+  splitRatio: number;
   /** Widths of the shape palette on the left and the inspector on the right, dragged by their edges. */
   paletteWidth: number;
   inspectorWidth: number;
@@ -26,7 +28,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1, theme: "system", grid: "dots", rulers: false, minimap: true, editorView: "canvas", snap: true, gridSize: 10,
+  version: 1, theme: "system", grid: "dots", rulers: false, minimap: true, editorView: "canvas", splitRatio: 0.5, snap: true, gridSize: 10,
   paletteWidth: 112, inspectorWidth: 260,
   nodeFill: STYLE_DEFAULTS.node.fill, nodeStroke: STYLE_DEFAULTS.node.stroke,
   edgeStroke: STYLE_DEFAULTS.edge.stroke, edgeArrow: "arrow",
@@ -38,6 +40,8 @@ export const PANEL_LIMITS = {
   paletteWidth: { min: 72, max: 360 },
   inspectorWidth: { min: 200, max: 560 },
 } as const;
+
+export const SPLIT_LIMITS = { min: 0.15, max: 0.85 } as const;
 
 const THEMES = ["light", "dark", "system"] as const;
 const GRIDS = ["off", "dots", "lines", "cross"] as const;
@@ -83,6 +87,7 @@ function sanitize(parsed: Partial<Settings>): Settings {
   if (typeof parsed.rulers === "boolean") s.rulers = parsed.rulers;
   if (typeof parsed.minimap === "boolean") s.minimap = parsed.minimap;
   if (EDITOR_VIEWS.includes(parsed.editorView as (typeof EDITOR_VIEWS)[number])) s.editorView = parsed.editorView as Settings["editorView"];
+  if (typeof parsed.splitRatio === "number" && parsed.splitRatio >= SPLIT_LIMITS.min && parsed.splitRatio <= SPLIT_LIMITS.max) s.splitRatio = parsed.splitRatio;
   for (const k of ["paletteWidth", "inspectorWidth"] as const) {
     const v = parsed[k];
     if (typeof v === "number" && v >= PANEL_LIMITS[k].min && v <= PANEL_LIMITS[k].max) s[k] = v;

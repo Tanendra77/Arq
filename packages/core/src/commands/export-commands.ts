@@ -1,5 +1,7 @@
 import { layoutDocument, renderSvg } from "@arq/render";
-import type { EditorStore } from "../store/editor-store";
+import type { Document } from "@arq/schema";
+import type { EditorStore, Selection } from "../store/editor-store";
+import { buildClip } from "../store/clipboard";
 import type { Platform } from "../platform";
 import type { IconResolver } from "../flow/to-flow";
 
@@ -8,10 +10,56 @@ export function fileSlug(title: string): string {
   return s || "diagram";
 }
 
-export async function exportSvg(store: EditorStore, platform: Platform, resolveIcon: IconResolver): Promise<void> {
-  const doc = store.getState().document;
-  const svg = renderSvg(doc, { resolveIcon, font: "embed" });
-  await platform.exportFile(svg, `${fileSlug(doc.title)}.svg`, "image/svg+xml");
+export interface ExportOptions {
+  format: "png" | "svg";
+  /** File name without extension; blank falls back to the diagram's title. */
+  name: string;
+  background: "solid" | "transparent" | "grid";
+  grid: { variant: "dots" | "lines" | "cross"; size: number };
+  /** The whole diagram, or only what is selected. */
+  area: "all" | "selection";
+  /** Margin around the content, in document units. */
+  padding: number;
+  /** PNG pixels per document unit. */
+  scale: number;
+}
+
+export const DEFAULT_EXPORT: Omit<ExportOptions, "name" | "grid"> = {
+  format: "png", background: "solid", area: "all", padding: 40, scale: 2,
+};
+
+/** The document an export draws: all of it, or just the selection cut out as its own diagram. */
+export function exportDocument(doc: Document, selection: Selection, area: ExportOptions["area"]): Document {
+  if (area === "all") return doc;
+  const clip = buildClip(doc, selection);
+  if (!clip) return { ...doc, nodes: [], edges: [], groups: [], layout: { ...doc.layout, pinned: {} } };
+  // Groups are not part of a selection; dropping them keeps every node's `group` reference harmless.
+  return { ...doc, nodes: clip.nodes, edges: clip.edges, groups: [], layout: { ...doc.layout, pinned: clip.pinned } };
+}
+
+/** The SVG an export produces and its size in document units — also what the dialog previews. */
+export function renderExport(doc: Document, selection: Selection, o: Omit<ExportOptions, "name" | "format" | "scale">, resolveIcon: IconResolver, font: "embed" | "system" = "embed") {
+  const target = exportDocument(doc, selection, o.area);
+  const svg = renderSvg(target, { resolveIcon, font, background: o.background, grid: o.grid, padding: o.padding });
+  const { bounds } = layoutDocument(target, o.padding);
+  return { svg, width: bounds.w, height: bounds.h };
+}
+
+/** A file name the user typed, made safe to write, with the extension the format needs. */
+export function exportFileName(name: string, title: string, format: ExportOptions["format"]): string {
+  const base = name.trim().replace(/\.(png|svg)$/i, "").replace(/[\\/:*?"<>|]+/g, "-").trim();
+  return `${base || fileSlug(title)}.${format}`;
+}
+
+export async function exportDiagram(store: EditorStore, platform: Platform, resolveIcon: IconResolver, o: ExportOptions): Promise<void> {
+  const { document, selection } = store.getState();
+  const { svg, width, height } = renderExport(document, selection, o, resolveIcon);
+  const file = exportFileName(o.name, document.title, o.format);
+  if (o.format === "svg") {
+    await platform.exportFile(svg, file, "image/svg+xml");
+    return;
+  }
+  await platform.exportFile(await svgToPng(svg, width, height, o.scale), file, "image/png");
 }
 
 /** Browser only: rasterizes through an <img>, so it is covered by the Playwright suite, not vitest. */
@@ -50,17 +98,4 @@ export async function svgToPng(svg: string, width: number, height: number, scale
   } finally {
     URL.revokeObjectURL(url);
   }
-}
-
-export async function exportPng(
-  store: EditorStore,
-  platform: Platform,
-  resolveIcon: IconResolver,
-  scale: 1 | 2 | 3,
-): Promise<void> {
-  const doc = store.getState().document;
-  const svg = renderSvg(doc, { resolveIcon, font: "embed" });
-  const { bounds } = layoutDocument(doc);
-  const bytes = await svgToPng(svg, bounds.w, bounds.h, scale);
-  await platform.exportFile(bytes, `${fileSlug(doc.title)}@${scale}x.png`, "image/png");
 }

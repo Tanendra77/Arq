@@ -78,6 +78,16 @@ a node to attach it. Edges carry no semantic type — they're styled, not typed:
 (straight, curved or orthogonal), an arrowhead per end (none, arrow, triangle, diamond or
 circle), stroke colour, width, dash and an optional glow, all editable in the Inspector.
 
+**Shaping a line.** Select a line to get dots on it:
+
+- The dots at its **ends** re-point it — drop one on a shape to attach, on open canvas to float.
+- A **right-angled** line has a dot on every leg. Drag one across to move that leg; drag the first
+  or last leg and a new turn appears right where you grabbed it — so a line can be routed around
+  whatever is in its way.
+- A **straight or curved** line has faint dots between its bends: drag one to add a bend there.
+  Drag a bend to move it, double-click it to remove it.
+- **Reset route** in the Inspector hands the line back to the automatic router.
+
 ### The Inspector
 
 The panel on the right edits whatever is selected: the document (title, canvas background)
@@ -138,8 +148,9 @@ than being swallowed.
 
 ### The JSON view
 
-The **Canvas / Split / JSON** switch in the toolbar shows the diagram as JSON — beside the canvas,
-or on its own. It is the same JSON a `.arq` file holds, and the two stay in step both ways:
+The **Canvas / Split / JSON** switch in the toolbar (hover an icon for its name) shows the diagram as JSON — beside the canvas,
+or on its own; in the split view, drag the bar between them to share the width. It is the same
+JSON a `.arq` file holds, and the two stay in step both ways:
 
 - Type in the JSON and the diagram follows as soon as you pause. Every shape, label, colour, arrow
   end and animation is there to edit. A burst of typing is one `Ctrl+Z`.
@@ -158,10 +169,13 @@ match what this build accepts.
 
 ### Exporting
 
-**Export SVG** writes a self-contained `.svg` — icons are inlined, so there are no external
-references and the file renders anywhere. **Export PNG** rasterizes that same SVG at the scale
-chosen in the adjacent dropdown (1x, 2x or 3x). Both honour the document's `canvasBackground`
-when it's set, from the same Inspector-edited field the canvas renders live.
+**Export** opens a dialog with a live preview of exactly what will be written:
+
+- **File name** and **format** — PNG, or SVG (self-contained: the font and icons are inlined, and
+  animations keep playing).
+- **Background** — plain (the canvas colour), transparent, or the canvas colour with its grid.
+- **Area** — the whole diagram, or only the selection.
+- **Padding** around the content, and for PNG the **size** (1x–4x); the final pixel size is shown.
 
 Because the canvas and the exporter share one geometry module, exported node sizes and edge
 routes match what you saw on screen.

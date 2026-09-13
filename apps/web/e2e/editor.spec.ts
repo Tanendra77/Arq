@@ -65,6 +65,8 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   await expect(page.locator(".react-flow__edge")).toHaveCount(1);
 
   // Export SVG.
+  await page.getByRole("button", { name: "Export", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "SVG", exact: true }).click();
   const [svgDl] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export SVG" }).click(),
@@ -82,6 +84,7 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   expect(svg).toContain("@font-face"); // the sketch font travels with the file
 
   // Export PNG.
+  await page.getByRole("button", { name: "Export", exact: true }).click();
   const [pngDl] = await Promise.all([
     page.waitForEvent("download"),
     page.getByRole("button", { name: "Export PNG" }).click(),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DocumentSchema } from "@arq/schema";
+import { DocumentSchema, emptyDocument } from "@arq/schema";
 import { layoutDocument, renderSvg, METRICS, DEFAULT_NODE_SIZE, STYLE_DEFAULTS } from "../src/index";
 import fixture from "./fixtures/two-nodes.json";
 
@@ -402,5 +402,26 @@ describe("animation speed, direction and marching borders", () => {
     const svg = renderSvg(one([{ id: "n1", shape: "text", label: "A", style: { animate: "flow" } }], []), opts);
     // The keyframes are always in the stylesheet; what matters is that nothing references them.
     expect(/<g class="arq-node"[\s\S]*?<\/g>/.exec(svg)![0]).not.toContain("arq-flow");
+  });
+});
+
+describe("export options", () => {
+  const doc = { ...emptyDocument("T"), nodes: [{ id: "a", shape: "rect" as const, label: "A" }], layout: { engine: "elk" as const, direction: "RIGHT" as const, pinned: { a: { x: 0, y: 0 } } } };
+  const render = (o: Partial<Parameters<typeof renderSvg>[1]> = {}) => renderSvg(doc, { resolveIcon: () => undefined, font: "system", ...o });
+
+  it("defaults are exactly what an export always was", () => {
+    expect(render({ background: "solid", padding: 40 })).toBe(render());
+  });
+
+  it("a transparent export has no backdrop, and padding crops the frame", () => {
+    expect(render()).toContain("</title><rect");
+    expect(render({ background: "transparent" })).toContain("</title><g"); // straight into the diagram
+    expect(render({ padding: 0 })).toContain('viewBox="0 0 120 80"');
+  });
+
+  it("a grid export tiles the pattern over the canvas colour", () => {
+    const svg = render({ background: "grid", grid: { variant: "dots", size: 20 } });
+    expect(svg).toContain('<pattern id="arq-grid" width="20" height="20"');
+    expect(svg).toContain('fill="url(#arq-grid)"');
   });
 });

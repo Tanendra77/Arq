@@ -12,9 +12,12 @@ export type PaletteItem =
   | { key: string; label: string; kind: "edge"; endArrow: ArrowStyle }
   /** Tools make nothing by being placed: the pen draws strokes and the eraser removes things. */
   | { key: string; label: string; kind: "pen" }
-  | { key: string; label: string; kind: "eraser" };
+  | { key: string; label: string; kind: "eraser" }
+  /** Drags the view around instead of anything in it. Space held down does the same, briefly. */
+  | { key: string; label: string; kind: "hand" };
 
 export const PALETTE_ITEMS: readonly PaletteItem[] = [
+  { key: "hand", label: "Hand (H)", kind: "hand" },
   { key: "rect", label: "Rectangle", kind: "node", shape: "rect" },
   { key: "ellipse", label: "Ellipse", kind: "node", shape: "ellipse" },
   { key: "diamond", label: "Diamond", kind: "node", shape: "diamond" },
@@ -34,7 +37,8 @@ export const PALETTE_ITEMS: readonly PaletteItem[] = [
 ] as const;
 
 /** Tools stay armed after use — you draw several strokes, or wipe across several things, in a row. */
-export const isTool = (item: PaletteItem): boolean => item.kind === "pen" || item.kind === "eraser";
+export const isTool = (item: PaletteItem): boolean =>
+  item.kind === "pen" || item.kind === "eraser" || item.kind === "hand";
 
 /** A sticky note is yellow wherever it is made, in either theme: the colour is what makes it a note. */
 export const NOTE_FILL = "#ffe98a";
@@ -81,7 +85,7 @@ export function placeItem(
   api: { addNode: (input: NewNode) => string; addEdge: (input: NewEdge) => string },
   size?: { w: number; h: number },
 ): void {
-  if (item.kind === "pen" || item.kind === "eraser") return; // tools are used, not placed
+  if (item.kind === "pen" || item.kind === "eraser" || item.kind === "hand") return; // tools are used, not placed
   if (item.kind === "node") {
     api.addNode({
       shape: item.shape,
@@ -121,7 +125,7 @@ function subscribeTool(listener: () => void): () => void {
   return () => toolListeners.delete(listener);
 }
 
-function getActiveTool(): string | null {
+export function getActiveToolKey(): string | null {
   return activeTool;
 }
 
@@ -132,7 +136,7 @@ export function setActiveTool(key: string | null): void {
 }
 
 export function useActiveTool(): [string | null, (key: string | null) => void] {
-  return [useSyncExternalStore(subscribeTool, getActiveTool), setActiveTool];
+  return [useSyncExternalStore(subscribeTool, getActiveToolKey), setActiveTool];
 }
 
 const SWATCH_BOX = { x: 4, y: 4, w: 24, h: 24 };
@@ -140,6 +144,8 @@ const SWATCH_BOX = { x: 4, y: 4, w: 24, h: 24 };
 // Tool icons, which have no shape geometry to borrow: a pencil, and an eraser block.
 const PEN_GLYPH =
   '<svg viewBox="0 0 32 32" width="20" height="20"><path d="M6 26 L9 18 L21 6 L26 11 L14 23 Z M19 8 L24 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+const HAND_GLYPH =
+  '<svg viewBox="0 0 32 32" width="20" height="20"><path d="M11 17 V8 a2 2 0 0 1 4 0 V15 V6 a2 2 0 0 1 4 0 V15 V8 a2 2 0 0 1 4 0 V19 c0 5 -3 8 -7 8 c-3 0 -5 -1 -7 -4 L6 18 a2 2 0 0 1 3 -2 Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 const ERASER_GLYPH =
   '<svg viewBox="0 0 32 32" width="20" height="20"><path d="M12 25 L5 18 L17 6 L27 16 L18 25 Z M11 12 L21 22 M12 25 H27" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
 
@@ -148,6 +154,7 @@ const ERASER_GLYPH =
 function swatch(item: PaletteItem): string {
   if (item.kind === "pen") return PEN_GLYPH;
   if (item.kind === "eraser") return ERASER_GLYPH;
+  if (item.kind === "hand") return HAND_GLYPH;
   if (item.kind === "node") {
     const outline = shapeOutline(item.shape, SWATCH_BOX, 3);
     if (!outline) return ""; // "text": no outline, same as the renderer

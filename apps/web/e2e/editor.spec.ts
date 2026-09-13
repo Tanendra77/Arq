@@ -51,8 +51,10 @@ test("create, connect, save, reload, open, export", async ({ page }) => {
   expect(saved.edges).toHaveLength(1);
   expect(Object.values(saved.layout.pinned).some((p) => p.x > 200)).toBe(true);
 
-  // Reload and open the saved file.
+  // Reload keeps the autosaved diagram; New clears it (no prompt — it was just saved); then open the file.
   await page.reload();
+  await expect(page.locator(".react-flow__node")).toHaveCount(2);
+  await page.getByRole("button", { name: "New" }).click();
   await expect(page.locator(".react-flow__node")).toHaveCount(0);
   const [chooser] = await Promise.all([
     page.waitForEvent("filechooser"),

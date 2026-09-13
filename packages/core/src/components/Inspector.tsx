@@ -212,6 +212,8 @@ function DocumentPanel() {
         onChange={(v) => setSettingsPatch({ snap: v })} />
       <CheckboxField label="Rulers" checked={settings.rulers}
         onChange={(v) => setSettingsPatch({ rulers: v })} />
+      <CheckboxField label="Minimap" checked={settings.minimap}
+        onChange={(v) => setSettingsPatch({ minimap: v })} />
     </div>
   );
 }

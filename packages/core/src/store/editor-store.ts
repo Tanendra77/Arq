@@ -7,6 +7,8 @@ import {
   NodeStyleSchema,
   emptyDocument,
   endpointNode,
+  isAnchored,
+  isNodeRef,
   type Document,
   type EdgeStyle,
   type Endpoint,
@@ -14,6 +16,7 @@ import {
   type NodeStyle,
   type Pinned,
 } from "@arq/schema";
+import type { Clip } from "./clipboard";
 import { parseEndpointNodeId } from "../flow/endpoint-id";
 
 enablePatches();
@@ -106,7 +109,8 @@ export interface EditorState {
    */
   notice: string[] | null;
 
-  loadDocument(doc: Document, filePath: string | null): void;
+  /** `dirty` restores an unsaved state across a reload — an autosaved draft is not a saved file. */
+  loadDocument(doc: Document, filePath: string | null, opts?: { dirty?: boolean }): void;
   markSaved(filePath: string | null): void;
   setNotice(lines: string[] | null): void;
   setSelection(sel: Selection): void;
@@ -126,6 +130,10 @@ export interface EditorState {
   setLabel(id: string, label: string): void;
   setStyle(ids: string[], patch: StylePatch, opts?: MutateOptions): void;
   setEndpoint(edgeId: string, which: "from" | "to", ep: Endpoint, opts?: MutateOptions): void;
+  /** Adds a copied set of elements under fresh ids, shifted by (dx, dy), as one undo step. Returns what was added. */
+  insertClip(clip: Clip, dx: number, dy: number): Selection;
+  /** Shifts nodes and the loose ends of edges together, as one mutation. */
+  moveBy(nodeIds: string[], edgeIds: string[], dx: number, dy: number, opts?: MutateOptions): void;
 }
 
 export type EditorStore = StoreApi<EditorState>;
@@ -140,6 +148,12 @@ export function newId(prefix: string, existing: Set<string>): string {
 function isDirty(past: HistoryEntry[], savedEntry: HistoryEntry | null): boolean {
   return (past[past.length - 1] ?? null) !== savedEntry;
 }
+
+/**
+ * Stands in for "the state that was last saved" when a draft is restored dirty: it is never on the
+ * undo stack, so the document reads as unsaved until the next real save.
+ */
+const UNSAVED: HistoryEntry = { name: "restored draft", patches: [], inverse: [], at: 0 };
 
 function samePinned(a: Pinned | undefined, b: Pinned): boolean {
   return a !== undefined && a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
@@ -188,15 +202,15 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
     savedEntry: null,
     notice: null,
 
-    loadDocument(doc, filePath) {
+    loadDocument(doc, filePath, opts = {}) {
       set({
         document: doc,
         filePath,
-        dirty: false,
+        dirty: opts.dirty === true,
         selection: { nodes: [], edges: [] },
         past: [],
         future: [],
-        savedEntry: null,
+        savedEntry: opts.dirty === true ? UNSAVED : null,
         notice: null,
       });
     },
@@ -436,6 +450,69 @@ export function createEditorStore(initial: Document = emptyDocument()): EditorSt
       get().mutate("set endpoint", (d) => {
         const e = d.edges.find((x) => x.id === edgeId);
         if (e) e[which] = ep;
+      }, opts);
+    },
+
+    insertClip(clip, dx, dy) {
+      const doc = get().document;
+      const taken = new Set([...doc.nodes.map((n) => n.id), ...doc.groups.map((g) => g.id)]);
+      const groups = new Set(doc.groups.map((g) => g.id));
+      const ids = new Map<string, string>();
+      const nodes = clip.nodes.map((n) => {
+        const id = newId(n.shape, taken);
+        taken.add(id);
+        ids.set(n.id, id);
+        const copy = { ...n, id };
+        // A group only means something in the document it came from.
+        if (copy.group !== undefined && !groups.has(copy.group)) delete copy.group;
+        return copy;
+      });
+      const edgeIds = new Set(doc.edges.map((e) => e.id));
+      const shift = (ep: Endpoint): Endpoint | undefined => {
+        if (isNodeRef(ep)) return ids.get(ep);
+        if (isAnchored(ep)) {
+          const node = ids.get(ep.node);
+          return node === undefined ? undefined : { ...ep, node };
+        }
+        return { x: ep.x + dx, y: ep.y + dy };
+      };
+      const edges = clip.edges.flatMap((e) => {
+        const from = shift(e.from);
+        const to = shift(e.to);
+        if (from === undefined || to === undefined) return []; // bound to something that was not copied
+        const id = newId("e", edgeIds);
+        edgeIds.add(id);
+        return [{ ...e, id, from, to }];
+      });
+      if (nodes.length === 0 && edges.length === 0) return { nodes: [], edges: [] };
+      get().mutate("paste", (d) => {
+        for (const n of nodes) d.nodes.push(n);
+        for (const e of edges) d.edges.push(e);
+        for (const [from, to] of ids) {
+          const p = clip.pinned[from] ?? { x: 0, y: 0 };
+          d.layout.pinned[to] = { ...p, x: p.x + dx, y: p.y + dy };
+        }
+      });
+      return { nodes: nodes.map((n) => n.id), edges: edges.map((e) => e.id) };
+    },
+
+    moveBy(nodeIds, edgeIds, dx, dy, opts) {
+      const nodes = new Set(nodeIds);
+      const edges = new Set(edgeIds);
+      get().mutate("move", (d) => {
+        for (const n of d.nodes) {
+          if (!nodes.has(n.id)) continue;
+          const p = d.layout.pinned[n.id] ?? { x: 0, y: 0 };
+          d.layout.pinned[n.id] = { ...p, x: p.x + dx, y: p.y + dy };
+        }
+        for (const e of d.edges) {
+          if (!edges.has(e.id)) continue;
+          // Bound ends follow their shapes; only a loose end is a position of the edge's own.
+          for (const side of ["from", "to"] as const) {
+            const ep = e[side];
+            if (typeof ep === "object" && !isAnchored(ep)) e[side] = { x: ep.x + dx, y: ep.y + dy };
+          }
+        }
       }, opts);
     },
   }));

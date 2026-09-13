@@ -8,6 +8,10 @@ export interface Settings {
   theme: "light" | "dark" | "system";
   grid: "off" | "dots" | "lines" | "cross";
   rulers: boolean;
+  minimap: boolean;
+  /** Widths of the shape palette on the left and the inspector on the right, dragged by their edges. */
+  paletteWidth: number;
+  inspectorWidth: number;
   snap: boolean;
   gridSize: number;
   nodeFill: string;
@@ -20,11 +24,18 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1, theme: "system", grid: "dots", rulers: false, snap: true, gridSize: 10,
+  version: 1, theme: "system", grid: "dots", rulers: false, minimap: true, snap: true, gridSize: 10,
+  paletteWidth: 112, inspectorWidth: 260,
   nodeFill: STYLE_DEFAULTS.node.fill, nodeStroke: STYLE_DEFAULTS.node.stroke,
   edgeStroke: STYLE_DEFAULTS.edge.stroke, edgeArrow: "arrow",
   polygonSides: 6, starPoints: 5,
 };
+
+/** How far each side panel can be dragged. */
+export const PANEL_LIMITS = {
+  paletteWidth: { min: 72, max: 360 },
+  inspectorWidth: { min: 200, max: 560 },
+} as const;
 
 const THEMES = ["light", "dark", "system"] as const;
 const GRIDS = ["off", "dots", "lines", "cross"] as const;
@@ -67,6 +78,11 @@ function sanitize(parsed: Partial<Settings>): Settings {
   if (GRIDS.includes(parsed.grid as (typeof GRIDS)[number])) s.grid = parsed.grid as Settings["grid"];
   if (typeof parsed.snap === "boolean") s.snap = parsed.snap;
   if (typeof parsed.rulers === "boolean") s.rulers = parsed.rulers;
+  if (typeof parsed.minimap === "boolean") s.minimap = parsed.minimap;
+  for (const k of ["paletteWidth", "inspectorWidth"] as const) {
+    const v = parsed[k];
+    if (typeof v === "number" && v >= PANEL_LIMITS[k].min && v <= PANEL_LIMITS[k].max) s[k] = v;
+  }
   if (typeof parsed.gridSize === "number" && parsed.gridSize > 0) s.gridSize = parsed.gridSize;
   if (ColorSchema.safeParse(parsed.nodeFill).success) s.nodeFill = parsed.nodeFill as string;
   if (ColorSchema.safeParse(parsed.nodeStroke).success) s.nodeStroke = parsed.nodeStroke as string;

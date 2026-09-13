@@ -3,8 +3,10 @@ import {
   Background,
   BackgroundVariant,
   Controls,
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  useKeyPress,
   useNodesInitialized,
   useReactFlow,
   ViewportPortal,
@@ -125,7 +127,8 @@ function DrawPreview({
   /** The pen's samples so far, in flow coordinates. */
   stroke: readonly { x: number; y: number }[];
 }) {
-  if (item.kind === "eraser") return null; // the elements it will take are faded in place instead
+  // The eraser fades what it will take in place instead; the hand draws nothing.
+  if (item.kind === "eraser" || item.kind === "hand") return null;
   if (item.kind === "pen") {
     if (stroke.length < 2) return null;
     // Drawn through the same `freehandPathD` the finished node uses, so lifting the pen changes
@@ -198,6 +201,10 @@ function CanvasInner() {
   const [settings] = useSettings();
   const [tool, setTool] = useActiveTool();
   const armed: PaletteItem | undefined = PALETTE_ITEMS.find((i) => i.key === tool);
+  // Space held down borrows the hand for as long as it is held, whatever tool is armed. React Flow's
+  // own key tracking, so typing a space in a label never counts.
+  const spaceHeld = useKeyPress("Space");
+  const panning = spaceHeld || armed?.kind === "hand";
 
   /** Where the drawing gesture was pressed, in screen coordinates; null when none is in flight. */
   const dragFrom = useRef<{ x: number; y: number } | null>(null);
@@ -364,14 +371,14 @@ function CanvasInner() {
    */
   const onMouseDown = useCallback(
     (e: MouseEvent) => {
-      if (armed === undefined || e.button !== 0) return;
+      if (armed === undefined || panning || e.button !== 0) return;
       dragFrom.current = { x: e.clientX, y: e.clientY };
       const at = screenToFlowPosition({ x: e.clientX, y: e.clientY });
       setDrag({ from: at, to: at });
       if (armed.kind === "pen") setStroke([at]);
       if (armed.kind === "eraser") setErasing(collectHits(new Set(), at));
     },
-    [armed, screenToFlowPosition, collectHits],
+    [armed, panning, screenToFlowPosition, collectHits],
   );
 
   const onMouseMove = useCallback(
@@ -452,7 +459,7 @@ function CanvasInner() {
 
   return (
     <div
-      className={`arq-canvas${tool !== null ? " armed" : ""}`}
+      className={`arq-canvas${panning ? " panning" : tool !== null ? " armed" : ""}`}
       data-testid="canvas"
       onDragOver={onDragOver}
       onDrop={onDrop}
@@ -476,12 +483,13 @@ function CanvasInner() {
         // With a tool armed the canvas only draws: pressing on a shape must start the gesture, not
         // pick the shape up. Without this, dragging an arrow from one shape to another dragged the
         // first shape on top of the second instead.
-        nodesDraggable={armed === undefined}
-        elementsSelectable={armed === undefined}
+        // Panning takes the left button too, and grabbing a shape drags the view rather than the shape.
+        nodesDraggable={armed === undefined && !panning}
+        elementsSelectable={armed === undefined && !panning}
         panOnScroll
         zoomOnScroll={false}
         zoomOnPinch
-        panOnDrag={[1, 2]}
+        panOnDrag={panning ? true : [1, 2]}
         minZoom={0.1}
         maxZoom={4}
         snapToGrid={settings.snap}
@@ -493,6 +501,15 @@ function CanvasInner() {
         ) : null}
         {settings.rulers ? <Rulers pointer={pointer} /> : null}
         <Controls />
+        {settings.minimap ? (
+          <MiniMap
+            pannable
+            zoomable
+            ariaLabel="Minimap"
+            // The stand-ins for loose line ends are 1px geometry, not something to see.
+            nodeClassName={(n) => (n.type === "arqEndpoint" ? "arq-minimap-hidden" : "")}
+          />
+        ) : null}
         {/* Drawn inside the flow's own viewport, so the preview sits in document coordinates and
             scales and pans with everything else instead of being re-projected by hand. */}
         {drag !== null && armed !== undefined ? (

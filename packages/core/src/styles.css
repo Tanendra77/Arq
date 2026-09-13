@@ -8,12 +8,17 @@
 :root[data-theme="light"] { color-scheme: light; --arq-bg: #fafafa; --arq-fg: #1a1a1a; --arq-line: #d0d0d0; }
 :root[data-theme="dark"] { color-scheme: dark; --arq-bg: #161616; --arq-fg: #ececec; --arq-line: #333; }
 html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sans-serif; color: var(--arq-fg); background: var(--arq-bg); }
-.arq-app { display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: 112px 1fr 260px; grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
+.arq-app { position: relative; display: grid; height: 100%; grid-template-rows: 40px 1fr; grid-template-columns: var(--arq-left, 112px) 1fr var(--arq-right, 260px); grid-template-areas: "toolbar toolbar toolbar" "palette main inspector"; }
 .arq-toolbar { grid-area: toolbar; display: flex; align-items: center; gap: 6px; padding: 0 8px; border-bottom: 1px solid var(--arq-line); }
 .arq-palette { grid-area: palette; border-right: 1px solid var(--arq-line); overflow: auto; }
 /* `--arq-canvas-bg` is unset by default (the canvas shows through to the app background); the
    Inspector's "Canvas background" field sets it on the root element when the user picks one. */
 .arq-main { grid-area: main; min-width: 0; background: var(--arq-canvas-bg, transparent); }
+/* Drag handles on the inner edge of each side panel. */
+.arq-splitter { position: absolute; top: 40px; bottom: 0; width: 7px; margin-left: -3px; z-index: 6; cursor: col-resize; touch-action: none; }
+.arq-splitter-left { left: var(--arq-left, 112px); }
+.arq-splitter-right { left: calc(100% - var(--arq-right, 260px)); }
+.arq-splitter:hover, .arq-splitter:focus-visible, .arq-splitter.dragging { background: color-mix(in srgb, var(--arq-accent) 45%, transparent); outline: none; }
 .arq-inspector { grid-area: inspector; border-left: 1px solid var(--arq-line); overflow: auto; }
 .arq-inspector-inner { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .arq-inspector-inner h3 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; opacity: 0.6; }
@@ -43,6 +48,25 @@ html, body, #root { height: 100%; margin: 0; font: 13px/1.4 Inter, system-ui, sa
 .arq-canvas { width: 100%; height: 100%; position: relative; }
 /* A palette tool is armed: the next click on empty canvas places it. */
 .arq-canvas.armed, .arq-canvas.armed .react-flow__pane { cursor: crosshair; }
+/* The hand, or Space held: the whole canvas grabs the view, shapes included. */
+.arq-canvas.panning, .arq-canvas.panning .react-flow__pane, .arq-canvas.panning .react-flow__node { cursor: grab; }
+.arq-canvas.panning .react-flow__pane.dragging { cursor: grabbing; }
+/* Zoom buttons and minimap in the app's own theme tokens, so they follow light, dark and system alike. */
+.arq-canvas .react-flow {
+  --xy-controls-button-background-color: var(--arq-bg);
+  --xy-controls-button-background-color-hover: color-mix(in srgb, var(--arq-accent) 18%, var(--arq-bg));
+  --xy-controls-button-color: var(--arq-fg);
+  --xy-controls-button-color-hover: var(--arq-fg);
+  --xy-controls-button-border-color: var(--arq-line);
+  --xy-controls-box-shadow: 0 0 0 1px var(--arq-line);
+  --xy-minimap-background-color: var(--arq-bg);
+  --xy-minimap-mask-background-color: color-mix(in srgb, var(--arq-fg) 10%, transparent);
+  --xy-minimap-mask-stroke-color: var(--arq-accent);
+  --xy-minimap-mask-stroke-width: 1;
+  --xy-minimap-node-background-color: color-mix(in srgb, var(--arq-fg) 40%, transparent);
+}
+.arq-canvas .react-flow__minimap { border: 1px solid var(--arq-line); border-radius: 4px; overflow: hidden; }
+.react-flow__minimap-node.arq-minimap-hidden { display: none; }
 /* Optional rulers, laid over the canvas edges. `pointer-events: none` throughout: they are a
    readout, and must never intercept a click meant for the diagram underneath. */
 .arq-rulers { position: absolute; inset: 0; pointer-events: none; z-index: 6; }

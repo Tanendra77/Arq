@@ -122,9 +122,15 @@ the whole gesture. **Delete** or **Backspace** removes the selection, also as on
 | Undo | `Ctrl+Z` |
 | Redo | `Ctrl+Y` or `Ctrl+Shift+Z` |
 | Select all | `Ctrl+A` |
+| Copy / Cut / Paste selection | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` |
 | Duplicate selection | `Ctrl+D` |
 | Nudge selection | Arrow keys (`Shift` for 10px) |
 | Delete selection | `Delete` / `Backspace` |
+| Pan | Hold `Space` and drag, or the hand tool (`H`); `V` puts it down |
+
+The diagram autosaves to browser storage as you work (web and desktop alike) and comes back after
+a reload or restart. That draft is local to the machine — save to a `.arq` file to keep or share it.
+Copied elements go through the system clipboard, so they paste into another tab or window.
 
 An unsaved diagram shows a `*` after the title. `Ctrl+N` and Open prompt before discarding
 unsaved work. Errors from open, save and export appear in a banner under the toolbar rather

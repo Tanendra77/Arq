@@ -29,7 +29,10 @@ jobs:
           path: apps/web/playwright-report
 
   desktop:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     needs: test
     steps:
       - uses: actions/checkout@v4
@@ -44,5 +47,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: apps/desktop/src-tauri
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @arq/desktop tauri build --no-bundle
